@@ -10,8 +10,23 @@ class WelcomePage extends StatelessWidget {
     return Scaffold(
       body: Container(
         color: Colors.white,
-        child: SafeArea(
-          child: Padding(
+        child: Stack(
+          children: [
+            // Forma superior azul oscuro
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: ClipPath(
+                clipper: _TopWaveClipper(),
+                child: Container(
+                  height: 160,
+                  color: const Color(0xFF052D4F),
+                ),
+              ),
+            ),
+            SafeArea(
+              child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -22,7 +37,7 @@ class WelcomePage extends StatelessWidget {
                   height: 60,
                   width: 60,
                   fit: BoxFit.contain,
-                  color: const Color(0xFF052D4F), // --sima-navy
+                  color: const Color(0xFF39A900), // verde SENA
                   colorBlendMode: BlendMode.srcIn,
                   errorBuilder: (context, error, stackTrace) {
                     // Fallback if logo is missing
@@ -37,7 +52,7 @@ class WelcomePage extends StatelessWidget {
                         child: Text(
                           'SENA',
                           style: TextStyle(
-                            color: const Color(0xFF052D4F),
+                            color: const Color(0xFF39A900),
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
@@ -46,18 +61,18 @@ class WelcomePage extends StatelessWidget {
                     );
                   },
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 8), // Reducido para subir el texto
 
                 // Welcome text
                 const Text(
                   'Bienvenido a SIMA',
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: 24, // Un poco más grande
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF20BCE3), // --sima-cyan
+                    color: Colors.white, // Color blanco
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 24),
                 const Text(
                   'Sistema Integral\nde Monitoreo del\nAprendiz',
                   style: TextStyle(
@@ -119,9 +134,9 @@ class WelcomePage extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
 
-                // Button "Iniciar sesión" (Green Gradient)
+                // Button "Iniciar" (Green Gradient)
                 CustomButton(
-                  text: 'Iniciar sesión',
+                  text: 'Iniciar',
                   gradient: const LinearGradient(
                     colors: [
                       Color(0xFF39A900), // --sima-green
@@ -144,7 +159,32 @@ class WelcomePage extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
+      ],
+    ),
+  ),
+);
   }
+}
+
+class _TopWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    var path = Path();
+    path.lineTo(0, size.height - 40);
+    
+    var firstControlPoint = Offset(size.width / 4, size.height);
+    var firstEndPoint = Offset(size.width / 2.25, size.height - 30);
+    path.quadraticBezierTo(firstControlPoint.dx, firstControlPoint.dy, firstEndPoint.dx, firstEndPoint.dy);
+
+    var secondControlPoint = Offset(size.width - (size.width / 3.25), size.height - 65);
+    var secondEndPoint = Offset(size.width, size.height - 40);
+    path.quadraticBezierTo(secondControlPoint.dx, secondControlPoint.dy, secondEndPoint.dx, secondEndPoint.dy);
+
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
