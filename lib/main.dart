@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:sima_movil_froned/features/access.dart';
+import 'package:sima_movil_froned/features/login/welcome_page.dart';
 
 void main() {
   runApp(const SimaApp());
@@ -15,13 +15,14 @@ class SimaApp extends StatelessWidget {
       title: 'SIMA',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF44C21E),
-          primary: const Color(0xFF44C21E),
+          seedColor: const Color(0xFF39A900), // Verde SENA
+          primary: const Color(0xFF39A900),
+          secondary: const Color(0xFF001B44), // Azul oscuro
         ),
-        scaffoldBackgroundColor: const Color(0xFFF7F8FA),
+        scaffoldBackgroundColor: Colors.white,
         useMaterial3: true,
       ),
-      home: const AccessPage(),
+      home: const WelcomePage(),
     );
   }
 }
