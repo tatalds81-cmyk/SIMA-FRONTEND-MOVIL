@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:sima_movil_froned/features/access.dart';
+import 'package:sima_movil_froned/features/login/widgets/forgot_password_page.dart';
 import 'widgets/custom_input.dart';
 import 'widgets/custom_button.dart';
+
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -186,7 +188,13 @@ class _LoginPageState extends State<LoginPage> {
                           alignment: Alignment.centerRight,
                           child: TextButton(
                             onPressed: () {
-                              // Forgot password placeholder
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:(context)=>
+                                  const ForgotPasswordPage(),
+                                  ),
+                              );
                             },
                             style: TextButton.styleFrom(
                               padding: EdgeInsets.zero,
