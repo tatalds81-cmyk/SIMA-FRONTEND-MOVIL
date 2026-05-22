@@ -1,30 +1,50 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sima_movil_froned/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('SIMA app opens apprentice profile details', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const SimaApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(find.text('Inicio'), findsWidgets);
+    expect(find.text('Pantalla principal de SIMA'), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    await tester.tap(find.text('Perfil'));
+    await tester.pumpAndSettle();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('Juan Pérez García'), findsOneWidget);
+    expect(find.text('Perfil del aprendiz'), findsOneWidget);
+    expect(find.text('Cuenta'), findsNothing);
+
+    await tester.tap(find.byTooltip('Configuración'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cerrar sesión'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Cerrar'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Observaciones'));
+    await tester.pumpAndSettle();
+    expect(find.text('Seguimiento académico'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Cerrar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Datos personales'), findsOneWidget);
+    await tester.tap(find.text('Datos personales'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Información personal'), findsOneWidget);
+    expect(find.text('Nombres'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('juan.perez@misena.edu.co'),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('juan.perez@misena.edu.co'), findsOneWidget);
   });
 }
