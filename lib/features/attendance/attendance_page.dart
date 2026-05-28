@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'dart:math' as math;
 
 class AttendancePage extends StatefulWidget {
   const AttendancePage({super.key});
@@ -13,6 +14,57 @@ class _AttendancePageState extends State<AttendancePage>
   late TabController _tabController;
   String _selectedMonth = 'Mayo 2024';
   String _selectedFilter = 'Todos';
+
+  String _selectedTrimester = 'Trimestre 1';
+
+  final Map<String, Map<String, dynamic>> _trimesterData = {
+    'Trimestre 1': {
+      'presente': 45,
+      'ausente': 5,
+      'retardado': 8,
+      'justificado': 2,
+      'details': {
+        'presente': [
+          {'fecha': '20 may 2024', 'instructor': 'Juan Pérez', 'motivo': 'Asistencia normal', 'estado': 'Presente', 'actualizacion': '20 may 12:00'},
+          {'fecha': '19 may 2024', 'instructor': 'Ana Gómez', 'motivo': 'Asistencia normal', 'estado': 'Presente', 'actualizacion': '19 may 12:00'},
+          {'fecha': '18 may 2024', 'instructor': 'Juan Pérez', 'motivo': 'Asistencia normal', 'estado': 'Presente', 'actualizacion': '18 may 12:00'},
+        ],
+        'ausente': [
+          {'fecha': '15 may 2024', 'instructor': 'Carlos López', 'motivo': 'Sin excusa', 'estado': 'Falta', 'actualizacion': '15 may 14:00'},
+          {'fecha': '12 may 2024', 'instructor': 'Ana Gómez', 'motivo': 'Falla de conexión', 'estado': 'Falta', 'actualizacion': '12 may 10:00'},
+        ],
+        'retardado': [
+          {'fecha': '10 may 2024', 'instructor': 'Juan Pérez', 'motivo': 'Tráfico', 'estado': 'Retardo', 'actualizacion': '10 may 09:00'},
+        ],
+        'justificado': [
+          {'fecha': '05 may 2024', 'instructor': 'Ana Gómez', 'motivo': 'Cita médica', 'estado': 'Justificada', 'actualizacion': '06 may 10:00'},
+        ],
+      }
+    },
+    'Trimestre 2': {
+      'presente': 38,
+      'ausente': 2,
+      'retardado': 4,
+      'justificado': 1,
+      'details': {
+        'presente': [],
+        'ausente': [
+          {'fecha': '12 jun 2024', 'instructor': 'Carlos López', 'motivo': 'Problemas familiares', 'estado': 'Falta', 'actualizacion': '12 jun 14:00'},
+        ],
+        'retardado': [],
+        'justificado': [],
+      }
+    },
+    'Trimestre 3': {
+      'presente': 50,
+      'ausente': 0,
+      'retardado': 0,
+      'justificado': 0,
+      'details': {
+        'presente': [], 'ausente': [], 'retardado': [], 'justificado': [],
+      }
+    },
+  };
 
   final List<Map<String, dynamic>> _mockData = [
     {
@@ -438,13 +490,185 @@ class _AttendancePageState extends State<AttendancePage>
     );
   }
 
+  void _showDetailBottomSheet(String category, String status, Color color) {
+    final data = _trimesterData[_selectedTrimester]!['details'][category] as List<dynamic>;
+    final int count = _trimesterData[_selectedTrimester]![category] as int;
+    final String instructor = data.isNotEmpty ? data.first['instructor'] : 'N/A';
+    final String ultActualizacion = data.isNotEmpty ? data.first['actualizacion'] : 'N/A';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.65,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Tooltip / Header
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Detalle de $status',
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          color: color,
+                          onPressed: () => Navigator.pop(context),
+                        )
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildTooltipInfo('Cantidad', '$count'),
+                        _buildTooltipInfo('Instructor', instructor),
+                        _buildTooltipInfo('Última act.', ultActualizacion),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: data.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No hay registros en este trimestre.',
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(20),
+                        itemCount: data.length,
+                        itemBuilder: (context, index) {
+                          final item = data[index];
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade200),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.grey.withOpacity(0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                )
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      item['fecha'],
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                        color: Color(0xFF092444),
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: color.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        item['estado'],
+                                        style: TextStyle(
+                                          color: color,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.person_outline, size: 16, color: Colors.grey),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      item['instructor'],
+                                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.info_outline, size: 16, color: Colors.grey),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      item['motivo'],
+                                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTooltipInfo(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: Colors.black.withOpacity(0.6)),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
+        ),
+      ],
+    );
+  }
+
   // ─── Tab Resumen con dona ────────────────────────────────────────────────
   Widget _buildResumenTab() {
-    const int presente = 11;
-    const int ausente = 2;
-    const int retardado = 3;
-    const int justificado = 0;
-    const int total = presente + ausente + retardado + justificado;
+    final trimesterInfo = _trimesterData[_selectedTrimester]!;
+    final int presente = trimesterInfo['presente'] as int;
+    final int ausente = trimesterInfo['ausente'] as int;
+    final int retardado = trimesterInfo['retardado'] as int;
+    final int justificado = trimesterInfo['justificado'] as int;
+    final int total = presente + ausente + retardado + justificado;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
@@ -464,13 +688,52 @@ class _AttendancePageState extends State<AttendancePage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Resumen de asistencia',
-              style: TextStyle(
-                color: Color(0xFF092444),
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Resumen',
+                  style: TextStyle(
+                    color: Color(0xFF092444),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF6F8FB),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedTrimester,
+                      icon: const Icon(Icons.keyboard_arrow_down, size: 18, color: Color(0xFF39A900)),
+                      isDense: true,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF092444),
+                      ),
+                      onChanged: (String? newValue) {
+                        if (newValue != null) {
+                          setState(() {
+                            _selectedTrimester = newValue;
+                          });
+                        }
+                      },
+                      items: ['Trimestre 1', 'Trimestre 2', 'Trimestre 3']
+                          .map<DropdownMenuItem<String>>((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 4),
             Text(
@@ -486,34 +749,75 @@ class _AttendancePageState extends State<AttendancePage>
               child: SizedBox(
                 width: 180,
                 height: 180,
-                child: CustomPaint(
-                  painter: _DonutChartPainter(
-                    presente: presente,
-                    ausente: ausente,
-                    retardado: retardado,
-                    justificado: justificado,
-                    total: total,
-                  ),
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '${((presente / total) * 100).round()}%',
-                          style: const TextStyle(
-                            color: Color(0xFF092444),
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapUp: (details) {
+                    final center = const Offset(90, 90);
+                    final dx = details.localPosition.dx - center.dx;
+                    final dy = details.localPosition.dy - center.dy;
+                    final distance = math.sqrt(dx * dx + dy * dy);
+                    
+                    const double strokeWidth = 180 * 0.18;
+                    const double outerRadius = 90;
+                    const double innerRadius = outerRadius - strokeWidth;
+
+                    if (distance >= innerRadius && distance <= outerRadius) {
+                      double angle = math.atan2(dy, dx);
+                      double adjustedAngle = angle - (-math.pi / 2);
+                      if (adjustedAngle < 0) adjustedAngle += 2 * math.pi;
+
+                      final segments = [
+                        {'cat': 'presente', 'label': 'Asistencias', 'value': presente, 'color': const Color(0xFF39A900)},
+                        {'cat': 'ausente', 'label': 'Faltas', 'value': ausente, 'color': const Color(0xFFE53935)},
+                        {'cat': 'retardado', 'label': 'Retardos', 'value': retardado, 'color': const Color(0xFFF6A900)},
+                        {'cat': 'justificado', 'label': 'Faltas justificadas', 'value': justificado, 'color': const Color(0xFF1565C0)},
+                      ];
+
+                      double currentAngle = 0;
+                      const double gap = 0.04;
+                      
+                      for (final seg in segments) {
+                        final val = seg['value'] as int;
+                        if (val == 0) continue;
+                        
+                        final double sweep = (val / total) * 2 * math.pi - gap;
+                        if (adjustedAngle >= currentAngle && adjustedAngle <= currentAngle + sweep) {
+                          _showDetailBottomSheet(seg['cat'] as String, seg['label'] as String, seg['color'] as Color);
+                          break;
+                        }
+                        currentAngle += sweep + gap;
+                      }
+                    }
+                  },
+                  child: CustomPaint(
+                    painter: _DonutChartPainter(
+                      presente: presente,
+                      ausente: ausente,
+                      retardado: retardado,
+                      justificado: justificado,
+                      total: total,
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${((presente / (total == 0 ? 1 : total)) * 100).round()}%',
+                            style: const TextStyle(
+                              color: Color(0xFF092444),
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
-                        ),
-                        const Text(
-                          'Asistencias',
-                          style: TextStyle(
-                            color: Color(0xFF607086),
-                            fontSize: 13,
+                          const Text(
+                            'Asistencias',
+                            style: TextStyle(
+                              color: Color(0xFF607086),
+                              fontSize: 13,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -521,75 +825,97 @@ class _AttendancePageState extends State<AttendancePage>
             ),
             const SizedBox(height: 28),
             // Leyendas
-            _statRow('Asistencias', presente, total, const Color(0xFF39A900)),
+            _statRow('Asistencias', presente, total, const Color(0xFF39A900), 'presente'),
             const SizedBox(height: 16),
-            _statRow('Faltas', ausente, total, const Color(0xFFE53935)),
+            _statRow('Faltas', ausente, total, const Color(0xFFE53935), 'ausente'),
             const SizedBox(height: 16),
-            _statRow('Retardos', retardado, total, const Color(0xFFF6A900)),
+            _statRow('Retardos', retardado, total, const Color(0xFFF6A900), 'retardado'),
             const SizedBox(height: 16),
-            _statRow('Faltas justificadas', justificado, total, const Color(0xFF1565C0)),
+            _statRow('Faltas justificadas', justificado, total, const Color(0xFF1565C0), 'justificado'),
           ],
         ),
       ),
     );
   }
 
-  Widget _statRow(String label, int count, int total, Color color) {
+  Widget _statRow(String label, int count, int total, Color color, String categoryId) {
     final double pct = total == 0 ? 0 : count / total;
     final int pctInt = (pct * 100).round();
-    return Column(
-      children: [
-        Row(
+    return InkWell(
+      onTap: () {
+        if (count > 0) _showDetailBottomSheet(categoryId, label, color);
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
           children: [
-            Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  color: Color(0xFF092444),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+            Row(
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
                 ),
-              ),
-            ),
-            Text(
-              '$count',
-              style: const TextStyle(
-                color: Color(0xFF092444),
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(width: 8),
-            SizedBox(
-              width: 40,
-              child: Text(
-                '$pctInt%',
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                  color: Color(0xFF607086),
-                  fontSize: 13,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      color: Color(0xFF092444),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
+                Text(
+                  '$count',
+                  style: const TextStyle(
+                    color: Color(0xFF092444),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 40,
+                  child: Text(
+                    '$pctInt%',
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                      color: Color(0xFF607086),
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.grey.shade300, width: 1),
+                  ),
+                  child: const Icon(
+                    Icons.visibility_outlined,
+                    size: 14,
+                    color: Color(0xFF092444),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: pct,
+                minHeight: 6,
+                backgroundColor: Colors.grey.shade200,
+                valueColor: AlwaysStoppedAnimation<Color>(color),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: pct,
-            minHeight: 6,
-            backgroundColor: Colors.grey.shade200,
-            valueColor: AlwaysStoppedAnimation<Color>(color),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
