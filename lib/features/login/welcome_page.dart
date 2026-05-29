@@ -47,6 +47,31 @@ class _WelcomePageState extends State<WelcomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    final double height = mq.size.height;
+    final double width = mq.size.width;
+
+    // Responsive breakpoints
+    final bool isSmallPhone = height < 700;
+    final bool isNarrow = width < 360;
+
+    // Proportional values
+    final double horizontalPad = (width * 0.06).clamp(16.0, 24.0);
+    final double verticalPad = isSmallPhone ? 10.0 : 16.0;
+    final double logoSize = isSmallPhone ? 44.0 : 60.0;
+    final double welcomeFontSize = isNarrow ? 15.0 : 18.0;
+    final double titleFontSize = isSmallPhone ? 26.0 : 32.0;
+    final double subtitleFontSize = isNarrow ? 12.0 : 14.0;
+    final double bottomRadius = isNarrow ? 120.0 : 180.0;
+    final double bottomWhiteSpace = height * (isSmallPhone ? 0.06 : 0.08);
+    final double countdownFontSize = isNarrow ? 12.0 : 14.0;
+
+    // Spacing
+    final double logoToWelcome = isSmallPhone ? 16.0 : 24.0;
+    final double welcomeToTitle = isSmallPhone ? 8.0 : 12.0;
+    final double titleToSubtitle = isSmallPhone ? 10.0 : 16.0;
+    final double subtitleToImage = isSmallPhone ? 12.0 : 20.0;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
@@ -56,12 +81,20 @@ class _WelcomePageState extends State<WelcomePage> {
             top: 0,
             left: 0,
             right: 0,
-            bottom: 60, // Espacio justo para el área blanca inferior
+            bottom: bottomWhiteSpace,
             child: Container(
-              decoration: const BoxDecoration(
-                color: Color(0xFF052D4F),
+              decoration: BoxDecoration(
                 borderRadius: BorderRadius.only(
-                  bottomRight: Radius.circular(180), // Curva idéntica a la del login y web
+                  bottomRight: Radius.circular(bottomRadius),
+                ),
+                image: DecorationImage(
+                  image: const AssetImage('assets/images/fondoSima.png'),
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                  colorFilter: ColorFilter.mode(
+                    const Color(0xFF052D4F).withOpacity(0.7),
+                    BlendMode.srcOver,
+                  ),
                 ),
               ),
             ),
@@ -71,22 +104,25 @@ class _WelcomePageState extends State<WelcomePage> {
               children: [
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: horizontalPad,
+                      vertical: verticalPad,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Top-left SENA Logo (Green)
                         Image.asset(
                           'assets/images/logo-Sena.png',
-                          height: 60,
-                          width: 60,
+                          height: logoSize,
+                          width: logoSize,
                           fit: BoxFit.contain,
                           color: const Color(0xFF39A900), // verde SENA
                           colorBlendMode: BlendMode.srcIn,
                           errorBuilder: (context, error, stackTrace) {
                             return Container(
-                              width: 50,
-                              height: 50,
+                              width: logoSize,
+                              height: logoSize,
                               decoration: const BoxDecoration(
                                 color: Colors.white24,
                                 shape: BoxShape.circle,
@@ -95,7 +131,7 @@ class _WelcomePageState extends State<WelcomePage> {
                                 child: Text(
                                   'SENA',
                                   style: TextStyle(
-                                    color: const Color(0xFF39A900),
+                                    color: Color(0xFF39A900),
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -104,42 +140,42 @@ class _WelcomePageState extends State<WelcomePage> {
                             );
                           },
                         ),
-                        const SizedBox(height: 24), 
+                        SizedBox(height: logoToWelcome),
 
                         // Welcome text (Light Blue)
-                        const Text(
+                        Text(
                           'Bienvenido a SIMA',
                           style: TextStyle(
-                            fontSize: 18, 
+                            fontSize: welcomeFontSize,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF00A4E4), // Azul claro / celeste
+                            color: const Color(0xFF00A4E4),
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        SizedBox(height: welcomeToTitle),
                         // Title
-                        const Text(
+                        Text(
                           'Sistema Integral\nde Monitoreo del\nAprendiz',
                           style: TextStyle(
-                            fontSize: 32,
+                            fontSize: titleFontSize,
                             fontWeight: FontWeight.w800,
                             color: Colors.white,
                             height: 1.15,
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        SizedBox(height: titleToSubtitle),
 
                         // Subtitle
-                        const Text(
+                        Text(
                           'Herramienta diseñada para el\nseguimiento academico de los\naprendices.',
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: subtitleFontSize,
                             color: Colors.white70,
                             height: 1.5,
                           ),
                         ),
-                        
+
                         // Spacer to push image down a bit if needed
-                        const SizedBox(height: 20),
+                        SizedBox(height: subtitleToImage),
 
                         // Image of Apprentices
                         Expanded(
@@ -150,7 +186,7 @@ class _WelcomePageState extends State<WelcomePage> {
                               alignment: Alignment.bottomCenter,
                               errorBuilder: (context, error, stackTrace) {
                                 return Container(
-                                  height: 200,
+                                  height: height * 0.2,
                                   width: double.infinity,
                                   decoration: BoxDecoration(
                                     color: Colors.white.withOpacity(0.08),
@@ -183,29 +219,32 @@ class _WelcomePageState extends State<WelcomePage> {
                     ),
                   ),
                 ),
-                
+
                 // Bottom part with the countdown in the white area
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 32.0, top: 16.0),
+                  padding: EdgeInsets.only(
+                    bottom: isSmallPhone ? 20.0 : 32.0,
+                    top: isSmallPhone ? 10.0 : 16.0,
+                  ),
                   child: Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const SizedBox(
-                          height: 24,
-                          width: 24,
-                          child: CircularProgressIndicator(
+                        SizedBox(
+                          height: isSmallPhone ? 20.0 : 24.0,
+                          width: isSmallPhone ? 20.0 : 24.0,
+                          child: const CircularProgressIndicator(
                             strokeWidth: 2.5,
                             valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF39A900)),
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        SizedBox(height: isSmallPhone ? 8.0 : 12.0),
                         Text(
                           'Redirigiendo en $_counter...',
-                          style: const TextStyle(
-                            fontSize: 14,
+                          style: TextStyle(
+                            fontSize: countdownFontSize,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF052D4F),
+                            color: const Color(0xFF052D4F),
                           ),
                         ),
                       ],

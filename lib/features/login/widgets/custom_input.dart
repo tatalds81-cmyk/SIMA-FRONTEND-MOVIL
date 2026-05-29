@@ -33,7 +33,7 @@ class CustomInput extends StatelessWidget {
             style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF001B44), // Azul oscuro
+              color: Color(0xFF092444), // Labels
             ),
           ),
           const SizedBox(height: 8),
@@ -44,13 +44,13 @@ class CustomInput extends StatelessWidget {
           keyboardType: keyboardType,
           validator: validator,
           style: const TextStyle(
-            color: Color(0xFF001B44),
+            color: Color(0xFF092444),
             fontSize: 15,
           ),
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: const TextStyle(
-              color: Color(0xFF4A5568), // Texto secundario
+              color: Color(0xFF8A95A3), // Placeholder
               fontSize: 14,
             ),
             prefixIcon: prefixIcon,
@@ -61,7 +61,7 @@ class CustomInput extends StatelessWidget {
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(
-                color: Color(0xFFD1D5DB), // Borde de inputs
+                color: Color(0xFFCFD6DF), // Borde de inputs
                 width: 1.0,
               ),
             ),
