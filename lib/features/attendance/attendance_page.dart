@@ -17,6 +17,9 @@ class _AttendancePageState extends State<AttendancePage>
 
   String _selectedTrimester = 'Trimestre 1';
 
+  Map<String, dynamic>? _hoveredSegmentData;
+  Offset? _hoverPosition;
+
   final Map<String, Map<String, dynamic>> _trimesterData = {
     'Trimestre 1': {
       'presente': 45,
@@ -25,19 +28,19 @@ class _AttendancePageState extends State<AttendancePage>
       'justificado': 2,
       'details': {
         'presente': [
-          {'fecha': '20 may 2024', 'instructor': 'Juan Pérez', 'motivo': 'Asistencia normal', 'estado': 'Presente', 'actualizacion': '20 may 12:00'},
-          {'fecha': '19 may 2024', 'instructor': 'Ana Gómez', 'motivo': 'Asistencia normal', 'estado': 'Presente', 'actualizacion': '19 may 12:00'},
-          {'fecha': '18 may 2024', 'instructor': 'Juan Pérez', 'motivo': 'Asistencia normal', 'estado': 'Presente', 'actualizacion': '18 may 12:00'},
+          {'fecha': '20 may 2024', 'instructor': 'Juan Pérez', 'motivo': 'Asistencia normal', 'estado': 'Presente', 'actualizacion': '20 may 12:00', 'materia': 'Diseño de Software', 'diasFaltados': 0, 'observacion': 'Asistencia normal'},
+          {'fecha': '19 may 2024', 'instructor': 'Ana Gómez', 'motivo': 'Asistencia normal', 'estado': 'Presente', 'actualizacion': '19 may 12:00', 'materia': 'Bases de Datos', 'diasFaltados': 0, 'observacion': 'Participación activa'},
+          {'fecha': '18 may 2024', 'instructor': 'Juan Pérez', 'motivo': 'Asistencia normal', 'estado': 'Presente', 'actualizacion': '18 may 12:00', 'materia': 'Diseño de Software', 'diasFaltados': 0, 'observacion': 'Entrega de taller'},
         ],
         'ausente': [
-          {'fecha': '15 may 2024', 'instructor': 'Carlos López', 'motivo': 'Sin excusa', 'estado': 'Falta', 'actualizacion': '15 may 14:00'},
-          {'fecha': '12 may 2024', 'instructor': 'Ana Gómez', 'motivo': 'Falla de conexión', 'estado': 'Falta', 'actualizacion': '12 may 10:00'},
+          {'fecha': '15 may 2024', 'instructor': 'Carlos López', 'motivo': 'Sin excusa', 'estado': 'Falta', 'actualizacion': '15 may 14:00', 'materia': 'Inglés', 'diasFaltados': 1, 'observacion': 'No se presentó a la sesión'},
+          {'fecha': '12 may 2024', 'instructor': 'Ana Gómez', 'motivo': 'Falla de conexión', 'estado': 'Falta', 'actualizacion': '12 may 10:00', 'materia': 'Bases de Datos', 'diasFaltados': 1, 'observacion': 'Falla de conexión a internet'},
         ],
         'retardado': [
-          {'fecha': '10 may 2024', 'instructor': 'Juan Pérez', 'motivo': 'Tráfico', 'estado': 'Retardo', 'actualizacion': '10 may 09:00'},
+          {'fecha': '10 may 2024', 'instructor': 'Juan Pérez', 'motivo': 'Tráfico', 'estado': 'Retardo', 'actualizacion': '10 may 09:00', 'materia': 'Diseño de Software', 'diasFaltados': 0, 'observacion': 'Llegada tarde por tráfico'},
         ],
         'justificado': [
-          {'fecha': '05 may 2024', 'instructor': 'Ana Gómez', 'motivo': 'Cita médica', 'estado': 'Justificada', 'actualizacion': '06 may 10:00'},
+          {'fecha': '05 may 2024', 'instructor': 'Ana Gómez', 'motivo': 'Cita médica', 'estado': 'Justificada', 'actualizacion': '06 may 10:00', 'materia': 'Bases de Datos', 'diasFaltados': 1, 'observacion': 'Certificado de cita médica'},
         ],
       }
     },
@@ -49,7 +52,7 @@ class _AttendancePageState extends State<AttendancePage>
       'details': {
         'presente': [],
         'ausente': [
-          {'fecha': '12 jun 2024', 'instructor': 'Carlos López', 'motivo': 'Problemas familiares', 'estado': 'Falta', 'actualizacion': '12 jun 14:00'},
+          {'fecha': '12 jun 2024', 'instructor': 'Carlos López', 'motivo': 'Problemas familiares', 'estado': 'Falta', 'actualizacion': '12 jun 14:00', 'materia': 'Inglés', 'diasFaltados': 1, 'observacion': 'Calamidad familiar'},
         ],
         'retardado': [],
         'justificado': [],
@@ -615,7 +618,7 @@ class _AttendancePageState extends State<AttendancePage>
                                     const Icon(Icons.person_outline, size: 16, color: Colors.grey),
                                     const SizedBox(width: 4),
                                     Text(
-                                      item['instructor'],
+                                      'Instructor: ${item['instructor']}',
                                       style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                                     ),
                                   ],
@@ -623,11 +626,36 @@ class _AttendancePageState extends State<AttendancePage>
                                 const SizedBox(height: 4),
                                 Row(
                                   children: [
-                                    const Icon(Icons.info_outline, size: 16, color: Colors.grey),
+                                    const Icon(Icons.book_outlined, size: 16, color: Colors.grey),
                                     const SizedBox(width: 4),
                                     Text(
-                                      item['motivo'],
+                                      'Materia: ${item['materia'] ?? 'Sin asignar'}',
                                       style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.date_range_outlined, size: 16, color: Colors.grey),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Días faltados: ${item['diasFaltados'] ?? 0}',
+                                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(Icons.info_outline, size: 16, color: Colors.grey),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        'Observación: ${item['observacion'] ?? item['motivo'] ?? 'Ninguna'}',
+                                        style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -748,78 +776,190 @@ class _AttendancePageState extends State<AttendancePage>
             Center(
               child: SizedBox(
                 width: 180,
-                height: 180,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTapUp: (details) {
-                    final center = const Offset(90, 90);
-                    final dx = details.localPosition.dx - center.dx;
-                    final dy = details.localPosition.dy - center.dy;
-                    final distance = math.sqrt(dx * dx + dy * dy);
-                    
-                    const double strokeWidth = 180 * 0.18;
-                    const double outerRadius = 90;
-                    const double innerRadius = outerRadius - strokeWidth;
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: 180,
+                      height: 180,
+                      child: MouseRegion(
+                        onHover: (event) {
+                          final center = const Offset(90, 90);
+                          final dx = event.localPosition.dx - center.dx;
+                          final dy = event.localPosition.dy - center.dy;
+                          final distance = math.sqrt(dx * dx + dy * dy);
+                          
+                          const double strokeWidth = 180 * 0.18;
+                          const double outerRadius = 90;
+                          const double innerRadius = outerRadius - strokeWidth;
 
-                    if (distance >= innerRadius && distance <= outerRadius) {
-                      double angle = math.atan2(dy, dx);
-                      double adjustedAngle = angle - (-math.pi / 2);
-                      if (adjustedAngle < 0) adjustedAngle += 2 * math.pi;
+                          if (distance >= innerRadius && distance <= outerRadius) {
+                            double angle = math.atan2(dy, dx);
+                            double adjustedAngle = angle - (-math.pi / 2);
+                            if (adjustedAngle < 0) adjustedAngle += 2 * math.pi;
 
-                      final segments = [
-                        {'cat': 'presente', 'label': 'Asistencias', 'value': presente, 'color': const Color(0xFF39A900)},
-                        {'cat': 'ausente', 'label': 'Faltas', 'value': ausente, 'color': const Color(0xFFE53935)},
-                        {'cat': 'retardado', 'label': 'Retardos', 'value': retardado, 'color': const Color(0xFFF6A900)},
-                        {'cat': 'justificado', 'label': 'Faltas justificadas', 'value': justificado, 'color': const Color(0xFF1565C0)},
-                      ];
+                            final segments = [
+                              {'cat': 'presente', 'label': 'Asistencias', 'value': presente, 'color': const Color(0xFF39A900)},
+                              {'cat': 'ausente', 'label': 'Faltas', 'value': ausente, 'color': const Color(0xFFE53935)},
+                              {'cat': 'retardado', 'label': 'Retardos', 'value': retardado, 'color': const Color(0xFFF6A900)},
+                              {'cat': 'justificado', 'label': 'Faltas justificadas', 'value': justificado, 'color': const Color(0xFF1565C0)},
+                            ];
 
-                      double currentAngle = 0;
-                      const double gap = 0.04;
-                      
-                      for (final seg in segments) {
-                        final val = seg['value'] as int;
-                        if (val == 0) continue;
-                        
-                        final double sweep = (val / total) * 2 * math.pi - gap;
-                        if (adjustedAngle >= currentAngle && adjustedAngle <= currentAngle + sweep) {
-                          _showDetailBottomSheet(seg['cat'] as String, seg['label'] as String, seg['color'] as Color);
-                          break;
-                        }
-                        currentAngle += sweep + gap;
-                      }
-                    }
-                  },
-                  child: CustomPaint(
-                    painter: _DonutChartPainter(
-                      presente: presente,
-                      ausente: ausente,
-                      retardado: retardado,
-                      justificado: justificado,
-                      total: total,
-                    ),
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '${((presente / (total == 0 ? 1 : total)) * 100).round()}%',
-                            style: const TextStyle(
-                              color: Color(0xFF092444),
-                              fontSize: 28,
-                              fontWeight: FontWeight.w800,
+                            double currentAngle = 0;
+                            const double gap = 0.04;
+                            
+                            for (final seg in segments) {
+                              final val = seg['value'] as int;
+                              if (val == 0) continue;
+                              
+                              final double sweep = (val / total) * 2 * math.pi - gap;
+                              if (adjustedAngle >= currentAngle && adjustedAngle <= currentAngle + sweep) {
+                                setState(() {
+                                  _hoveredSegmentData = seg;
+                                  _hoverPosition = event.localPosition;
+                                });
+                                return;
+                              }
+                              currentAngle += sweep + gap;
+                            }
+                          }
+                          if (_hoveredSegmentData != null) {
+                            setState(() {
+                              _hoveredSegmentData = null;
+                              _hoverPosition = null;
+                            });
+                          }
+                        },
+                        onExit: (_) {
+                          if (_hoveredSegmentData != null) {
+                            setState(() {
+                              _hoveredSegmentData = null;
+                              _hoverPosition = null;
+                            });
+                          }
+                        },
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTapUp: (details) {
+                            final center = const Offset(90, 90);
+                            final dx = details.localPosition.dx - center.dx;
+                            final dy = details.localPosition.dy - center.dy;
+                            final distance = math.sqrt(dx * dx + dy * dy);
+                            
+                            const double strokeWidth = 180 * 0.18;
+                            const double outerRadius = 90;
+                            const double innerRadius = outerRadius - strokeWidth;
+
+                            if (distance >= innerRadius && distance <= outerRadius) {
+                              double angle = math.atan2(dy, dx);
+                              double adjustedAngle = angle - (-math.pi / 2);
+                              if (adjustedAngle < 0) adjustedAngle += 2 * math.pi;
+
+                              final segments = [
+                                {'cat': 'presente', 'label': 'Asistencias', 'value': presente, 'color': const Color(0xFF39A900)},
+                                {'cat': 'ausente', 'label': 'Faltas', 'value': ausente, 'color': const Color(0xFFE53935)},
+                                {'cat': 'retardado', 'label': 'Retardos', 'value': retardado, 'color': const Color(0xFFF6A900)},
+                                {'cat': 'justificado', 'label': 'Faltas justificadas', 'value': justificado, 'color': const Color(0xFF1565C0)},
+                              ];
+
+                              double currentAngle = 0;
+                              const double gap = 0.04;
+                              
+                              for (final seg in segments) {
+                                final val = seg['value'] as int;
+                                if (val == 0) continue;
+                                
+                                final double sweep = (val / total) * 2 * math.pi - gap;
+                                if (adjustedAngle >= currentAngle && adjustedAngle <= currentAngle + sweep) {
+                                  _showDetailBottomSheet(seg['cat'] as String, seg['label'] as String, seg['color'] as Color);
+                                  break;
+                                }
+                                currentAngle += sweep + gap;
+                              }
+                            }
+                          },
+                          child: CustomPaint(
+                            painter: _DonutChartPainter(
+                              presente: presente,
+                              ausente: ausente,
+                              retardado: retardado,
+                              justificado: justificado,
+                              total: total,
+                            ),
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    '${((presente / (total == 0 ? 1 : total)) * 100).round()}%',
+                                    style: const TextStyle(
+                                      color: Color(0xFF092444),
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const Text(
+                                    'Asistencias',
+                                    style: TextStyle(
+                                      color: Color(0xFF607086),
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          const Text(
-                            'Asistencias',
-                            style: TextStyle(
-                              color: Color(0xFF607086),
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
+                    if (_hoveredSegmentData != null && _hoverPosition != null)
+                      Positioned(
+                        left: _hoverPosition!.dx,
+                        top: _hoverPosition!.dy + 20,
+                        child: FractionalTranslation(
+                          translation: const Offset(-0.5, 0),
+                          child: Container(
+                            width: 260,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))
+                              ],
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 12, height: 12,
+                                      decoration: BoxDecoration(color: _hoveredSegmentData!['color'] as Color, shape: BoxShape.circle),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        '${_hoveredSegmentData!['label']}: ${_hoveredSegmentData!['value']} registros (${(((_hoveredSegmentData!['value'] as int) / total) * 100).round()}%)',
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF092444)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Haz clic en el ícono del ojo para ver el detalle',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
