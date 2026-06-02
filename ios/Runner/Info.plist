@@ -66,5 +66,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Requerimos tu ubicación para verificar que te encuentras dentro de las instalaciones del CTPI.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Requerimos biometría o PIN para verificar tu identidad al registrar la asistencia.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Requerimos la cámara para escanear el código QR.</string>
 </dict>
 </plist>

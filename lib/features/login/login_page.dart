@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sima_movil_froned/features/access.dart';
+import 'package:sima_movil_froned/services/auth_service.dart';
 import 'widgets/custom_input.dart';
 import 'widgets/custom_button.dart';
 
@@ -15,6 +16,7 @@ class _LoginPageState extends State<LoginPage> {
   final _documentController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -23,18 +25,31 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  void _handleLogin() {
-    if (_formKey.currentState!.validate()) {
-      // Show success SnackBar message
+  Future<void> _handleLogin() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    final result = await AuthService.login(
+      documento: _documentController.text,
+      password: _passwordController.text,
+    );
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (result.ok) {
+      // Éxito real desde el backend: token y user recibidos
+      // Token disponible en result.token | Usuario en result.user
+      // (Persistencia de sesión se implementará en la siguiente iteración)
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Inicio de sesión exitoso'),
-          backgroundColor: Color(0xFF39A900), // Verde SENA
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(result.message),
+          backgroundColor: const Color(0xFF39A900), // Verde SENA
+          duration: const Duration(seconds: 2),
         ),
       );
 
-      // Navigate to main application page (AccessPage) after a short delay
       Future.delayed(const Duration(milliseconds: 800), () {
         if (mounted) {
           Navigator.pushReplacement(
@@ -45,6 +60,15 @@ class _LoginPageState extends State<LoginPage> {
           );
         }
       });
+    } else {
+      // Error real del backend (credenciales inválidas, usuario inactivo, etc.)
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.message),
+          backgroundColor: const Color(0xFFD32F2F), // Rojo error
+          duration: const Duration(seconds: 3),
+        ),
+      );
     }
   }
 
@@ -280,14 +304,14 @@ class _LoginPageState extends State<LoginPage> {
 
                                       // Button "Iniciar sesion" - Color sólido igual a la web
                                       CustomButton(
-                                        text: 'Iniciar sesion',
+                                        text: _isLoading ? 'Verificando...' : 'Iniciar sesion',
                                         gradient: const LinearGradient(
                                           colors: [Color(0xFF39A900), Color(0xFF238500)],
                                           begin: Alignment.topCenter,
                                           end: Alignment.bottomCenter,
                                         ),
                                         textColor: Colors.white,
-                                        onPressed: _handleLogin,
+                                        onPressed: _isLoading ? null : _handleLogin,
                                       ),
                                     ],
                                   ),
