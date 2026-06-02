@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:sima_movil_froned/services/attendance_service.dart';
+import 'package:sima_movil_froned/services/hardware/location_service.dart';
+import 'package:sima_movil_froned/services/hardware/local_auth_service.dart';
 import 'dart:math' as math;
 
 class AttendancePage extends StatefulWidget {
@@ -14,108 +17,100 @@ class _AttendancePageState extends State<AttendancePage>
   late TabController _tabController;
   String _selectedMonth = 'Mayo 2024';
   String _selectedFilter = 'Todos';
-
-  String _selectedTrimester = 'Trimestre 1';
-
   Map<String, dynamic>? _hoveredSegmentData;
   Offset? _hoverPosition;
 
-  final Map<String, Map<String, dynamic>> _trimesterData = {
-    'Trimestre 1': {
-      'presente': 45,
-      'ausente': 5,
-      'retardado': 8,
-      'justificado': 2,
-      'details': {
-        'presente': [
-          {'fecha': '20 may 2024', 'instructor': 'Juan Pérez', 'motivo': 'Asistencia normal', 'estado': 'Presente', 'actualizacion': '20 may 12:00', 'materia': 'Diseño de Software', 'diasFaltados': 0, 'observacion': 'Asistencia normal'},
-          {'fecha': '19 may 2024', 'instructor': 'Ana Gómez', 'motivo': 'Asistencia normal', 'estado': 'Presente', 'actualizacion': '19 may 12:00', 'materia': 'Bases de Datos', 'diasFaltados': 0, 'observacion': 'Participación activa'},
-          {'fecha': '18 may 2024', 'instructor': 'Juan Pérez', 'motivo': 'Asistencia normal', 'estado': 'Presente', 'actualizacion': '18 may 12:00', 'materia': 'Diseño de Software', 'diasFaltados': 0, 'observacion': 'Entrega de taller'},
-        ],
-        'ausente': [
-          {'fecha': '15 may 2024', 'instructor': 'Carlos López', 'motivo': 'Sin excusa', 'estado': 'Falta', 'actualizacion': '15 may 14:00', 'materia': 'Inglés', 'diasFaltados': 1, 'observacion': 'No se presentó a la sesión'},
-          {'fecha': '12 may 2024', 'instructor': 'Ana Gómez', 'motivo': 'Falla de conexión', 'estado': 'Falta', 'actualizacion': '12 may 10:00', 'materia': 'Bases de Datos', 'diasFaltados': 1, 'observacion': 'Falla de conexión a internet'},
-        ],
-        'retardado': [
-          {'fecha': '10 may 2024', 'instructor': 'Juan Pérez', 'motivo': 'Tráfico', 'estado': 'Retardo', 'actualizacion': '10 may 09:00', 'materia': 'Diseño de Software', 'diasFaltados': 0, 'observacion': 'Llegada tarde por tráfico'},
-        ],
-        'justificado': [
-          {'fecha': '05 may 2024', 'instructor': 'Ana Gómez', 'motivo': 'Cita médica', 'estado': 'Justificada', 'actualizacion': '06 may 10:00', 'materia': 'Bases de Datos', 'diasFaltados': 1, 'observacion': 'Certificado de cita médica'},
-        ],
-      }
-    },
-    'Trimestre 2': {
-      'presente': 38,
-      'ausente': 2,
-      'retardado': 4,
-      'justificado': 1,
-      'details': {
-        'presente': [],
-        'ausente': [
-          {'fecha': '12 jun 2024', 'instructor': 'Carlos López', 'motivo': 'Problemas familiares', 'estado': 'Falta', 'actualizacion': '12 jun 14:00', 'materia': 'Inglés', 'diasFaltados': 1, 'observacion': 'Calamidad familiar'},
-        ],
-        'retardado': [],
-        'justificado': [],
-      }
-    },
-    'Trimestre 3': {
-      'presente': 50,
-      'ausente': 0,
-      'retardado': 0,
-      'justificado': 0,
-      'details': {
-        'presente': [], 'ausente': [], 'retardado': [], 'justificado': [],
-      }
-    },
-  };
+  bool _isLoadingDashboard = true;
+  Map<String, dynamic>? _dashboardData;
+  String? _dashboardError;
 
-  final List<Map<String, dynamic>> _mockData = [
-    {
-      'date': 'Lun, 20 mayo',
-      'time': '07:58 a. m. - 12:02 p. m.',
-      'status': 'Presente',
-    },
-    {
-      'date': 'Vie, 17 mayo',
-      'time': '07:55 a. m. - 12:05 p. m.',
-      'status': 'Presente',
-    },
-    {
-      'date': 'Jue, 16 mayo',
-      'time': '08:00 a. m. - 12:00 p. m.',
-      'status': 'Presente',
-    },
-    {
-      'date': 'Mié, 15 mayo',
-      'time': '07:50 a. m. - 12:03 p. m.',
-      'status': 'Presente',
-    },
-    {
-      'date': 'Mar, 14 mayo',
-      'time': 'Sin registro',
-      'status': 'Ausente',
-    },
-    {
-      'date': 'Lun, 13 mayo',
-      'time': '07:48 a. m. - 12:00 p. m.',
-      'status': 'Presente',
-    },
-    {
-      'date': 'Vie, 10 mayo',
-      'time': 'Soporte enviado',
-      'status': 'Justificada',
-    },
-    {
-      'date': 'Jue, 09 mayo',
-      'time': '07:59 a. m. - 12:01 p. m.',
-      'status': 'Presente',
-    },
-  ];
+  bool _isLoadingCalendar = true;
+  List<dynamic>? _calendarData;
+  String? _calendarError;
+
+  bool _isLoadingSessions = true;
+  Map<String, dynamic>? _sessionsData;
+  String? _sessionsError;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    _fetchDashboard();
+    _fetchCalendar();
+    _fetchSessions();
+  }
+
+  Future<void> _fetchDashboard() async {
+    setState(() {
+      _isLoadingDashboard = true;
+      _dashboardError = null;
+    });
+
+    try {
+      final data = await AttendanceService.getDashboard();
+      if (mounted) {
+        setState(() {
+          _dashboardData = data;
+          _isLoadingDashboard = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _dashboardError = e.toString();
+          _isLoadingDashboard = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchCalendar() async {
+    setState(() {
+      _isLoadingCalendar = true;
+      _calendarError = null;
+    });
+
+    try {
+      final data = await AttendanceService.getMyCalendar();
+      if (mounted) {
+        setState(() {
+          _calendarData = data?['registros'] as List<dynamic>? ?? [];
+          _isLoadingCalendar = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _calendarError = e.toString();
+          _isLoadingCalendar = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchSessions() async {
+    setState(() {
+      _isLoadingSessions = true;
+      _sessionsError = null;
+    });
+
+    try {
+      final data = await AttendanceService.getSessions();
+      if (mounted) {
+        setState(() {
+          _sessionsData = data;
+          _isLoadingSessions = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _sessionsError = e.toString();
+          _isLoadingSessions = false;
+        });
+      }
+    }
   }
 
   @override
@@ -124,10 +119,29 @@ class _AttendancePageState extends State<AttendancePage>
     super.dispose();
   }
 
-  void _openScanner(BuildContext context) {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (context) => const ScannerScreen(),
+  void _openScanner(BuildContext context) async {
+    final sesionActiva = _sessionsData?['sesion_activa'];
+    if (sesionActiva == null || sesionActiva['id_sesion_formacion'] == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No hay una sesión activa para registrar asistencia.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final int idSesionActiva = sesionActiva['id_sesion_formacion'];
+
+    final bool? success = await Navigator.of(context).push(MaterialPageRoute(
+      builder: (context) => ScannerScreen(idSesionActiva: idSesionActiva),
     ));
+
+    if (success == true) {
+      _fetchDashboard();
+      _fetchCalendar();
+      _fetchSessions();
+    }
   }
 
   void _showMonthPicker() {
@@ -389,6 +403,46 @@ class _AttendancePageState extends State<AttendancePage>
 
   // ─── Banner "Control de Asistencia de Aprendices" ───────────────────────
   Widget _buildSessionBanner() {
+    // ── Extraer datos de la respuesta real del backend ──
+    final ficha     = _sessionsData?['ficha']         as Map<String, dynamic>?;
+    final sesion    = _sessionsData?['sesion_activa'] as Map<String, dynamic>?;
+
+    // Ficha / Programa
+    final String numeroFicha = ficha?['numero_ficha']?.toString() ?? '—';
+    final programa = ficha?['programa'] as Map<String, dynamic>?;
+    final String nombrePrograma = programa?['nombre_programa']?.toString() ?? '—';
+
+    // Instructor líder (viene en ficha.instructor_lider)
+    final instructorLider = ficha?['instructor_lider'] as Map<String, dynamic>?;
+    final bool instructorRegistrado = instructorLider?['registrado'] == true;
+    final String nombreInstructor = instructorRegistrado
+        ? (instructorLider?['nombre_completo']?.toString() ?? '—')
+        : '—';
+
+    // Jornada del grupo
+    final String jornada = ficha?['jornada']?.toString() ?? '—';
+
+    // Fecha de la sesión activa (formateada)
+    String fechaFormateada = '—';
+    if (sesion != null) {
+      final fechaRaw = sesion['fecha_clase']?.toString() ?? '';
+      if (fechaRaw.length >= 10) {
+        final parts = fechaRaw.substring(0, 10).split('-');
+        if (parts.length == 3) {
+          const meses = {
+            '01': 'enero',    '02': 'febrero', '03': 'marzo',
+            '04': 'abril',    '05': 'mayo',    '06': 'junio',
+            '07': 'julio',    '08': 'agosto',  '09': 'septiembre',
+            '10': 'octubre',  '11': 'noviembre','12': 'diciembre',
+          };
+          fechaFormateada = '${parts[2]} de ${meses[parts[1]] ?? ''} de ${parts[0]}';
+        }
+      }
+    }
+
+    // Estado de sesión
+    final bool haySession = sesion != null;
+
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       padding: const EdgeInsets.all(16),
@@ -415,42 +469,120 @@ class _AttendancePageState extends State<AttendancePage>
             ),
           ),
           const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _bannerInlineText('Ficha: ', '235698'),
-                      _bannerDivider(),
-                      _bannerInlineText('Programa: ', 'ADSO'),
-                      _bannerDivider(),
-                      _bannerInlineText('Instructor lider: ', 'Franco'),
-                      _bannerDivider(),
-                      _bannerInlineText('Fecha: ', '27 de mayo de 2026'),
-                      _bannerDivider(),
-                      _bannerInlineText('Horario: ', 'Tarde'),
-                      _bannerDivider(),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            'Estado de sesion: ',
-                            style: TextStyle(color: Color(0xFF607086), fontSize: 13, fontWeight: FontWeight.w500),
-                          ),
-                          const SizedBox(width: 4),
-                          _sessionStatusChip(),
-                        ],
-                      ),
-                    ],
+
+          // ── Estado: cargando ──
+          if (_isLoadingSessions)
+            const SizedBox(
+              height: 20,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFF39A900),
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  Text(
+                    'Cargando sesión...',
+                    style: TextStyle(color: Color(0xFF607086), fontSize: 13),
+                  ),
+                ],
+              ),
+            )
+
+          // ── Estado: error al cargar ──
+          else if (_sessionsError != null)
+            Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded,
+                    size: 16, color: Color(0xFFF6A900)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'No se pudo cargar la sesión',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              );
-            },
-          ),
+                GestureDetector(
+                  onTap: _fetchSessions,
+                  child: const Text(
+                    'Reintentar',
+                    style: TextStyle(
+                      color: Color(0xFF39A900),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            )
+
+          // ── Estado: datos reales del backend ──
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Fila principal con datos
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _bannerInlineText('Ficha: ', numeroFicha),
+                            _bannerDivider(),
+                            _bannerInlineText('Programa: ', nombrePrograma),
+                            _bannerDivider(),
+                            _bannerInlineText('Instructor: ', nombreInstructor),
+                            _bannerDivider(),
+                            _bannerInlineText('Jornada: ', jornada),
+                            _bannerDivider(),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  'Estado: ',
+                                  style: TextStyle(
+                                    color: Color(0xFF607086),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                _sessionStatusChip(haySession),
+                              ],
+                            ),
+                          ],
+                        ),
+                        // Segunda fila: Fecha (solo si hay sesión activa)
+                        if (haySession) ...[
+                          const SizedBox(height: 8),
+                          _bannerInlineText('Fecha de sesión: ', fechaFormateada),
+                        ] else ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            _sessionsData?['mensaje_sesion_activa']?.toString() ??
+                                'No hay sesión activa en este momento',
+                            style: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
         ],
       ),
     );
@@ -475,16 +607,16 @@ class _AttendancePageState extends State<AttendancePage>
     );
   }
 
-  Widget _sessionStatusChip() {
+  Widget _sessionStatusChip(bool isActive) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF39A900),
+        color: isActive ? const Color(0xFF39A900) : Colors.grey.shade400,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: const Text(
-        'Activa',
-        style: TextStyle(
+      child: Text(
+        isActive ? 'Activa' : 'Sin sesión',
+        style: const TextStyle(
           color: Colors.white,
           fontSize: 12,
           fontWeight: FontWeight.bold,
@@ -494,10 +626,16 @@ class _AttendancePageState extends State<AttendancePage>
   }
 
   void _showDetailBottomSheet(String category, String status, Color color) {
-    final data = _trimesterData[_selectedTrimester]!['details'][category] as List<dynamic>;
-    final int count = _trimesterData[_selectedTrimester]![category] as int;
-    final String instructor = data.isNotEmpty ? data.first['instructor'] : 'N/A';
-    final String ultActualizacion = data.isNotEmpty ? data.first['actualizacion'] : 'N/A';
+    String apiEstado = '';
+    if (category == 'presente') apiEstado = 'PRESENTE';
+    else if (category == 'ausente') apiEstado = 'INASISTENCIA';
+    else if (category == 'retardado') apiEstado = 'TARDE';
+    else if (category == 'justificado') apiEstado = 'JUSTIFICADO';
+
+    final data = (_calendarData ?? []).where((e) => e['estado_asistencia'] == apiEstado).toList();
+    final int count = data.length;
+    final String instructor = 'N/A';
+    final String ultActualizacion = data.isNotEmpty ? (data.first['actualizado_en'] as String? ?? 'N/A') : 'N/A';
 
     showModalBottomSheet(
       context: context,
@@ -547,7 +685,7 @@ class _AttendancePageState extends State<AttendancePage>
                       children: [
                         _buildTooltipInfo('Cantidad', '$count'),
                         _buildTooltipInfo('Instructor', instructor),
-                        _buildTooltipInfo('Última act.', ultActualizacion),
+                        _buildTooltipInfo('Última act.', ultActualizacion.length > 10 ? ultActualizacion.substring(0, 10) : ultActualizacion),
                       ],
                     ),
                   ],
@@ -557,7 +695,7 @@ class _AttendancePageState extends State<AttendancePage>
                 child: data.isEmpty
                     ? Center(
                         child: Text(
-                          'No hay registros en este trimestre.',
+                          'No hay registros de asistencia disponibles.',
                           style: TextStyle(color: Colors.grey.shade600),
                         ),
                       )
@@ -566,6 +704,12 @@ class _AttendancePageState extends State<AttendancePage>
                         itemCount: data.length,
                         itemBuilder: (context, index) {
                           final item = data[index];
+                          final sesion = item['sesion'] as Map<String, dynamic>? ?? {};
+                          final fecha = sesion['fecha_clase'] as String? ?? 'Sin fecha';
+                          final materia = sesion['competencia']?['nombre_competencia'] ?? 'Sin asignar';
+                          final diasFaltados = apiEstado == 'INASISTENCIA' ? 1 : 0;
+                          final observacion = item['observacion'] ?? 'Ninguna';
+
                           return Container(
                             margin: const EdgeInsets.only(bottom: 12),
                             padding: const EdgeInsets.all(16),
@@ -588,7 +732,7 @@ class _AttendancePageState extends State<AttendancePage>
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
-                                      item['fecha'],
+                                      fecha,
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 15,
@@ -602,7 +746,7 @@ class _AttendancePageState extends State<AttendancePage>
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Text(
-                                        item['estado'],
+                                        status,
                                         style: TextStyle(
                                           color: color,
                                           fontSize: 12,
@@ -618,7 +762,7 @@ class _AttendancePageState extends State<AttendancePage>
                                     const Icon(Icons.person_outline, size: 16, color: Colors.grey),
                                     const SizedBox(width: 4),
                                     Text(
-                                      'Instructor: ${item['instructor']}',
+                                      'Instructor: N/A',
                                       style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                                     ),
                                   ],
@@ -628,9 +772,12 @@ class _AttendancePageState extends State<AttendancePage>
                                   children: [
                                     const Icon(Icons.book_outlined, size: 16, color: Colors.grey),
                                     const SizedBox(width: 4),
-                                    Text(
-                                      'Materia: ${item['materia'] ?? 'Sin asignar'}',
-                                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                    Expanded(
+                                      child: Text(
+                                        'Materia: $materia',
+                                        style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -640,7 +787,7 @@ class _AttendancePageState extends State<AttendancePage>
                                     const Icon(Icons.date_range_outlined, size: 16, color: Colors.grey),
                                     const SizedBox(width: 4),
                                     Text(
-                                      'Días faltados: ${item['diasFaltados'] ?? 0}',
+                                      'Días faltados: $diasFaltados',
                                       style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                                     ),
                                   ],
@@ -653,7 +800,7 @@ class _AttendancePageState extends State<AttendancePage>
                                     const SizedBox(width: 4),
                                     Expanded(
                                       child: Text(
-                                        'Observación: ${item['observacion'] ?? item['motivo'] ?? 'Ninguna'}',
+                                        'Observación: $observacion',
                                         style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                                       ),
                                     ),
@@ -691,12 +838,64 @@ class _AttendancePageState extends State<AttendancePage>
 
   // ─── Tab Resumen con dona ────────────────────────────────────────────────
   Widget _buildResumenTab() {
-    final trimesterInfo = _trimesterData[_selectedTrimester]!;
-    final int presente = trimesterInfo['presente'] as int;
-    final int ausente = trimesterInfo['ausente'] as int;
-    final int retardado = trimesterInfo['retardado'] as int;
-    final int justificado = trimesterInfo['justificado'] as int;
-    final int total = presente + ausente + retardado + justificado;
+    if (_isLoadingDashboard) {
+      return const Center(child: CircularProgressIndicator(color: Color(0xFF39A900)));
+    }
+    
+    if (_dashboardError != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.red, size: 48),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32.0),
+              child: Text(
+                'Error al cargar el resumen:\n$_dashboardError',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFF607086)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _fetchDashboard,
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF39A900)),
+              child: const Text('Reintentar', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Mapeo de datos reales desde el backend
+    final asistenciaTrimestre = _dashboardData?['asistencia_trimestre'];
+    final int total = asistenciaTrimestre?['total'] ?? 0;
+
+    // Trimestre activo — leído directamente del dashboard, sin variables extra
+    final trimestreActivo = _dashboardData?['trimestre_activo'] as Map<String, dynamic>?;
+    final bool trimestreRegistrado = trimestreActivo?['registrado'] == true;
+    final int? numeroTrimestre = trimestreRegistrado
+        ? (trimestreActivo?['numero_trimestre'] as int?)
+        : null;
+
+    int presente = 0;
+    int ausente = 0;
+    int retardado = 0;
+    int justificado = 0;
+
+    if (asistenciaTrimestre != null && asistenciaTrimestre['estados'] != null) {
+      final List<dynamic> estados = asistenciaTrimestre['estados'];
+      for (var estadoInfo in estados) {
+        final estado = estadoInfo['estado'];
+        final cantidad = estadoInfo['cantidad'] as int;
+
+        if (estado == 'PRESENTE') presente = cantidad;
+        else if (estado == 'INASISTENCIA') ausente = cantidad;
+        else if (estado == 'TARDE') retardado = cantidad;
+        else if (estado == 'JUSTIFICADO') justificado = cantidad;
+      }
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
@@ -727,40 +926,36 @@ class _AttendancePageState extends State<AttendancePage>
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF6F8FB),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _selectedTrimester,
-                      icon: const Icon(Icons.keyboard_arrow_down, size: 18, color: Color(0xFF39A900)),
-                      isDense: true,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF092444),
-                      ),
-                      onChanged: (String? newValue) {
-                        if (newValue != null) {
-                          setState(() {
-                            _selectedTrimester = newValue;
-                          });
-                        }
-                      },
-                      items: ['Trimestre 1', 'Trimestre 2', 'Trimestre 3']
-                          .map<DropdownMenuItem<String>>((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(value),
-                        );
-                      }).toList(),
+                // Chip de trimestre — solo visible cuando el backend confirma
+                // trimestre_activo.registrado == true
+                if (numeroTrimestre != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Trimestre $numeroTrimestre',
+                          style: const TextStyle(
+                            color: Color(0xFF092444),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.keyboard_arrow_down,
+                          size: 16,
+                          color: Color(0xFF39A900),
+                        ),
+                      ],
                     ),
                   ),
-                ),
               ],
             ),
             const SizedBox(height: 4),
@@ -1060,10 +1255,78 @@ class _AttendancePageState extends State<AttendancePage>
   }
 
   Widget _buildHistorialTab() {
+    if (_isLoadingCalendar) {
+      return const Center(child: CircularProgressIndicator(color: Color(0xFF39A900)));
+    }
+    
+    if (_calendarError != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.red, size: 48),
+            const SizedBox(height: 16),
+            Text(
+              'Error al cargar el historial:\n$_calendarError',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF607086)),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _fetchCalendar,
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF39A900)),
+              child: const Text('Reintentar', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final List<Map<String, dynamic>> mappedData = (_calendarData ?? []).map((registro) {
+      final estadoRaw = registro['estado_asistencia'] as String? ?? '';
+      String status = 'Ausente';
+      if (estadoRaw == 'PRESENTE') status = 'Presente';
+      else if (estadoRaw == 'TARDE') status = 'Tardanza';
+      else if (estadoRaw == 'INASISTENCIA') status = 'Ausente';
+      else if (estadoRaw == 'JUSTIFICADO') status = 'Justificada';
+
+      final sesion = registro['sesion'] as Map<String, dynamic>? ?? {};
+      final fechaClase = sesion['fecha_clase'] as String? ?? 'Sin fecha';
+      
+      String formattedDate = fechaClase;
+      if (fechaClase.length >= 10) {
+        final parts = fechaClase.substring(0, 10).split('-');
+        if (parts.length == 3) {
+          final year = parts[0];
+          final month = parts[1];
+          final day = parts[2];
+          
+          const meses = {
+            '01': 'ene', '02': 'feb', '03': 'mar', '04': 'abr',
+            '05': 'mayo', '06': 'jun', '07': 'jul', '08': 'ago',
+            '09': 'sep', '10': 'oct', '11': 'nov', '12': 'dic'
+          };
+          
+          formattedDate = '$day ${meses[month] ?? ''}';
+        }
+      }
+
+      final horaIni = sesion['hora_inicio_programada'] as String? ?? '';
+      final horaFin = sesion['hora_fin_programada'] as String? ?? '';
+      final formattedTime = (horaIni.isNotEmpty && horaFin.isNotEmpty) 
+          ? '${horaIni.substring(0, 5)} - ${horaFin.substring(0, 5)}'
+          : 'Sin registro';
+
+      return {
+        'date': formattedDate,
+        'time': formattedTime,
+        'status': status,
+      };
+    }).toList();
 
     final filteredData = _selectedFilter == 'Todos'
-        ? _mockData
-        : _mockData.where((e) => e['status'] == _selectedFilter).toList();
+        ? mappedData
+        : mappedData.where((e) => e['status'] == _selectedFilter).toList();
 
     return Column(
       children: [
@@ -1145,7 +1408,14 @@ class _AttendancePageState extends State<AttendancePage>
 
         // Lista
         Expanded(
-          child: ListView.builder(
+          child: filteredData.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No hay registros de asistencia disponibles',
+                    style: TextStyle(color: Color(0xFF607086), fontSize: 15),
+                  ),
+                )
+              : ListView.builder(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
             itemCount: filteredData.length,
             itemBuilder: (context, index) {
@@ -1236,10 +1506,12 @@ class _AttendancePageState extends State<AttendancePage>
 }
 
 // ─────────────────────────────────────────────
-// Scanner Screen (sin cambios)
+// Scanner Screen (QR y Geolocalización)
 // ─────────────────────────────────────────────
 class ScannerScreen extends StatefulWidget {
-  const ScannerScreen({super.key});
+  final int idSesionActiva;
+
+  const ScannerScreen({super.key, required this.idSesionActiva});
 
   @override
   State<ScannerScreen> createState() => _ScannerScreenState();
@@ -1304,7 +1576,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
         children: [
           MobileScanner(
             controller: controller,
-            onDetect: (capture) {
+            onDetect: (capture) async {
               if (_isProcessing) return;
 
               final List<Barcode> barcodes = capture.barcodes;
@@ -1314,53 +1586,100 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   setState(() => _isProcessing = true);
                   controller.stop();
 
+                  // Mostrar modal de procesamiento
                   showDialog(
                     context: context,
                     barrierDismissible: false,
-                    builder: (context) => AlertDialog(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      title: Row(
-                        children: const [
-                          Icon(Icons.check_circle,
-                              color: Color(0xFF39A900), size: 30),
-                          SizedBox(width: 10),
-                          Text('Lectura Exitosa'),
-                        ],
-                      ),
+                    builder: (context) => const AlertDialog(
                       content: Column(
                         mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Código detectado:'),
-                          const SizedBox(height: 10),
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              barcode.rawValue!,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ),
+                          CircularProgressIndicator(color: Color(0xFF39A900)),
+                          SizedBox(height: 20),
+                          Text('Validando ubicación y seguridad...'),
                         ],
                       ),
-                      actions: [
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                            Navigator.of(context).pop();
-                          },
-                          child: const Text('Aceptar',
-                              style: TextStyle(color: Color(0xFF39A900))),
-                        ),
-                      ],
                     ),
                   );
+
+                  try {
+                    // 1. Validar identidad local
+                    final authSuccess = await LocalAuthService.authenticate();
+                    if (!authSuccess) {
+                      throw Exception('Autenticación cancelada o fallida.');
+                    }
+
+                    // 2. Obtener ubicación
+                    final locationData = await LocationService.getCurrentLocation();
+
+                    // 3. Ensamblar payload (sin device_uuid por ser opcional)
+                    final payload = {
+                      'id_sesion_formacion': widget.idSesionActiva,
+                      'token_qr': barcode.rawValue!,
+                      'latitud': locationData['latitud'],
+                      'longitud': locationData['longitud'],
+                      'precision': locationData['precision'],
+                      'mocked': locationData['mocked'],
+                      'local_auth': true,
+                    };
+
+                    // 4. Enviar al backend
+                    await AttendanceService.registerQrAttendance(payload);
+
+                    // 5. Quitar loading y mostrar éxito
+                    if (context.mounted) {
+                      Navigator.of(context).pop(); // Quitar loading
+                      await showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (context) => AlertDialog(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          title: Row(
+                            children: const [
+                              Icon(Icons.check_circle, color: Color(0xFF39A900), size: 30),
+                              SizedBox(width: 10),
+                              Text('Éxito'),
+                            ],
+                          ),
+                          content: const Text('Asistencia registrada correctamente.'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Aceptar', style: TextStyle(color: Color(0xFF39A900))),
+                            ),
+                          ],
+                        ),
+                      );
+                      // Cerrar ScannerScreen retornando true
+                      if (context.mounted) {
+                        Navigator.of(context).pop(true);
+                      }
+                    }
+                  } catch (e) {
+                    // Quitar loading y mostrar error
+                    if (context.mounted) {
+                      Navigator.of(context).pop(); // Quitar loading
+                      await showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Error de Registro'),
+                          content: Text(e.toString().replaceAll('Exception: ', '')),
+                          actions: [
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                setState(() => _isProcessing = false);
+                                controller.start(); // Reiniciar cámara para reintento
+                              },
+                              child: const Text('Reintentar', style: TextStyle(color: Color(0xFF39A900))),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                  }
                 }
               }
             },

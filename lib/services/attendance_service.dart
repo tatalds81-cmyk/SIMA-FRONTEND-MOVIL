@@ -1,0 +1,187 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'api_config.dart';
+import 'auth_service.dart';
+
+class AttendanceService {
+  AttendanceService._();
+
+  /// Consume GET /api/apprentice-portal/dashboard
+  /// Requiere que AuthService.currentToken no sea nulo.
+  static Future<Map<String, dynamic>?> getDashboard() async {
+    final token = AuthService.currentToken;
+    if (token == null || token.isEmpty) {
+      throw Exception('No hay sesión activa. Por favor, inicia sesión nuevamente.');
+    }
+
+    try {
+      final uri = Uri.parse('${ApiConfig.baseUrl}/apprentice-portal/dashboard');
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> body = jsonDecode(response.body);
+        if (body['ok'] == true && body['data'] != null) {
+          return body['data'] as Map<String, dynamic>;
+        } else {
+          throw Exception(body['message'] ?? 'Error desconocido del servidor');
+        }
+      } else {
+        // Manejo de errores HTTP
+        String errorMessage = 'Error ${response.statusCode}';
+        try {
+          final body = jsonDecode(response.body);
+          if (body['message'] != null) {
+            errorMessage = body['message'];
+          }
+        } catch (_) {}
+        throw Exception(errorMessage);
+      }
+    } on Exception catch (e) {
+      final rawMessage = e.toString();
+      final cleanMessage = rawMessage.startsWith('Exception: ')
+          ? rawMessage.replaceFirst('Exception: ', '')
+          : 'Error de red al conectar con el servidor.';
+      throw Exception(cleanMessage);
+    }
+  }
+
+  static Future<Map<String, dynamic>?> getMyCalendar() async {
+    final token = AuthService.currentToken;
+    if (token == null || token.isEmpty) {
+      throw Exception('No hay sesión activa. Por favor, inicia sesión nuevamente.');
+    }
+
+    try {
+      final uri = Uri.parse(ApiConfig.myCalendar);
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> body = jsonDecode(response.body);
+        if (body['ok'] == true && body['data'] != null) {
+          return body['data'] as Map<String, dynamic>;
+        } else {
+          throw Exception(body['message'] ?? 'Error desconocido del servidor');
+        }
+      } else {
+        // Manejo de errores HTTP
+        String errorMessage = 'Error ${response.statusCode}';
+        try {
+          final body = jsonDecode(response.body);
+          if (body['message'] != null) {
+            errorMessage = body['message'];
+          }
+        } catch (_) {}
+        throw Exception(errorMessage);
+      }
+    } on Exception catch (e) {
+      final rawMessage = e.toString();
+      final cleanMessage = rawMessage.startsWith('Exception: ')
+          ? rawMessage.replaceFirst('Exception: ', '')
+          : 'Error de red al conectar con el servidor.';
+      throw Exception(cleanMessage);
+    }
+  }
+
+  /// Consume GET /api/apprentice-portal/sessions
+  /// Retorna la sesión activa y próximas sesiones del aprendiz.
+  static Future<Map<String, dynamic>?> getSessions() async {
+    final token = AuthService.currentToken;
+    if (token == null || token.isEmpty) {
+      throw Exception('No hay sesión activa. Por favor, inicia sesión nuevamente.');
+    }
+
+    try {
+      final uri = Uri.parse(ApiConfig.sessions);
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> body = jsonDecode(response.body);
+        if (body['ok'] == true && body['data'] != null) {
+          return body['data'] as Map<String, dynamic>;
+        } else {
+          throw Exception(body['message'] ?? 'Error desconocido del servidor');
+        }
+      } else {
+        String errorMessage = 'Error ${response.statusCode}';
+        try {
+          final body = jsonDecode(response.body);
+          if (body['message'] != null) {
+            errorMessage = body['message'];
+          }
+        } catch (_) {}
+        throw Exception(errorMessage);
+      }
+    } on Exception catch (e) {
+      final rawMessage = e.toString();
+      final cleanMessage = rawMessage.startsWith('Exception: ')
+          ? rawMessage.replaceFirst('Exception: ', '')
+          : 'Error de red al conectar con el servidor.';
+      throw Exception(cleanMessage);
+    }
+  }
+  /// Registra la asistencia mediante código QR usando coordenadas y biometría
+  static Future<void> registerQrAttendance(Map<String, dynamic> payload) async {
+    final token = AuthService.currentToken;
+    if (token == null || token.isEmpty) {
+      throw Exception('No hay sesión activa. Por favor, inicia sesión nuevamente.');
+    }
+
+    try {
+      final uri = Uri.parse(ApiConfig.qrAttendance);
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(payload),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final Map<String, dynamic> body = jsonDecode(response.body);
+        if (body['ok'] == true) {
+          return; // Éxito
+        } else {
+          throw Exception(body['message'] ?? 'Error desconocido del servidor');
+        }
+      } else {
+        String errorMessage = 'Error ${response.statusCode}';
+        try {
+          final body = jsonDecode(response.body);
+          if (body['message'] != null) {
+            errorMessage = body['message'];
+          }
+        } catch (_) {}
+        throw Exception(errorMessage);
+      }
+    } on Exception catch (e) {
+      final rawMessage = e.toString();
+      final cleanMessage = rawMessage.startsWith('Exception: ')
+          ? rawMessage.replaceFirst('Exception: ', '')
+          : 'Error de red al conectar con el servidor.';
+      throw Exception(cleanMessage);
+    }
+  }
+}
