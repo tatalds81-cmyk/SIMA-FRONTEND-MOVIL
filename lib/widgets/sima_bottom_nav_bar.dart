@@ -21,7 +21,7 @@ class SimaBottomNavBar extends StatelessWidget {
         icon: Icons.assignment_turned_in_outlined,
         label: 'Asistencia',
       ),
-      _NavBarItem(icon: Icons.track_changes_rounded, label: 'Observatorio'),
+      _NavBarItem(icon: Icons.track_changes_rounded, label: 'Observaciones'),
       _NavBarItem(icon: Icons.person_outline_rounded, label: 'Perfil'),
     ];
 

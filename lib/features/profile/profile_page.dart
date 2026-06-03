@@ -1,92 +1,773 @@
 import 'package:flutter/material.dart';
+import 'package:sima_movil_froned/features/login/login_page.dart';
+import 'package:sima_movil_froned/features/profile/data/profile_repository.dart';
+import 'package:sima_movil_froned/features/profile/models/apprentice_profile.dart';
 
-class ProfilePage extends StatelessWidget {
-  const ProfilePage({super.key});
+const _wideBreakpoint = 760.0;
+
+class ProfilePage extends StatefulWidget {
+  const ProfilePage({
+    super.key,
+    this.repository = const MockProfileRepository(),
+  });
+
+  final ProfileRepository repository;
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  late Future<ApprenticeProfile> _profileFuture;
+  ApprenticeProfile? _profile;
+
+  @override
+  void initState() {
+    super.initState();
+    _profileFuture = _loadProfile();
+  }
+
+  Future<ApprenticeProfile> _loadProfile() async {
+    final profile = await widget.repository.fetchCurrentApprenticeProfile();
+    _profile = profile;
+    return profile;
+  }
+
+  void _reload() {
+    setState(() {
+      _profileFuture = _loadProfile();
+    });
+  }
+
+  void _setProfile(ApprenticeProfile profile) {
+    setState(() {
+      _profile = profile;
+      _profileFuture = Future.value(profile);
+    });
+  }
+
+  Future<void> _savePersonalInformation(ApprenticeProfile profile) async {
+    final saved = await widget.repository.updatePersonalInformation(profile);
+
+    if (!mounted) {
+      return;
+    }
+
+    _setProfile(saved);
+    _showMessage('Datos personales actualizados.');
+  }
+
+  Future<void> _saveEmergencyContact(EmergencyContact contact) async {
+    final profile = _profile;
+    if (profile == null) {
+      return;
+    }
+
+    final savedContact = await widget.repository.updateEmergencyContact(
+      contact,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    _setProfile(profile.copyWith(emergencyContact: savedContact));
+    _showMessage('Contacto de emergencia actualizado.');
+  }
+
+  Future<void> _changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await widget.repository.changePassword(
+      currentPassword: currentPassword,
+      newPassword: newPassword,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    _showMessage('Clave actualizada correctamente.');
+  }
+
+  void _showPersonalInformationSheet(ApprenticeProfile profile) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (sheetContext) {
+        return _PersonalInformationForm(
+          profile: profile,
+          onSave: _savePersonalInformation,
+        );
+      },
+    );
+  }
+
+  void _showAcademicInformationSheet(ApprenticeProfile profile) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (sheetContext) {
+        return _ReadOnlySheet(
+          title: 'Academico',
+          actionText: 'Cerrar',
+          onAction: () => Navigator.of(sheetContext).pop(),
+          children: [
+            _SheetInfoField(label: 'Programa', value: profile.program),
+            _SheetInfoField(label: 'Ficha', value: profile.ficha),
+            _SheetInfoField(label: 'Etapa', value: profile.stage),
+            _SheetInfoField(label: 'Horario', value: profile.schedule),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showEmergencyContactSheet(ApprenticeProfile profile) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (sheetContext) {
+        return _EmergencyContactForm(
+          contact: profile.emergencyContact,
+          onSave: _saveEmergencyContact,
+        );
+      },
+    );
+  }
+
+  void _showChangePasswordSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (sheetContext) {
+        return _PasswordForm(onSave: _changePassword);
+      },
+    );
+  }
+
+  Future<void> _confirmLogout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Cerrar sesion'),
+          content: const Text(
+            'Quieres salir de tu cuenta en este dispositivo?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: _ProfileColors.danger,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Cerrar sesion'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+      (route) => false,
+    );
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: _ProfileColors.navy,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: ColoredBox(
-        color: _ProfileColors.background,
-        child: SafeArea(
+    return ColoredBox(
+      color: _ProfileColors.background,
+      child: SafeArea(
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= _wideBreakpoint;
+            final horizontalPadding = isWide ? 32.0 : 22.0;
+
+            return FutureBuilder<ApprenticeProfile>(
+              future: _profileFuture,
+              builder: (context, snapshot) {
+                final profile = snapshot.data ?? _profile;
+
+                if (profile != null) {
+                  final content = _ProfileContent(
+                    profile: profile,
+                    isWide: isWide,
+                    onPersonalTap: () => _showPersonalInformationSheet(profile),
+                    onAcademicTap: () => _showAcademicInformationSheet(profile),
+                    onEmergencyTap: () => _showEmergencyContactSheet(profile),
+                    onLogoutTap: _confirmLogout,
+                    onSecurityTap: _showChangePasswordSheet,
+                  );
+
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.only(bottom: 112),
+                    child: content,
+                  );
+                }
+
+                return SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPadding,
+                    22,
+                    horizontalPadding,
+                    112,
+                  ),
+                  child: snapshot.hasError
+                      ? _ProfileStatePanel(
+                          icon: Icons.cloud_off_outlined,
+                          title: 'No se pudo cargar tu perfil',
+                          message: 'Revisa la conexion o intenta nuevamente.',
+                          actionLabel: 'Reintentar',
+                          onAction: _reload,
+                        )
+                      : const _ProfileLoading(),
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileContent extends StatelessWidget {
+  const _ProfileContent({
+    required this.profile,
+    required this.isWide,
+    required this.onPersonalTap,
+    required this.onAcademicTap,
+    required this.onEmergencyTap,
+    required this.onLogoutTap,
+    required this.onSecurityTap,
+  });
+
+  final ApprenticeProfile profile;
+  final bool isWide;
+  final VoidCallback onPersonalTap;
+  final VoidCallback onAcademicTap;
+  final VoidCallback onEmergencyTap;
+  final VoidCallback onLogoutTap;
+  final VoidCallback onSecurityTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ProfileHero(
+          profile: profile,
+          onBackTap: () => Navigator.of(context).maybePop(),
+          onLogoutTap: onLogoutTap,
+        ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            isWide ? 32 : 22,
+            0,
+            isWide ? 32 : 22,
+            0,
+          ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 6),
-                child: _ProfileTopBar(
-                  onSettingsTap: () => _showAccountOptionsModal(context),
-                ),
-              ),
-              const _ProfileIdentityHeader(),
-              const _ProfileTabBar(),
-              Expanded(
-                child: TabBarView(
-                  children: [
-                    _ProfileTabBody(
-                      children: [
-                        const _ProfileProgressBlock(),
-                        const SizedBox(height: 18),
-                        const _SectionHeader(title: 'Accesos del perfil'),
-                        const SizedBox(height: 8),
-                        _ProfileActionTile(
-                          icon: Icons.person_outline_rounded,
-                          title: 'Datos personales',
-                          subtitle: 'Documento y contacto',
-                          onTap: () => _showPersonalInformationModal(context),
-                        ),
-                        _ProfileActionTile(
-                          icon: Icons.health_and_safety_outlined,
-                          title: 'Emergencia',
-                          subtitle: 'Contacto principal',
-                          onTap: () => _showEmergencyContactModal(context),
-                        ),
-                        _ProfileActionTile(
-                          icon: Icons.lock_outline_rounded,
-                          title: 'Seguridad',
-                          subtitle: 'Cambiar contraseña',
-                          onTap: () => _showChangePasswordModal(context),
-                        ),
-                        _ProfileActionTile(
-                          icon: Icons.notifications_none_rounded,
-                          title: 'Notificaciones',
-                          subtitle: 'Alertas y avisos',
-                          onTap: () => _showNotificationsModal(context),
-                        ),
-                      ],
-                    ),
-                    _ProfileTabBody(
-                      children: [
-                        const _SectionHeader(title: 'Resumen académico'),
-                        const SizedBox(height: 8),
-                        const _AcademicInlineSummary(),
-                        const SizedBox(height: 18),
-                        const _SectionHeader(title: 'Documentos'),
-                        const SizedBox(height: 8),
-                        _DocumentInlineTile(
-                          icon: Icons.badge_outlined,
-                          title: 'Carnet digital',
-                          subtitle: 'Disponible para identificación',
-                          color: _ProfileColors.green,
-                          onTap: () => _showMessage(
-                            context,
-                            'Carnet digital en revisión.',
-                          ),
-                        ),
-                        _DocumentInlineTile(
-                          icon: Icons.description_outlined,
-                          title: 'Certificado de matrícula',
-                          subtitle: 'Última actualización: mayo 2024',
-                          color: _ProfileColors.blue,
-                          onTap: () =>
-                              _showMessage(context, 'Documento pendiente.'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+              _ProfileQuickInfoCard(profile: profile),
+              const SizedBox(height: 16),
+              _ProfileAccessCard(
+                onPersonalTap: onPersonalTap,
+                onAcademicTap: onAcademicTap,
+                onEmergencyTap: onEmergencyTap,
+                onSecurityTap: onSecurityTap,
               ),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileHero extends StatelessWidget {
+  const _ProfileHero({
+    required this.profile,
+    required this.onBackTap,
+    required this.onLogoutTap,
+  });
+
+  final ApprenticeProfile profile;
+  final VoidCallback onBackTap;
+  final VoidCallback onLogoutTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 252,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          ClipPath(
+            clipper: const _ProfileHeaderWaveClipper(),
+            child: Container(
+              height: 160,
+              decoration: const BoxDecoration(color: _ProfileColors.headerBlue),
+              child: Stack(
+                children: const [
+                  _HeaderGlow(
+                    width: 210,
+                    height: 92,
+                    left: -68,
+                    bottom: 0,
+                    opacity: 0.14,
+                  ),
+                  _HeaderGlow(
+                    width: 210,
+                    height: 120,
+                    right: -58,
+                    bottom: 6,
+                    opacity: 0.24,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            top: 14,
+            left: 14,
+            right: 14,
+            child: Row(
+              children: [
+                _HeaderIconButton(
+                  icon: Icons.arrow_back_ios_new_rounded,
+                  tooltip: 'Volver',
+                  onTap: onBackTap,
+                ),
+                const Expanded(
+                  child: Text(
+                    'Mi perfil',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                _HeaderIconButton(
+                  icon: Icons.logout_rounded,
+                  tooltip: 'Cerrar sesion',
+                  onTap: onLogoutTap,
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            top: 72,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: _ProfileAvatar(
+                size: 86,
+                initials: profile.initials,
+                showPhoto: true,
+              ),
+            ),
+          ),
+          Positioned(
+            top: 166,
+            left: 24,
+            right: 24,
+            child: Column(
+              children: [
+                Text(
+                  profile.fullName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: _ProfileColors.navy,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Aprendiz ADSO',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: _ProfileColors.muted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _HeaderBadge(label: profile.statusLabel),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderGlow extends StatelessWidget {
+  const _HeaderGlow({
+    required this.width,
+    required this.height,
+    required this.opacity,
+    this.left,
+    this.right,
+    this.bottom,
+  });
+
+  final double width;
+  final double height;
+  final double opacity;
+  final double? left;
+  final double? right;
+  final double? bottom;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: left,
+      right: right,
+      bottom: bottom,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: opacity),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: SizedBox(width: width, height: height),
+      ),
+    );
+  }
+}
+
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onTap,
+      icon: Icon(icon, color: Colors.white, size: 20),
+    );
+  }
+}
+
+class _ProfileHeaderWaveClipper extends CustomClipper<Path> {
+  const _ProfileHeaderWaveClipper();
+
+  @override
+  Path getClip(Size size) {
+    final path = Path()
+      ..lineTo(0, size.height - 34)
+      ..cubicTo(
+        size.width * 0.24,
+        size.height - 6,
+        size.width * 0.58,
+        size.height - 68,
+        size.width,
+        size.height - 26,
+      )
+      ..lineTo(size.width, 0)
+      ..close();
+
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
+}
+
+class _ProfileQuickInfoCard extends StatelessWidget {
+  const _ProfileQuickInfoCard({required this.profile});
+
+  final ApprenticeProfile profile;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SurfaceCard(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: _QuickInfoItem(
+              icon: Icons.school_outlined,
+              label: 'Ficha',
+              value: profile.ficha,
+            ),
+          ),
+          const _VerticalDivider(),
+          Expanded(
+            child: _QuickInfoItem(
+              icon: Icons.calendar_today_outlined,
+              label: 'Etapa',
+              value: profile.stage,
+            ),
+          ),
+          const _VerticalDivider(),
+          Expanded(
+            child: _QuickInfoItem(
+              icon: Icons.schedule_outlined,
+              label: 'Horario',
+              value: profile.schedule,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickInfoItem extends StatelessWidget {
+  const _QuickInfoItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 68,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: _ProfileColors.green, size: 20),
+          const SizedBox(height: 5),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: _ProfileColors.navy,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              value,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _ProfileColors.navy,
+                fontSize: 9,
+                height: 1.15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VerticalDivider extends StatelessWidget {
+  const _VerticalDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(width: 1, height: 44, color: _ProfileColors.line);
+  }
+}
+
+class _ProfileAccessCard extends StatelessWidget {
+  const _ProfileAccessCard({
+    required this.onPersonalTap,
+    required this.onAcademicTap,
+    required this.onEmergencyTap,
+    required this.onSecurityTap,
+  });
+
+  final VoidCallback onPersonalTap;
+  final VoidCallback onAcademicTap;
+  final VoidCallback onEmergencyTap;
+  final VoidCallback onSecurityTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Accesos del perfil',
+          style: TextStyle(
+            color: _ProfileColors.navy,
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _ProfileAccessTile(
+          icon: Icons.person_outline_rounded,
+          title: 'Datos personales',
+          subtitle: 'Documento, contacto y cierre de sesion',
+          trailingIcon: Icons.edit_outlined,
+          trailingTooltip: 'Editar datos personales',
+          onTap: onPersonalTap,
+        ),
+        _ProfileAccessTile(
+          icon: Icons.school_outlined,
+          title: 'Academico',
+          subtitle: 'Ficha, programa, etapa y horario',
+          onTap: onAcademicTap,
+        ),
+        _ProfileAccessTile(
+          icon: Icons.health_and_safety_outlined,
+          title: 'Contacto de emergencia',
+          subtitle: 'Persona de contacto principal',
+          trailingIcon: Icons.edit_outlined,
+          trailingTooltip: 'Editar contacto de emergencia',
+          onTap: onEmergencyTap,
+        ),
+        _ProfileAccessTile(
+          icon: Icons.lock_outline_rounded,
+          title: 'Seguridad',
+          subtitle: 'Clave y estado de la sesion',
+          onTap: onSecurityTap,
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileAccessTile extends StatelessWidget {
+  const _ProfileAccessTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.trailingIcon = Icons.chevron_right_rounded,
+    this.trailingTooltip,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final IconData trailingIcon;
+  final String? trailingTooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: _SurfaceCard(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: _ProfileColors.green.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: _ProfileColors.green, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: _ProfileColors.navy,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: _ProfileColors.muted,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: trailingTooltip ?? title,
+                  onPressed: onTap,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 40,
+                    height: 40,
+                  ),
+                  padding: EdgeInsets.zero,
+                  icon: Icon(
+                    trailingIcon,
+                    color: _ProfileColors.muted,
+                    size: 21,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -94,169 +775,343 @@ class ProfilePage extends StatelessWidget {
   }
 }
 
-void _showPersonalInformationModal(BuildContext context) {
-  _showProfileModal(
-    context,
-    title: 'Información personal',
-    actionText: 'Editar información',
-    onAction: () {
-      _showMessage(context, 'Edición de información pendiente de conectar.');
-    },
-    children: const [
-      _InfoField(label: 'Nombres', value: 'Juan'),
-      _InfoField(label: 'Apellidos', value: 'Pérez García'),
-      _InfoField(label: 'Tipo de documento', value: 'Cédula de ciudadanía'),
-      _InfoField(label: 'Número de documento', value: '1.123.456.789'),
-      _InfoField(label: 'Fecha de nacimiento', value: '12/05/2002'),
-      _InfoField(
-        label: 'Correo institucional',
-        value: 'juan.perez@misena.edu.co',
+class _PersonalInformationForm extends StatefulWidget {
+  const _PersonalInformationForm({required this.profile, required this.onSave});
+
+  final ApprenticeProfile profile;
+  final Future<void> Function(ApprenticeProfile profile) onSave;
+
+  @override
+  State<_PersonalInformationForm> createState() =>
+      _PersonalInformationFormState();
+}
+
+class _PersonalInformationFormState extends State<_PersonalInformationForm> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _firstNameController;
+  late final TextEditingController _lastNameController;
+  late final TextEditingController _documentTypeController;
+  late final TextEditingController _documentNumberController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _phoneController;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final profile = widget.profile;
+    _firstNameController = TextEditingController(text: profile.firstName);
+    _lastNameController = TextEditingController(text: profile.lastName);
+    _documentTypeController = TextEditingController(text: profile.documentType);
+    _documentNumberController = TextEditingController(
+      text: profile.documentNumber,
+    );
+    _emailController = TextEditingController(text: profile.email);
+    _phoneController = TextEditingController(text: profile.phone);
+  }
+
+  @override
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _documentTypeController.dispose();
+    _documentNumberController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    final updated = widget.profile.copyWith(
+      firstName: _firstNameController.text.trim(),
+      lastName: _lastNameController.text.trim(),
+      documentType: _documentTypeController.text.trim(),
+      documentNumber: _documentNumberController.text.trim(),
+      email: _emailController.text.trim(),
+      phone: _phoneController.text.trim(),
+    );
+
+    await widget.onSave(updated);
+
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _ProfileSheetScaffold(
+      title: 'Datos personales',
+      actionText: 'Guardar cambios',
+      isSaving: _isSaving,
+      onAction: _save,
+      child: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            _ProfileTextField(
+              controller: _firstNameController,
+              label: 'Nombres',
+              validator: _requiredValidator,
+            ),
+            const SizedBox(height: 12),
+            _ProfileTextField(
+              controller: _lastNameController,
+              label: 'Apellidos',
+              validator: _requiredValidator,
+            ),
+            const SizedBox(height: 12),
+            _ProfileTextField(
+              controller: _documentTypeController,
+              label: 'Tipo de documento',
+              validator: _requiredValidator,
+            ),
+            const SizedBox(height: 12),
+            _ProfileTextField(
+              controller: _documentNumberController,
+              label: 'Numero de documento',
+              validator: _requiredValidator,
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 12),
+            _ProfileTextField(
+              controller: _emailController,
+              label: 'Correo',
+              validator: _emailValidator,
+              keyboardType: TextInputType.emailAddress,
+            ),
+            const SizedBox(height: 12),
+            _ProfileTextField(
+              controller: _phoneController,
+              label: 'Telefono',
+              validator: _requiredValidator,
+              keyboardType: TextInputType.phone,
+            ),
+          ],
+        ),
       ),
-      _InfoField(label: 'Teléfono', value: '300 123 4567'),
-    ],
-  );
+    );
+  }
 }
 
-void _showEmergencyContactModal(BuildContext context) {
-  _showProfileModal(
-    context,
-    title: 'Contacto de emergencia',
-    actionText: 'Editar contacto',
-    onAction: () {
-      _showMessage(context, 'Edición de contacto pendiente de conectar.');
-    },
-    children: const [
-      _InfoField(label: 'Nombre completo', value: 'María García'),
-      _InfoField(label: 'Parentesco', value: 'Madre'),
-      _InfoField(label: 'Teléfono', value: '310 456 7890'),
-      _InfoField(label: 'Correo', value: 'maria.garcia@email.com'),
-      _InfoField(label: 'Dirección', value: 'Cra. 12 #45-67, Bogotá'),
-    ],
-  );
+class _EmergencyContactForm extends StatefulWidget {
+  const _EmergencyContactForm({required this.contact, required this.onSave});
+
+  final EmergencyContact contact;
+  final Future<void> Function(EmergencyContact contact) onSave;
+
+  @override
+  State<_EmergencyContactForm> createState() => _EmergencyContactFormState();
 }
 
-void _showChangePasswordModal(BuildContext context) {
-  _showProfileModal(
-    context,
-    title: 'Cambiar contraseña',
-    actionText: 'Guardar contraseña',
-    onAction: () {
-      _showMessage(context, 'Contraseña lista para enviarse al backend.');
-    },
-    children: const [
-      _PasswordField(label: 'Contraseña actual'),
-      SizedBox(height: 16),
-      _PasswordField(label: 'Nueva contraseña'),
-      SizedBox(height: 16),
-      _PasswordField(label: 'Confirmar contraseña'),
-      SizedBox(height: 18),
-      _PasswordHint(),
-    ],
-  );
-}
+class _EmergencyContactFormState extends State<_EmergencyContactForm> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+  late final TextEditingController _relationshipController;
+  late final TextEditingController _phoneController;
+  late final TextEditingController _emailController;
+  bool _isSaving = false;
 
-void _showNotificationsModal(BuildContext context) {
-  _showProfileModal(
-    context,
-    title: 'Notificaciones',
-    actionText: 'Guardar cambios',
-    onAction: () {
-      _showMessage(context, 'Preferencias de notificación guardadas.');
-    },
-    children: const [_NotificationsModalContent()],
-  );
-}
+  @override
+  void initState() {
+    super.initState();
+    final contact = widget.contact;
+    _nameController = TextEditingController(text: contact.name);
+    _relationshipController = TextEditingController(text: contact.relationship);
+    _phoneController = TextEditingController(text: contact.phone);
+    _emailController = TextEditingController(text: contact.email);
+  }
 
-void _showAccountOptionsModal(BuildContext context) {
-  _showProfileModal(
-    context,
-    title: 'Cuenta',
-    actionText: 'Cerrar',
-    onAction: () {},
-    children: [
-      _ProfileMenuTile(
-        icon: Icons.support_agent_rounded,
-        title: 'Ayuda y soporte',
-        onTap: () => _showMessage(context, 'Soporte pendiente de conectar.'),
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _relationshipController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    final updated = EmergencyContact(
+      name: _nameController.text.trim(),
+      relationship: _relationshipController.text.trim(),
+      phone: _phoneController.text.trim(),
+      email: _emailController.text.trim(),
+    );
+
+    await widget.onSave(updated);
+
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _ProfileSheetScaffold(
+      title: 'Contacto de emergencia',
+      actionText: 'Guardar contacto',
+      isSaving: _isSaving,
+      onAction: _save,
+      child: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            _ProfileTextField(
+              controller: _nameController,
+              label: 'Nombre',
+              validator: _requiredValidator,
+            ),
+            const SizedBox(height: 12),
+            _ProfileTextField(
+              controller: _relationshipController,
+              label: 'Parentesco',
+              validator: _requiredValidator,
+            ),
+            const SizedBox(height: 12),
+            _ProfileTextField(
+              controller: _phoneController,
+              label: 'Telefono',
+              validator: _requiredValidator,
+              keyboardType: TextInputType.phone,
+            ),
+            const SizedBox(height: 12),
+            _ProfileTextField(
+              controller: _emailController,
+              label: 'Correo',
+              validator: _emailValidator,
+              keyboardType: TextInputType.emailAddress,
+            ),
+          ],
+        ),
       ),
-      _ProfileMenuTile(
-        icon: Icons.logout_rounded,
-        title: 'Cerrar sesión',
-        color: _ProfileColors.danger,
-        showChevron: false,
-        onTap: () => _showMessage(context, 'Sesión cerrada localmente.'),
-      ),
-    ],
-  );
+    );
+  }
 }
 
-void _showObservationsModal(BuildContext context) {
-  _showProfileModal(
-    context,
-    title: 'Observaciones',
-    actionText: 'Cerrar',
-    onAction: () {},
-    children: const [
-      _ObservationSummary(),
-      SizedBox(height: 18),
-      _ObservationItem(
-        title: 'Seguimiento académico',
-        date: '14 mayo 2024',
-        author: 'Instructor Carlos Ramírez',
-        description:
-            'Se recomienda reforzar la entrega de evidencias y mantener participación constante en clase.',
-        color: _ProfileColors.amber,
-      ),
-      _ObservationItem(
-        title: 'Bienestar al aprendiz',
-        date: '08 mayo 2024',
-        author: 'Equipo de bienestar',
-        description:
-            'Aprendiz citado a acompañamiento preventivo. Se observa buena disposición durante la atención.',
-        color: _ProfileColors.green,
-      ),
-      _ObservationItem(
-        title: 'Asistencia',
-        date: '29 abril 2024',
-        author: 'Coordinación académica',
-        description:
-            'Registra dos ausencias recientes. Debe cargar soporte o justificación dentro de las fechas establecidas.',
-        color: _ProfileColors.danger,
-        showDivider: false,
-      ),
-    ],
-  );
+class _PasswordForm extends StatefulWidget {
+  const _PasswordForm({required this.onSave});
+
+  final Future<void> Function({
+    required String currentPassword,
+    required String newPassword,
+  })
+  onSave;
+
+  @override
+  State<_PasswordForm> createState() => _PasswordFormState();
 }
 
-void _showProfileModal(
-  BuildContext context, {
-  required String title,
-  required String actionText,
-  required List<Widget> children,
-  required VoidCallback onAction,
-}) {
-  showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    backgroundColor: Colors.transparent,
-    builder: (modalContext) {
-      return _ProfileModalSheet(
-        title: title,
-        actionText: actionText,
-        onAction: () {
-          FocusScope.of(modalContext).unfocus();
-          Navigator.of(modalContext).pop();
-          onAction();
-        },
-        children: children,
-      );
-    },
-  );
+class _PasswordFormState extends State<_PasswordForm> {
+  final _formKey = GlobalKey<FormState>();
+  final _currentPasswordController = TextEditingController();
+  final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  bool _isSaving = false;
+
+  @override
+  void dispose() {
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    await widget.onSave(
+      currentPassword: _currentPasswordController.text,
+      newPassword: _newPasswordController.text,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _ProfileSheetScaffold(
+      title: 'Cambiar clave',
+      actionText: 'Guardar clave',
+      isSaving: _isSaving,
+      onAction: _save,
+      child: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            _ProfileTextField(
+              controller: _currentPasswordController,
+              label: 'Clave actual',
+              obscureText: true,
+              validator: _requiredValidator,
+            ),
+            const SizedBox(height: 12),
+            _ProfileTextField(
+              controller: _newPasswordController,
+              label: 'Nueva clave',
+              obscureText: true,
+              validator: _passwordValidator,
+            ),
+            const SizedBox(height: 12),
+            _ProfileTextField(
+              controller: _confirmPasswordController,
+              label: 'Confirmar clave',
+              obscureText: true,
+              validator: (value) {
+                final error = _passwordValidator(value);
+                if (error != null) {
+                  return error;
+                }
+                if (value != _newPasswordController.text) {
+                  return 'Las claves no coinciden';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 14),
+            const _StatusNotice(
+              icon: Icons.info_outline_rounded,
+              text: 'Usa minimo 8 caracteres con letras y numeros.',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-class _ProfileModalSheet extends StatelessWidget {
-  const _ProfileModalSheet({
+class _ReadOnlySheet extends StatelessWidget {
+  const _ReadOnlySheet({
     required this.title,
     required this.actionText,
     required this.children,
@@ -270,1422 +1125,164 @@ class _ProfileModalSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-    final maxHeight = MediaQuery.sizeOf(context).height * 0.86;
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottomInset),
-      child: Align(
-        alignment: Alignment.bottomCenter,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: maxHeight),
-          child: DecoratedBox(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 10),
-                Container(
-                  width: 42,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD6DEE8),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(22, 16, 10, 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: _ProfileColors.navy,
-                                fontWeight: FontWeight.w900,
-                              ),
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Cerrar',
-                        icon: const Icon(Icons.close_rounded),
-                        color: _ProfileColors.navy,
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                    ],
-                  ),
-                ),
-                Flexible(
-                  child: ListView(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.fromLTRB(22, 0, 22, 12),
-                    children: children,
-                  ),
-                ),
-                SafeArea(
-                  top: false,
-                  minimum: const EdgeInsets.fromLTRB(22, 0, 22, 18),
-                  child: SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _ProfileColors.green,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        textStyle: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                        ),
-                      ),
-                      onPressed: onAction,
-                      child: Text(actionText),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return _ProfileSheetScaffold(
+      title: title,
+      actionText: actionText,
+      onAction: onAction,
+      child: Column(children: children),
     );
   }
 }
 
-class _NotificationsModalContent extends StatefulWidget {
-  const _NotificationsModalContent();
-
-  @override
-  State<_NotificationsModalContent> createState() =>
-      _NotificationsModalContentState();
-}
-
-class _NotificationsModalContentState
-    extends State<_NotificationsModalContent> {
-  bool allowNotifications = true;
-  bool classReminders = true;
-  bool attendanceRegister = true;
-  bool absenceJustifications = true;
-  bool evaluations = true;
-  bool recommendations = true;
-  bool wellbeing = true;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _NotificationSwitchTile(
-          title: 'Permitir notificaciones',
-          value: allowNotifications,
-          onChanged: (value) => setState(() {
-            allowNotifications = value;
-          }),
-        ),
-        const SizedBox(height: 22),
-        const _SectionTitle('Asistencias'),
-        _NotificationSwitchTile(
-          title: 'Recordatorios de clase',
-          value: classReminders,
-          onChanged: allowNotifications
-              ? (value) => setState(() {
-                  classReminders = value;
-                })
-              : null,
-        ),
-        _NotificationSwitchTile(
-          title: 'Registro de asistencia',
-          value: attendanceRegister,
-          onChanged: allowNotifications
-              ? (value) => setState(() {
-                  attendanceRegister = value;
-                })
-              : null,
-        ),
-        _NotificationSwitchTile(
-          title: 'Justificaciones',
-          value: absenceJustifications,
-          onChanged: allowNotifications
-              ? (value) => setState(() {
-                  absenceJustifications = value;
-                })
-              : null,
-        ),
-        const SizedBox(height: 22),
-        const _SectionTitle('Observatorio'),
-        _NotificationSwitchTile(
-          title: 'Evaluaciones',
-          value: evaluations,
-          onChanged: allowNotifications
-              ? (value) => setState(() {
-                  evaluations = value;
-                })
-              : null,
-        ),
-        _NotificationSwitchTile(
-          title: 'Recomendaciones',
-          value: recommendations,
-          onChanged: allowNotifications
-              ? (value) => setState(() {
-                  recommendations = value;
-                })
-              : null,
-        ),
-        _NotificationSwitchTile(
-          title: 'Bienestar',
-          value: wellbeing,
-          onChanged: allowNotifications
-              ? (value) => setState(() {
-                  wellbeing = value;
-                })
-              : null,
-        ),
-      ],
-    );
-  }
-}
-
-class _ObservationSummary extends StatelessWidget {
-  const _ObservationSummary();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(
-          '3',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            color: _ProfileColors.amber,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            'Observaciones activas para revisar con el equipo de seguimiento.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: _ProfileColors.muted,
-              fontWeight: FontWeight.w700,
-              height: 1.35,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ObservationItem extends StatelessWidget {
-  const _ObservationItem({
+class _ProfileSheetScaffold extends StatelessWidget {
+  const _ProfileSheetScaffold({
     required this.title,
-    required this.date,
-    required this.author,
-    required this.description,
-    required this.color,
-    this.showDivider = true,
+    required this.actionText,
+    required this.child,
+    required this.onAction,
+    this.isSaving = false,
   });
 
   final String title;
-  final String date;
-  final String author;
-  final String description;
-  final Color color;
-  final bool showDivider;
+  final String actionText;
+  final Widget child;
+  final VoidCallback onAction;
+  final bool isSaving;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        border: showDivider
-            ? const Border(bottom: BorderSide(color: _ProfileColors.line))
-            : null,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Icon(Icons.sticky_note_2_outlined, color: color, size: 22),
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          22,
+          0,
+          22,
+          MediaQuery.viewInsetsOf(context).bottom + 22,
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.82,
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: _ProfileColors.navy,
-                          fontWeight: FontWeight.w900,
-                        ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: _ProfileColors.navy,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Text(
-                      date,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: _ProfileColors.muted,
-                        fontWeight: FontWeight.w700,
-                      ),
+                  ),
+                  IconButton(
+                    tooltip: 'Cerrar',
+                    onPressed: isSaving
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              Flexible(child: SingleChildScrollView(child: child)),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: isSaving ? null : onAction,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _ProfileColors.green,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: _ProfileColors.line,
+                    minimumSize: const Size.fromHeight(44),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  author,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: _ProfileColors.green,
-                    fontWeight: FontWeight.w800,
                   ),
+                  child: isSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(actionText),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  description,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: _ProfileColors.muted,
-                    fontWeight: FontWeight.w600,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _ProfileIdentityHeader extends StatelessWidget {
-  const _ProfileIdentityHeader();
+class _ProfileTextField extends StatelessWidget {
+  const _ProfileTextField({
+    required this.controller,
+    required this.label,
+    this.validator,
+    this.keyboardType,
+    this.obscureText = false,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final FormFieldValidator<String>? validator;
+  final TextInputType? keyboardType;
+  final bool obscureText;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: controller,
+      validator: validator,
+      keyboardType: keyboardType,
+      obscureText: obscureText,
+      decoration: InputDecoration(
+        labelText: label,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: _ProfileColors.line),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: _ProfileColors.green, width: 1.5),
+        ),
+      ),
+    );
+  }
+}
+
+class _SurfaceCard extends StatelessWidget {
+  const _SurfaceCard({
+    required this.child,
+    this.padding = const EdgeInsets.all(18),
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
-      color: _ProfileColors.navy,
-      child: Row(
-        children: [
-          const _ProfileAvatar(size: 58),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Juan Pérez García',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Aprendiz SENA',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.78),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    _HeaderChip(text: 'Ficha 1234567'),
-                    _HeaderChip(text: 'Etapa lectiva'),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HeaderChip extends StatelessWidget {
-  const _HeaderChip({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        child: Text(
-          text,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ProfileTabBar extends StatelessWidget {
-  const _ProfileTabBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Material(
-      color: Colors.white,
-      child: TabBar(
-        labelColor: _ProfileColors.green,
-        unselectedLabelColor: _ProfileColors.muted,
-        indicatorColor: _ProfileColors.green,
-        indicatorWeight: 3,
-        labelStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
-        unselectedLabelStyle: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-        ),
-        tabs: [
-          Tab(text: 'Perfil'),
-          Tab(text: 'Académico'),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProfileTabBody extends StatelessWidget {
-  const _ProfileTabBody({required this.children});
-
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 112),
-      children: children,
-    );
-  }
-}
-
-class _ProfileProgressBlock extends StatelessWidget {
-  const _ProfileProgressBlock();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Perfil del aprendiz',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: _ProfileColors.navy,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-            Text(
-              '86%',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: _ProfileColors.green,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: const LinearProgressIndicator(
-            value: 0.86,
-            minHeight: 7,
-            color: _ProfileColors.green,
-            backgroundColor: Color(0xFFE2EADF),
-          ),
-        ),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            const Expanded(
-              child: _ProfileProgressMetric(
-                label: 'Asistencias',
-                value: '18',
-                color: _ProfileColors.green,
-              ),
-            ),
-            const _VerticalDivider(),
-            const Expanded(
-              child: _ProfileProgressMetric(
-                label: 'Ausencias',
-                value: '2',
-                color: _ProfileColors.danger,
-              ),
-            ),
-            const _VerticalDivider(),
-            Expanded(
-              child: _ProfileProgressMetric(
-                label: 'Observaciones',
-                value: '3',
-                color: _ProfileColors.amber,
-                onTap: () => _showObservationsModal(context),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _ProfileProgressMetric extends StatelessWidget {
-  const _ProfileProgressMetric({
-    required this.label,
-    required this.value,
-    required this.color,
-    this.onTap,
-  });
-
-  final String label;
-  final String value;
-  final Color color;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final content = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: Text(
-                value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-            if (onTap != null) ...[
-              const SizedBox(width: 2),
-              Icon(Icons.chevron_right_rounded, color: color, size: 18),
-            ],
-          ],
-        ),
-        const SizedBox(height: 3),
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: _ProfileColors.muted,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-
-    if (onTap == null) {
-      return content;
-    }
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-          child: content,
-        ),
-      ),
-    );
-  }
-}
-
-class _ProfileActionTile extends StatelessWidget {
-  const _ProfileActionTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 58),
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: _ProfileColors.line)),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, color: _ProfileColors.green, size: 22),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: _ProfileColors.navy,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: _ProfileColors.muted,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: _ProfileColors.muted,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AcademicInlineSummary extends StatelessWidget {
-  const _AcademicInlineSummary();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Column(
-      children: [
-        _ProfileInfoTile(
-          icon: Icons.school_outlined,
-          label: 'Programa',
-          value: 'Desarrollo de Software',
-        ),
-        _ProfileInfoTile(
-          icon: Icons.confirmation_number_outlined,
-          label: 'Ficha',
-          value: '1234567',
-        ),
-        _ProfileInfoTile(
-          icon: Icons.business_outlined,
-          label: 'Centro',
-          value: 'Centro de Tecnología',
-        ),
-        _ProfileInfoTile(
-          icon: Icons.schedule_rounded,
-          label: 'Horario',
-          value: 'Lun. a Vie. 7:00 a. m. - 12:00 p. m.',
-        ),
-        _ProfileInfoTile(
-          icon: Icons.location_on_outlined,
-          label: 'Ambiente',
-          value: 'Aula 301 - Bloque B',
-          showDivider: false,
-        ),
-      ],
-    );
-  }
-}
-
-class _ProfileInfoTile extends StatelessWidget {
-  const _ProfileInfoTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.showDivider = true,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final bool showDivider;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 56),
-      decoration: BoxDecoration(
-        border: showDivider
-            ? const Border(bottom: BorderSide(color: _ProfileColors.line))
-            : null,
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: _ProfileColors.green, size: 21),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: _ProfileColors.muted,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: _ProfileColors.navy,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DocumentInlineTile extends StatelessWidget {
-  const _DocumentInlineTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.color,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 58),
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: _ProfileColors.line)),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, color: color, size: 22),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: _ProfileColors.navy,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: _ProfileColors.muted,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: _ProfileColors.muted,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ignore: unused_element
-class _ApprenticeCredentialCard extends StatelessWidget {
-  const _ApprenticeCredentialCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [_ProfileColors.navy, Color(0xFF0B416A)],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: _ProfileColors.navy.withValues(alpha: 0.22),
-            blurRadius: 22,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _ProfileAvatar(size: 74),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Juan Pérez García',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900,
-                                  height: 1.08,
-                                ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const _StatusChip(text: 'Activo'),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Aprendiz SENA',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.78),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Ficha 1234567',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          const Divider(height: 1, color: Color(0xFF315A78)),
-          const SizedBox(height: 16),
-          Row(
-            children: const [
-              Expanded(
-                child: _CredentialDetail(
-                  label: 'Programa',
-                  value: 'Desarrollo de Software',
-                ),
-              ),
-              SizedBox(width: 14),
-              Expanded(
-                child: _CredentialDetail(
-                  label: 'Centro',
-                  value: 'Centro de Tecnología',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: const [
-              Expanded(
-                child: _CredentialDetail(label: 'Jornada', value: 'Diurna'),
-              ),
-              SizedBox(width: 14),
-              Expanded(
-                child: _CredentialDetail(label: 'Etapa', value: 'Lectiva'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CredentialDetail extends StatelessWidget {
-  const _CredentialDetail({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: Colors.white.withValues(alpha: 0.66),
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-            height: 1.2,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: _ProfileColors.green.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: _ProfileColors.greenLight),
-      ),
-      child: Text(
-        text,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: Colors.white,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-    );
-  }
-}
-
-// ignore: unused_element
-class _ProfileCompletionCard extends StatelessWidget {
-  const _ProfileCompletionCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return _ProfileSurface(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Perfil del aprendiz',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: _ProfileColors.navy,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              Text(
-                '86%',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: _ProfileColors.green,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Información completa y lista para seguimiento académico.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: _ProfileColors.muted,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: const LinearProgressIndicator(
-              value: 0.86,
-              minHeight: 9,
-              color: _ProfileColors.green,
-              backgroundColor: Color(0xFFE9F2E5),
-            ),
-          ),
-          const SizedBox(height: 18),
-          const Row(
-            children: [
-              Expanded(
-                child: _ProfileStat(
-                  label: 'Asistencias',
-                  value: '18',
-                  color: _ProfileColors.green,
-                ),
-              ),
-              _VerticalDivider(),
-              Expanded(
-                child: _ProfileStat(
-                  label: 'Ausencias',
-                  value: '2',
-                  color: _ProfileColors.danger,
-                ),
-              ),
-              _VerticalDivider(),
-              Expanded(
-                child: _ProfileStat(
-                  label: 'Bienestar',
-                  value: '85%',
-                  color: _ProfileColors.amber,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProfileStat extends StatelessWidget {
-  const _ProfileStat({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  final String label;
-  final String value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            color: color,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: _ProfileColors.muted,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _VerticalDivider extends StatelessWidget {
-  const _VerticalDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(width: 1, height: 38, color: _ProfileColors.line);
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-        color: _ProfileColors.navy,
-        fontWeight: FontWeight.w900,
-      ),
-    );
-  }
-}
-
-// ignore: unused_element
-class _QuickActionCard extends StatelessWidget {
-  const _QuickActionCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: _ProfileColors.line),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: _ProfileColors.greenPale,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: _ProfileColors.green, size: 21),
-              ),
-              const Spacer(),
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: _ProfileColors.navy,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                subtitle,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: _ProfileColors.muted,
-                  fontWeight: FontWeight.w600,
-                  height: 1.22,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ignore: unused_element
-class _AcademicSummaryCard extends StatelessWidget {
-  const _AcademicSummaryCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return const _ProfileSurface(
-      child: Column(
-        children: [
-          _InfoMiniRow(
-            icon: Icons.school_outlined,
-            label: 'Programa',
-            value: 'Desarrollo de Software',
-          ),
-          _InfoMiniRow(
-            icon: Icons.confirmation_number_outlined,
-            label: 'Ficha',
-            value: '1234567',
-          ),
-          _InfoMiniRow(
-            icon: Icons.business_outlined,
-            label: 'Centro',
-            value: 'Centro de Tecnología',
-          ),
-          _InfoMiniRow(
-            icon: Icons.schedule_rounded,
-            label: 'Horario',
-            value: 'Lun. a Vie. 7:00 a. m. - 12:00 p. m.',
-          ),
-          _InfoMiniRow(
-            icon: Icons.location_on_outlined,
-            label: 'Ambiente',
-            value: 'Aula 301 - Bloque B',
-            showDivider: false,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ignore: unused_element
-class _DocumentsCard extends StatelessWidget {
-  const _DocumentsCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return _ProfileSurface(
-      child: Column(
-        children: [
-          _DocumentRow(
-            icon: Icons.badge_outlined,
-            title: 'Carnet digital',
-            subtitle: 'Disponible para identificación',
-            color: _ProfileColors.green,
-            onTap: () => _showMessage(context, 'Carnet digital en revisión.'),
-          ),
-          const Divider(height: 18, color: _ProfileColors.line),
-          _DocumentRow(
-            icon: Icons.description_outlined,
-            title: 'Certificado de matrícula',
-            subtitle: 'Última actualización: mayo 2024',
-            color: _ProfileColors.blue,
-            onTap: () => _showMessage(context, 'Documento pendiente.'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoMiniRow extends StatelessWidget {
-  const _InfoMiniRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.showDivider = true,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final bool showDivider;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Icon(icon, color: _ProfileColors.green, size: 20),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: _ProfileColors.muted,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    value,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: _ProfileColors.navy,
-                      fontWeight: FontWeight.w800,
-                      height: 1.22,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        if (showDivider)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 14),
-            child: Divider(height: 1, color: _ProfileColors.line),
-          ),
-      ],
-    );
-  }
-}
-
-class _DocumentRow extends StatelessWidget {
-  const _DocumentRow({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.color,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(icon, color: color, size: 23),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: _ProfileColors.navy,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: _ProfileColors.muted,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: _ProfileColors.muted,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ProfileSurface extends StatelessWidget {
-  const _ProfileSurface({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
+      padding: padding,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: _ProfileColors.line),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 16,
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 14,
             offset: const Offset(0, 8),
           ),
         ],
@@ -1695,44 +1292,16 @@ class _ProfileSurface extends StatelessWidget {
   }
 }
 
-class _ProfileTopBar extends StatelessWidget {
-  const _ProfileTopBar({required this.onSettingsTap});
-
-  final VoidCallback onSettingsTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 42,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Text(
-            'Perfil',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: _ProfileColors.navy,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: IconButton(
-              tooltip: 'Configuración',
-              icon: const Icon(Icons.settings_outlined),
-              color: _ProfileColors.navy,
-              onPressed: onSettingsTap,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ProfileAvatar extends StatelessWidget {
-  const _ProfileAvatar({this.size = 78});
+  const _ProfileAvatar({
+    required this.size,
+    required this.initials,
+    this.showPhoto = false,
+  });
 
   final double size;
+  final String initials;
+  final bool showPhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -1744,21 +1313,39 @@ class _ProfileAvatar extends StatelessWidget {
           height: size,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFFEAF3E7), Color(0xFFCDEAC2)],
-            ),
-            border: Border.all(color: Colors.white, width: 4),
+            color: _ProfileColors.green.withValues(alpha: 0.12),
+            border: Border.all(color: _ProfileColors.greenLight, width: 2),
           ),
           alignment: Alignment.center,
-          child: Text(
-            'JP',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: _ProfileColors.navy,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
+          child: showPhoto
+              ? ClipOval(
+                  child: Image.asset(
+                    'assets/images/aprendices_sena.png',
+                    width: size,
+                    height: size,
+                    fit: BoxFit.cover,
+                    alignment: Alignment.topCenter,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Center(
+                        child: Text(
+                          initials,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: _ProfileColors.navy,
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                      );
+                    },
+                  ),
+                )
+              : Text(
+                  initials,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: _ProfileColors.navy,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
         ),
         Positioned(
           right: 3,
@@ -1778,54 +1365,61 @@ class _ProfileAvatar extends StatelessWidget {
   }
 }
 
-class _ProfileMenuTile extends StatelessWidget {
-  const _ProfileMenuTile({
-    required this.icon,
-    required this.title,
-    required this.onTap,
-    this.color = _ProfileColors.navy,
-    this.showChevron = true,
-  });
+class _StatusNotice extends StatelessWidget {
+  const _StatusNotice({required this.icon, required this.text});
 
   final IconData icon;
-  final String title;
-  final VoidCallback onTap;
-  final Color color;
-  final bool showChevron;
+  final String text;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 58),
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: _ProfileColors.line)),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, color: color, size: 20),
-              const SizedBox(width: 18),
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _ProfileColors.green.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: _ProfileColors.green, size: 18),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: _ProfileColors.navy,
+                fontSize: 12,
+                height: 1.25,
+                fontWeight: FontWeight.w700,
               ),
-              if (showChevron)
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  color: _ProfileColors.navy,
-                  size: 24,
-                ),
-            ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderBadge extends StatelessWidget {
+  const _HeaderBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _ProfileColors.green.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: _ProfileColors.green,
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
           ),
         ),
       ),
@@ -1833,8 +1427,8 @@ class _ProfileMenuTile extends StatelessWidget {
   }
 }
 
-class _InfoField extends StatelessWidget {
-  const _InfoField({required this.label, required this.value});
+class _SheetInfoField extends StatelessWidget {
+  const _SheetInfoField({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -1842,26 +1436,28 @@ class _InfoField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            style: const TextStyle(
               color: _ProfileColors.muted,
-              fontWeight: FontWeight.w600,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             value,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            style: const TextStyle(
               color: _ProfileColors.navy,
-              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           const Divider(height: 1, color: _ProfileColors.line),
         ],
       ),
@@ -1869,104 +1465,81 @@ class _InfoField extends StatelessWidget {
   }
 }
 
-class _PasswordField extends StatelessWidget {
-  const _PasswordField({required this.label});
-
-  final String label;
+class _ProfileLoading extends StatelessWidget {
+  const _ProfileLoading();
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      obscureText: true,
-      decoration: InputDecoration(
-        labelText: label,
-        suffixIcon: const Icon(Icons.visibility_off_outlined),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _ProfileColors.line),
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SkeletonBox(width: 180, height: 30),
+        SizedBox(height: 10),
+        _SkeletonBox(width: 320, height: 14),
+        SizedBox(height: 20),
+        _SurfaceCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _SkeletonBox(width: 210, height: 18),
+              SizedBox(height: 16),
+              _SkeletonBox(width: double.infinity, height: 62),
+              SizedBox(height: 10),
+              _SkeletonBox(width: double.infinity, height: 62),
+            ],
+          ),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _ProfileColors.green, width: 1.5),
-        ),
-      ),
+      ],
     );
   }
 }
 
-class _PasswordHint extends StatelessWidget {
-  const _PasswordHint();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF4F8F2),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFDDEED5)),
-      ),
-      child: Text(
-        'Usa mínimo 8 caracteres e incluye letras, números y un símbolo.',
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: _ProfileColors.navy,
-          fontWeight: FontWeight.w600,
-          height: 1.4,
-        ),
-      ),
-    );
-  }
-}
-
-class _NotificationSwitchTile extends StatelessWidget {
-  const _NotificationSwitchTile({
+class _ProfileStatePanel extends StatelessWidget {
+  const _ProfileStatePanel({
+    required this.icon,
     required this.title,
-    required this.value,
-    required this.onChanged,
+    required this.message,
+    required this.actionLabel,
+    required this.onAction,
   });
 
+  final IconData icon;
   final String title;
-  final bool value;
-  final ValueChanged<bool>? onChanged;
+  final String message;
+  final String actionLabel;
+  final VoidCallback onAction;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 52),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: _ProfileColors.line)),
-      ),
-      child: Row(
+    return _SurfaceCard(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Text(
-              title,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: onChanged == null
-                    ? _ProfileColors.muted
-                    : _ProfileColors.navy,
-                fontWeight: FontWeight.w700,
-              ),
+          Icon(icon, color: _ProfileColors.green, size: 32),
+          const SizedBox(height: 14),
+          Text(
+            title,
+            style: const TextStyle(
+              color: _ProfileColors.navy,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
             ),
           ),
-          Theme(
-            data: Theme.of(context).copyWith(
-              switchTheme: SwitchThemeData(
-                thumbColor: WidgetStateProperty.all(Colors.white),
-                trackColor: WidgetStateProperty.resolveWith((states) {
-                  if (states.contains(WidgetState.disabled)) {
-                    return const Color(0xFFE3E8EF);
-                  }
-                  if (states.contains(WidgetState.selected)) {
-                    return _ProfileColors.green;
-                  }
-                  return const Color(0xFFD8DEE7);
-                }),
-                trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
-              ),
+          const SizedBox(height: 6),
+          Text(
+            message,
+            style: const TextStyle(
+              color: _ProfileColors.muted,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
             ),
-            child: Switch(value: value, onChanged: onChanged),
+          ),
+          const SizedBox(height: 18),
+          OutlinedButton.icon(
+            onPressed: onAction,
+            icon: const Icon(Icons.refresh_rounded),
+            label: Text(actionLabel),
           ),
         ],
       ),
@@ -1974,45 +1547,68 @@ class _NotificationSwitchTile extends StatelessWidget {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.title);
+class _SkeletonBox extends StatelessWidget {
+  const _SkeletonBox({required this.width, required this.height});
 
-  final String title;
+  final double width;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: _ProfileColors.navy,
-          fontWeight: FontWeight.w800,
-        ),
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: _ProfileColors.line,
+        borderRadius: BorderRadius.circular(8),
       ),
     );
   }
 }
 
-void _showMessage(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(message),
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: _ProfileColors.navy,
-    ),
-  );
+String? _requiredValidator(String? value) {
+  if (value == null || value.trim().isEmpty) {
+    return 'Campo requerido';
+  }
+
+  return null;
+}
+
+String? _emailValidator(String? value) {
+  final requiredError = _requiredValidator(value);
+  if (requiredError != null) {
+    return requiredError;
+  }
+
+  if (!value!.contains('@')) {
+    return 'Correo invalido';
+  }
+
+  return null;
+}
+
+String? _passwordValidator(String? value) {
+  final requiredError = _requiredValidator(value);
+  if (requiredError != null) {
+    return requiredError;
+  }
+
+  if (value!.length < 8) {
+    return 'Minimo 8 caracteres';
+  }
+
+  return null;
 }
 
 abstract final class _ProfileColors {
-  static const background = Color(0xFFF5F7F8);
-  static const green = Color(0xFF2FA312);
-  static const greenLight = Color(0xFF8ED36B);
-  static const greenPale = Color(0xFFEAF6E5);
+  static const background = Color(0xFFF6F8FB);
   static const navy = Color(0xFF062E4F);
-  static const blue = Color(0xFF1D75BB);
-  static const amber = Color(0xFFF5A400);
+  static const headerBlue = Color(0xFF063450);
+  static const greenDark = Color(0xFF006B2B);
+  static const green = Color(0xFF39A900);
+  static const greenBright = Color(0xFF69DB2F);
+  static const greenLight = Color(0xFFBDE9B2);
   static const muted = Color(0xFF6F7C8E);
-  static const line = Color(0xFFE9EDF2);
+  static const line = Color(0xFFE8EDF4);
   static const danger = Color(0xFFE04444);
 }
