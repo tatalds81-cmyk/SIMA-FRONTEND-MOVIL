@@ -8,7 +8,7 @@ const _allOption = 'Todos';
 class ObservatoryPage extends StatefulWidget {
   const ObservatoryPage({
     super.key,
-    this.repository = const MockObservationsRepository(),
+    this.repository = const BackendObservationsRepository(),
   });
 
   final ObservationsRepository repository;
@@ -109,13 +109,17 @@ class _ObservatoryPageState extends State<ObservatoryPage> {
   }
 
   Future<void> _handleObservationAction(Observation observation) async {
-    await widget.repository.registerObservationAction(
-      observationId: observation.id,
-      actionType: observation.actionType,
-    );
+    try {
+      await widget.repository.registerObservationAction(
+        observationId: observation.id,
+        actionType: observation.actionType,
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
 
-    if (!mounted) {
-      return;
+      _showMessage(_cleanErrorMessage(error));
     }
 
     switch (observation.actionType) {
@@ -180,12 +184,21 @@ class _ObservatoryPageState extends State<ObservatoryPage> {
                   }
 
                   if (snapshot.hasError) {
-                    return _ObservationError(onRetry: _reload);
+                    final message = _cleanErrorMessage(snapshot.error);
+                    return _ObservationError(
+                      message: message,
+                      isAccessDenied: _isAccessDeniedMessage(message),
+                      onRetry: _reload,
+                    );
                   }
 
                   final dashboard = snapshot.data;
                   if (dashboard == null) {
-                    return _ObservationError(onRetry: _reload);
+                    return _ObservationError(
+                      message:
+                          'No se recibieron datos de observaciones desde el backend.',
+                      onRetry: _reload,
+                    );
                   }
 
                   return _ObservationContent(
@@ -1310,16 +1323,26 @@ class _ObservationLoading extends StatelessWidget {
 }
 
 class _ObservationError extends StatelessWidget {
-  const _ObservationError({required this.onRetry});
+  const _ObservationError({
+    required this.onRetry,
+    this.message = 'Revisa la conexion o intenta nuevamente.',
+    this.isAccessDenied = false,
+  });
 
   final VoidCallback onRetry;
+  final String message;
+  final bool isAccessDenied;
 
   @override
   Widget build(BuildContext context) {
     return _StatePanel(
-      icon: Icons.cloud_off_outlined,
-      title: 'No se pudieron cargar tus observaciones',
-      message: 'Revisa la conexion o intenta nuevamente.',
+      icon: isAccessDenied
+          ? Icons.lock_outline_rounded
+          : Icons.cloud_off_outlined,
+      title: isAccessDenied
+          ? 'Observaciones no disponibles'
+          : 'No se pudieron cargar tus observaciones',
+      message: message,
       actionLabel: 'Reintentar',
       onAction: onRetry,
     );
@@ -1506,6 +1529,29 @@ String _formatNumericDate(DateTime date) {
   final month = date.month.toString().padLeft(2, '0');
 
   return '$day/$month/${date.year}';
+}
+
+String _cleanErrorMessage(Object? error) {
+  if (error == null) {
+    return 'Revisa la conexion o intenta nuevamente.';
+  }
+
+  final rawMessage = error.toString();
+  final message = rawMessage.startsWith('Exception: ')
+      ? rawMessage.replaceFirst('Exception: ', '')
+      : rawMessage;
+
+  return message.trim().isEmpty
+      ? 'Revisa la conexion o intenta nuevamente.'
+      : message;
+}
+
+bool _isAccessDeniedMessage(String message) {
+  final normalized = message.toLowerCase();
+  return normalized.contains('acceso denegado') ||
+      normalized.contains('no tienes permisos') ||
+      normalized.contains('no autorizado') ||
+      normalized.contains('forbidden');
 }
 
 DateTime _dateOnly(DateTime date) {

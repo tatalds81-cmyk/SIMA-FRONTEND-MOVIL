@@ -11,13 +11,36 @@ class ObservationDashboard {
   });
 
   factory ObservationDashboard.fromJson(Map<String, dynamic> json) {
-    final apprentice = json['apprentice'] as Map<String, dynamic>? ?? {};
-    final observationsJson = json['observations'] as List<dynamic>? ?? [];
+    final apprentice = _firstMap([
+      json['apprentice'],
+      json['aprendiz'],
+      json['usuario'],
+      json['user'],
+    ]);
+    final observationsJson =
+        _firstList([
+          json['observations'],
+          json['observaciones'],
+          json['items'],
+          json['registros'],
+        ]) ??
+        const [];
 
     return ObservationDashboard(
-      apprenticeId: (apprentice['id'] ?? '').toString(),
-      apprenticeName: (apprentice['name'] ?? 'Aprendiz').toString(),
-      generatedAt: _parseDateTime(json['generated_at']),
+      apprenticeId: _firstString([
+        apprentice['id'],
+        apprentice['id_aprendiz'],
+        apprentice['id_usuario'],
+      ]),
+      apprenticeName: _firstString([
+        apprentice['name'],
+        apprentice['nombre_completo'],
+        apprentice['nombre'],
+        'Aprendiz',
+      ]),
+      generatedAt: _parseDateTime(
+        _firstValue([json['generated_at'], json['fecha_generacion']]),
+      ),
       observations: observationsJson
           .whereType<Map<String, dynamic>>()
           .map(Observation.fromJson)
@@ -88,28 +111,97 @@ class Observation {
   });
 
   factory Observation.fromJson(Map<String, dynamic> json) {
+    final typeLabel = _firstString([
+      json['type_label'],
+      json['tipo_label'],
+      json['tipo_observacion'],
+      json['tipo'],
+      json['categoria'],
+      'General',
+    ]);
+    final statusLabel = _firstString([
+      json['status_label'],
+      json['estado_label'],
+      json['estado'],
+      json['estado_observacion'],
+    ]);
+    final actionType = ObservationActionTypeX.fromBackend(
+      _firstString([json['action_type'], json['tipo_accion'], json['accion']]),
+    );
+
     return Observation(
-      id: (json['id'] ?? '').toString(),
-      apprenticeId: (json['apprentice_id'] ?? '').toString(),
-      title: (json['title'] ?? '').toString(),
-      typeLabel: (json['type_label'] ?? json['type'] ?? 'General').toString(),
-      area: (json['area'] ?? '').toString(),
-      description: (json['description'] ?? '').toString(),
-      date: _parseDateTime(json['date']),
-      dueDate: json['due_date'] == null
+      id: _firstString([json['id'], json['id_observacion']]),
+      apprenticeId: _firstString([
+        json['apprentice_id'],
+        json['id_aprendiz'],
+        json['aprendiz_id'],
+      ]),
+      title: _firstString([
+        json['title'],
+        json['titulo'],
+        json['asunto'],
+        typeLabel,
+      ]),
+      typeLabel: typeLabel,
+      area: _firstString([
+        json['area'],
+        json['dependencia'],
+        json['fuente'],
+        json['modulo'],
+      ]),
+      description: _firstString([
+        json['description'],
+        json['descripcion'],
+        json['observacion'],
+        json['detalle'],
+      ]),
+      date: _parseDateTime(
+        _firstValue([
+          json['date'],
+          json['fecha'],
+          json['fecha_observacion'],
+          json['created_at'],
+        ]),
+      ),
+      dueDate:
+          _firstValue([
+                json['due_date'],
+                json['fecha_limite'],
+                json['fecha_vencimiento'],
+              ]) ==
+              null
           ? null
-          : _parseDateTime(json['due_date']),
-      authorName: (json['author_name'] ?? json['author'] ?? 'Instructor')
-          .toString(),
-      statusLabel: (json['status_label'] ?? '').toString(),
+          : _parseDateTime(
+              _firstValue([
+                json['due_date'],
+                json['fecha_limite'],
+                json['fecha_vencimiento'],
+              ]),
+            ),
+      authorName: _firstString([
+        json['author_name'],
+        json['author'],
+        json['autor'],
+        json['registrado_por'],
+        'Instructor',
+      ]),
+      statusLabel: statusLabel,
       severity: ObservationSeverityX.fromBackend(
-        (json['severity'] ?? '').toString(),
+        _firstString([
+          json['severity'],
+          json['severidad'],
+          json['prioridad'],
+          statusLabel,
+        ]),
       ),
-      actionLabel: (json['action_label'] ?? '').toString(),
-      actionType: ObservationActionTypeX.fromBackend(
-        (json['action_type'] ?? '').toString(),
-      ),
-      isActive: json['active'] != false,
+      actionLabel: _firstString([
+        json['action_label'],
+        json['accion_label'],
+        json['label_accion'],
+        actionType.defaultLabel,
+      ]),
+      actionType: actionType,
+      isActive: _isActive(json, statusLabel),
     );
   }
 
@@ -131,11 +223,28 @@ class Observation {
 
 extension ObservationSeverityX on ObservationSeverity {
   static ObservationSeverity fromBackend(String value) {
-    return switch (value) {
-      'action_required' => ObservationSeverity.actionRequired,
-      'in_progress' => ObservationSeverity.inProgress,
-      'informative' => ObservationSeverity.informative,
-      'closed' => ObservationSeverity.closed,
+    final normalized = value.toLowerCase().trim();
+    return switch (normalized) {
+      'action_required' ||
+      'requiere_respuesta' ||
+      'requiere respuesta' ||
+      'alta' ||
+      'grave' ||
+      'pendiente' => ObservationSeverity.actionRequired,
+      'in_progress' ||
+      'en seguimiento' ||
+      'en_seguimiento' ||
+      'media' ||
+      'proceso' => ObservationSeverity.inProgress,
+      'informative' ||
+      'informativa' ||
+      'baja' ||
+      'info' => ObservationSeverity.informative,
+      'closed' ||
+      'cerrada' ||
+      'cerrado' ||
+      'resuelta' ||
+      'resuelto' => ObservationSeverity.closed,
       _ => ObservationSeverity.informative,
     };
   }
@@ -152,11 +261,19 @@ extension ObservationSeverityX on ObservationSeverity {
 
 extension ObservationActionTypeX on ObservationActionType {
   static ObservationActionType fromBackend(String value) {
-    return switch (value) {
-      'upload_support' => ObservationActionType.uploadSupport,
-      'view_detail' => ObservationActionType.viewDetail,
-      'contact_support' => ObservationActionType.contactSupport,
-      'none' => ObservationActionType.none,
+    final normalized = value.toLowerCase().trim();
+    return switch (normalized) {
+      'upload_support' ||
+      'subir_soporte' ||
+      'enviar_soporte' ||
+      'soporte' => ObservationActionType.uploadSupport,
+      'view_detail' ||
+      'ver_detalle' ||
+      'detalle' => ObservationActionType.viewDetail,
+      'contact_support' ||
+      'contactar' ||
+      'bienestar' => ObservationActionType.contactSupport,
+      'none' || 'ninguna' || '' => ObservationActionType.none,
       _ => ObservationActionType.none,
     };
   }
@@ -169,6 +286,81 @@ extension ObservationActionTypeX on ObservationActionType {
       ObservationActionType.none => 'none',
     };
   }
+
+  String get defaultLabel {
+    return switch (this) {
+      ObservationActionType.uploadSupport => 'Enviar soporte',
+      ObservationActionType.viewDetail => 'Ver detalle',
+      ObservationActionType.contactSupport => 'Contactar',
+      ObservationActionType.none => 'Ver detalle',
+    };
+  }
+}
+
+Object? _firstValue(List<Object?> values) {
+  for (final value in values) {
+    if (value != null) {
+      return value;
+    }
+  }
+  return null;
+}
+
+Map<String, dynamic> _firstMap(List<Object?> values) {
+  for (final value in values) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+  }
+  return const {};
+}
+
+List<dynamic>? _firstList(List<Object?> values) {
+  for (final value in values) {
+    if (value is List<dynamic>) {
+      return value;
+    }
+  }
+  return null;
+}
+
+String _firstString(List<Object?> values) {
+  for (final value in values) {
+    if (value == null) {
+      continue;
+    }
+    if (value is Map<String, dynamic>) {
+      final nested = _firstString([
+        value['nombre_completo'],
+        value['nombre'],
+        value['name'],
+        value['label'],
+        value['descripcion'],
+      ]);
+      if (nested.isNotEmpty) {
+        return nested;
+      }
+      continue;
+    }
+    final text = value.toString().trim();
+    if (text.isNotEmpty) {
+      return text;
+    }
+  }
+  return '';
+}
+
+bool _isActive(Map<String, dynamic> json, String statusLabel) {
+  final explicit = _firstValue([json['active'], json['activo']]);
+  if (explicit is bool) {
+    return explicit;
+  }
+
+  final normalized = statusLabel.toLowerCase().trim();
+  return normalized != 'cerrada' &&
+      normalized != 'cerrado' &&
+      normalized != 'resuelta' &&
+      normalized != 'resuelto';
 }
 
 DateTime _parseDateTime(Object? value) {

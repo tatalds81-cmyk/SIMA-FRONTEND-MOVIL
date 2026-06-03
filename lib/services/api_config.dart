@@ -9,7 +9,7 @@
 ///     const String baseUrl = 'http://10.0.2.2:3000/api';
 ///
 ///   Dispositivo físico (misma red Wi-Fi que la PC):
-///     const String baseUrl = 'http://<IP_LOCAL_PC>:3000/api';
+///     `const String baseUrl = 'http://<IP_LOCAL_PC>:3000/api';`
 ///     Ej: const String baseUrl = 'http://192.168.1.50:3000/api';
 class ApiConfig {
   ApiConfig._(); // Clase no instanciable
@@ -21,8 +21,14 @@ class ApiConfig {
   static const String me = '$baseUrl/auth/me';
 
   // Endpoints de aprendiz
-  static const String apprenticeDashboard = '$baseUrl/apprentice-portal/dashboard';
+  static const String apprenticeDashboard =
+      '$baseUrl/apprentice-portal/dashboard';
   static const String myCalendar = '$baseUrl/attendances/my-calendar';
   static const String sessions = '$baseUrl/apprentice-portal/sessions';
   static const String qrAttendance = '$baseUrl/attendances/qr';
+  static const String currentApprentice = '$baseUrl/apprentices/me';
+  static const String currentUser = '$baseUrl/users/me';
+  static const String myObservations = '$baseUrl/observations/my';
+
+  static String observation(String id) => '$baseUrl/observations/$id';
 }
