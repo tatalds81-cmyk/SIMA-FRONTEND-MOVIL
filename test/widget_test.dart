@@ -1,18 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:sima_movil_froned/features/access.dart';
+import 'package:sima_movil_froned/features/observatory/data/observations_repository.dart';
+import 'package:sima_movil_froned/features/observatory/observatory_page.dart';
+import 'package:sima_movil_froned/features/profile/data/profile_repository.dart';
 import 'package:sima_movil_froned/features/profile/profile_page.dart';
-import 'package:sima_movil_froned/widgets/sima_bottom_nav_bar.dart';
 
 void main() {
-  Finder bottomNavItem(String label) {
-    return find.descendant(
-      of: find.byType(SimaBottomNavBar),
-      matching: find.text(label),
-    );
-  }
-
   void useDesktopViewport(WidgetTester tester) {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1600, 900);
@@ -20,18 +14,19 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
   }
 
-  testWidgets('SIMA shows observations and profile from bottom navigation', (
+  testWidgets('SIMA shows observations dashboard with backend shape', (
     WidgetTester tester,
   ) async {
     useDesktopViewport(tester);
 
-    await tester.pumpWidget(const MaterialApp(home: AccessPage()));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Inicio'), findsWidgets);
-    expect(bottomNavItem('Observaciones'), findsOneWidget);
-
-    await tester.tap(bottomNavItem('Observaciones'));
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: ObservatoryPage(repository: MockObservationsRepository()),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
 
     expect(find.text('Mis observaciones'), findsOneWidget);
@@ -44,34 +39,15 @@ void main() {
     expect(find.text('Mostrando 3 de 3 observaciones'), findsOneWidget);
     expect(find.text('Asistencia por justificar'), findsOneWidget);
     expect(find.text('Enviar soporte'), findsWidgets);
-
-    await tester.tap(bottomNavItem('Perfil'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Mi perfil'), findsOneWidget);
-    expect(find.byTooltip('Cerrar sesion'), findsOneWidget);
-    expect(find.text('Accesos del perfil'), findsOneWidget);
-    expect(find.text('Datos personales'), findsOneWidget);
-    expect(find.byTooltip('Editar datos personales'), findsOneWidget);
-    expect(find.text('Cerrar sesion'), findsNothing);
-    expect(find.text('Academico'), findsOneWidget);
-    expect(find.text('Contacto de emergencia'), findsOneWidget);
-    expect(find.byTooltip('Editar contacto de emergencia'), findsOneWidget);
-    expect(find.text('Seguridad'), findsOneWidget);
-    expect(find.text('juan.perez@misena.edu.co'), findsNothing);
-    expect(find.text('Perfil del aprendiz', skipOffstage: false), findsNothing);
-    expect(find.text('Notificaciones', skipOffstage: false), findsNothing);
-    expect(find.text('Documentos', skipOffstage: false), findsNothing);
-    expect(find.text('Carnet digital', skipOffstage: false), findsNothing);
-    expect(find.text('Cuenta'), findsNothing);
-    expect(find.byIcon(Icons.settings_outlined), findsNothing);
   });
 
   testWidgets('Perfil keeps details inside personal access', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: ProfilePage())),
+      const MaterialApp(
+        home: Scaffold(body: ProfilePage(repository: MockProfileRepository())),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
@@ -127,7 +103,9 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: ProfilePage())),
+      const MaterialApp(
+        home: Scaffold(body: ProfilePage(repository: MockProfileRepository())),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
@@ -153,7 +131,9 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: ProfilePage())),
+      const MaterialApp(
+        home: Scaffold(body: ProfilePage(repository: MockProfileRepository())),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();

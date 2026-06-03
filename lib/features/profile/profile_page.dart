@@ -8,7 +8,7 @@ const _wideBreakpoint = 760.0;
 class ProfilePage extends StatefulWidget {
   const ProfilePage({
     super.key,
-    this.repository = const MockProfileRepository(),
+    this.repository = const BackendProfileRepository(),
   });
 
   final ProfileRepository repository;
@@ -246,7 +246,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       ? _ProfileStatePanel(
                           icon: Icons.cloud_off_outlined,
                           title: 'No se pudo cargar tu perfil',
-                          message: 'Revisa la conexion o intenta nuevamente.',
+                          message: _cleanErrorMessage(snapshot.error),
                           actionLabel: 'Reintentar',
                           onAction: _reload,
                         )
@@ -839,13 +839,24 @@ class _PersonalInformationFormState extends State<_PersonalInformationForm> {
       phone: _phoneController.text.trim(),
     );
 
-    await widget.onSave(updated);
+    try {
+      await widget.onSave(updated);
 
-    if (!mounted) {
-      return;
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).pop();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isSaving = false;
+      });
+      _showFormError(context, error);
     }
-
-    Navigator.of(context).pop();
   }
 
   @override
@@ -957,13 +968,24 @@ class _EmergencyContactFormState extends State<_EmergencyContactForm> {
       email: _emailController.text.trim(),
     );
 
-    await widget.onSave(updated);
+    try {
+      await widget.onSave(updated);
 
-    if (!mounted) {
-      return;
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).pop();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isSaving = false;
+      });
+      _showFormError(context, error);
     }
-
-    Navigator.of(context).pop();
   }
 
   @override
@@ -1046,16 +1068,27 @@ class _PasswordFormState extends State<_PasswordForm> {
       _isSaving = true;
     });
 
-    await widget.onSave(
-      currentPassword: _currentPasswordController.text,
-      newPassword: _newPasswordController.text,
-    );
+    try {
+      await widget.onSave(
+        currentPassword: _currentPasswordController.text,
+        newPassword: _newPasswordController.text,
+      );
 
-    if (!mounted) {
-      return;
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).pop();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isSaving = false;
+      });
+      _showFormError(context, error);
     }
-
-    Navigator.of(context).pop();
   }
 
   @override
@@ -1600,13 +1633,36 @@ String? _passwordValidator(String? value) {
   return null;
 }
 
+void _showFormError(BuildContext context, Object error) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(_cleanErrorMessage(error)),
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: _ProfileColors.danger,
+    ),
+  );
+}
+
+String _cleanErrorMessage(Object? error) {
+  if (error == null) {
+    return 'Revisa la conexion o intenta nuevamente.';
+  }
+
+  final rawMessage = error.toString();
+  final message = rawMessage.startsWith('Exception: ')
+      ? rawMessage.replaceFirst('Exception: ', '')
+      : rawMessage;
+
+  return message.trim().isEmpty
+      ? 'Revisa la conexion o intenta nuevamente.'
+      : message;
+}
+
 abstract final class _ProfileColors {
   static const background = Color(0xFFF6F8FB);
   static const navy = Color(0xFF062E4F);
   static const headerBlue = Color(0xFF063450);
-  static const greenDark = Color(0xFF006B2B);
   static const green = Color(0xFF39A900);
-  static const greenBright = Color(0xFF69DB2F);
   static const greenLight = Color(0xFFBDE9B2);
   static const muted = Color(0xFF6F7C8E);
   static const line = Color(0xFFE8EDF4);
