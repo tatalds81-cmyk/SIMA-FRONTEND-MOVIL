@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:sima_movil_froned/services/attendance_service.dart';
@@ -115,6 +117,36 @@ String _normalizeQrError(Object error) {
   return raw;
 }
 
+String? _extractQrToken(String rawQrValue) {
+  final raw = rawQrValue.trim();
+  if (raw.isEmpty) {
+    return null;
+  }
+
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is Map<String, dynamic>) {
+      final token = decoded['token_qr'] ?? decoded['qr_token'];
+      if (token != null && token.toString().trim().isNotEmpty) {
+        return token.toString().trim();
+      }
+    }
+  } catch (_) {
+    // El QR tambien puede venir como token plano o URL.
+  }
+
+  final uri = Uri.tryParse(raw);
+  if (uri != null && uri.hasQuery) {
+    final token =
+        uri.queryParameters['token_qr'] ?? uri.queryParameters['qr_token'];
+    if (token != null && token.trim().isNotEmpty) {
+      return token.trim();
+    }
+  }
+
+  return raw;
+}
+
 class QrAttendanceScannerScreen extends StatefulWidget {
   const QrAttendanceScannerScreen({
     super.key,
@@ -138,7 +170,7 @@ class _QrAttendanceScannerScreenState extends State<QrAttendanceScannerScreen> {
     super.dispose();
   }
 
-  Future<void> _processQr(String tokenQr) async {
+  Future<void> _processQr(String rawQrValue) async {
     setState(() => _isProcessing = true);
     await controller.stop();
 
@@ -149,6 +181,11 @@ class _QrAttendanceScannerScreenState extends State<QrAttendanceScannerScreen> {
     _showLoadingDialog(context, 'Validando ubicación y seguridad...');
 
     try {
+      final tokenQr = _extractQrToken(rawQrValue);
+      if (tokenQr == null || tokenQr.isEmpty) {
+        throw Exception('Codigo QR invalido para esta sesion');
+      }
+
       final authSuccess = await LocalAuthService.authenticate();
       if (!authSuccess) {
         throw Exception('No se pudo validar tu identidad en el dispositivo.');

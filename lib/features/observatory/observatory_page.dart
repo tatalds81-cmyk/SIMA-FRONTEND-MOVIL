@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sima_movil_froned/features/observatory/data/observations_repository.dart';
 import 'package:sima_movil_froned/features/observatory/models/observation.dart';
+import 'package:sima_movil_froned/theme/app_colors.dart';
 
 const _allOption = 'Todos';
 const _wideBreakpoint = 760.0;
@@ -612,7 +613,7 @@ class _FiltersCardState extends State<_FiltersCard> {
                     foregroundColor: Colors.white,
                     minimumSize: const Size.fromHeight(44),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
@@ -632,7 +633,7 @@ class _FiltersCardState extends State<_FiltersCard> {
                     minimumSize: const Size.fromHeight(44),
                     side: const BorderSide(color: _ObservatoryColors.line),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                   child: const Text('Limpiar'),
@@ -660,14 +661,14 @@ class _FilterChipButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(12),
       onTap: onTap,
       child: Container(
         width: 150,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           border: Border.all(color: _ObservatoryColors.line),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           children: [
@@ -727,6 +728,7 @@ class _DropdownFilter extends StatelessWidget {
     return SizedBox(
       width: 150,
       child: DropdownButtonFormField<String>(
+        isExpanded: true,
         value: options.contains(value) ? value : _allOption,
         items: options
             .map((option) => DropdownMenuItem(value: option, child: Text(option)))
@@ -839,13 +841,13 @@ class _RecordTile extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           onTap: onTap,
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(color: _ObservatoryColors.line),
             ),
             child: Row(
@@ -1112,7 +1114,7 @@ class _ReadOnlyField extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: _ObservatoryColors.background,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: _ObservatoryColors.line),
           ),
           child: Text(
@@ -1146,12 +1148,12 @@ class _SurfaceCard extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _ObservatoryColors.line),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.035),
-            blurRadius: 14,
+            color: _ObservatoryColors.navy.withValues(alpha: 0.03),
+            blurRadius: 18,
             offset: const Offset(0, 8),
           ),
         ],
@@ -1351,13 +1353,13 @@ InputDecoration _inputDecoration(String label) {
       fontWeight: FontWeight.w800,
     ),
     contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
     enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(12),
       borderSide: const BorderSide(color: _ObservatoryColors.line),
     ),
     focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(12),
       borderSide: const BorderSide(color: _ObservatoryColors.green, width: 1.4),
     ),
   );
@@ -1410,11 +1412,11 @@ String _cleanErrorMessage(Object? error) {
 }
 
 abstract final class _ObservatoryColors {
-  static const background = Color(0xFFF6F8FB);
-  static const navy = Color(0xFF062E4F);
-  static const green = Color(0xFF39A900);
-  static const muted = Color(0xFF6F7C8E);
-  static const line = Color(0xFFE1E7EF);
-  static const amber = Color(0xFFF5B400);
-  static const danger = Color(0xFFE04444);
+  static const background = AppColors.scaffoldBg;
+  static const navy = AppColors.primaryBlue;
+  static const green = AppColors.accentGreen;
+  static const muted = AppColors.secondaryGrey;
+  static const line = AppColors.borderGrey;
+  static const amber = AppColors.alertWarning;
+  static const danger = AppColors.alertCritical;
 }

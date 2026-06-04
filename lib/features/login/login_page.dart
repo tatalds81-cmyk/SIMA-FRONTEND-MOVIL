@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:sima_movil_froned/features/access.dart';
 import 'package:sima_movil_froned/services/auth_service.dart';
-import 'widgets/custom_input.dart';
-import 'widgets/custom_button.dart';
+import 'package:sima_movil_froned/theme/app_colors.dart';
+import 'package:sima_movil_froned/widgets/app_text_field.dart';
+import 'package:sima_movil_froned/widgets/app_primary_button.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -42,7 +43,7 @@ class _LoginPageState extends State<LoginPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(result.message),
-          backgroundColor: const Color(0xFF39A900), // Verde SENA
+          backgroundColor: AppColors.accentGreen, // Verde SENA
           duration: const Duration(seconds: 2),
         ),
       );
@@ -61,7 +62,7 @@ class _LoginPageState extends State<LoginPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(result.message),
-          backgroundColor: const Color(0xFFD32F2F), // Rojo error
+          backgroundColor: AppColors.alertCritical, // Rojo error
           duration: const Duration(seconds: 3),
         ),
       );
@@ -78,310 +79,282 @@ class _LoginPageState extends State<LoginPage> {
     final bool isSmallPhone = height < 700;
     final bool isNarrow = width < 360;
 
-    // --- Proportional values (same design, adaptive sizes) ---
+    // --- Proportional values ---
     final double horizontalPad = (width * 0.06).clamp(16.0, 24.0);
-    
-    // Card
     final double cardPadding = isSmallPhone || isNarrow ? 24.0 : 32.0;
 
-    // Font sizes (aumentados ligeramente)
     final double titleFontSize = isNarrow ? 24.0 : 28.0;
     final double subtitleFontSize = isNarrow ? 13.0 : 14.0;
-    final double bodyFontSize = isNarrow ? 14.0 : 15.0;
     final double footerFontSize = isNarrow ? 11.0 : 12.0;
     final double logoSize = isSmallPhone ? 40.0 : 45.0;
     final double welcomeFontSize = isNarrow ? 14.0 : 16.0;
 
-    // Spacing (más ajustado en la parte superior)
     final double fieldSpacing = isSmallPhone ? 14.0 : 18.0;
     final double sectionSpacing = isSmallPhone ? 18.0 : 24.0;
 
     return Scaffold(
-      // Se mantiene movible para que el teclado no dañe la vista, 
-      // pero el diseño luce estático visualmente.
       resizeToAvoidBottomInset: true,
-      backgroundColor: const Color(0xFF092444), // Azul oscuro SENA (#092444)
-      body: Stack(
-        children: [
-          // ── Imagen de fondo limpia proporcionada por el usuario ──
-          // ── Fondo azul sólido (Scaffold backgroundColor ya lo provee) ──
-
-          // ── Contenido sobre la imagen ──
-          SafeArea(
-            bottom: false,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  physics: const ClampingScrollPhysics(),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: constraints.maxHeight,
-                    ),
-                    child: IntrinsicHeight(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // ── Zona superior (Textos y Logo) ──
-                          Padding(
-                            padding: EdgeInsets.only(
-                              left: horizontalPad,
-                              right: horizontalPad,
-                              top: isSmallPhone ? 16.0 : 24.0,
-                              // Reducido para subir la tarjeta blanca
-                              bottom: isSmallPhone ? 12.0 : 20.0,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Logo SENA alineado a la izquierda
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Image.asset(
-                                    'assets/images/logo-Sena.png',
-                                    height: logoSize,
-                                    width: logoSize,
-                                    fit: BoxFit.contain,
-                                    color: const Color(0xFF39A900), // verde SENA
-                                    colorBlendMode: BlendMode.srcIn,
-                                  ),
-                                ),
-                                SizedBox(height: isSmallPhone ? 12.0 : 18.0),
-
-                                // Welcome Text Section
-                                Text(
-                                  'Bienvenido a SIMA',
-                                  style: TextStyle(
-                                    fontSize: welcomeFontSize,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF00A4E4),
-                                  ),
-                                ),
-                                const SizedBox(height: 6.0),
-                                
-                                // Title
-                                Text(
-                                  'Sistema Integral\nde Monitoreo del\nAprendiz',
-                                  style: TextStyle(
-                                    fontSize: titleFontSize,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
-                                    height: 1.15,
-                                  ),
-                                ),
-                                const SizedBox(height: 10.0),
-                                
-                                // Subtitle
-                                Text(
-                                  'Herramienta diseñada para el\nseguimiento académico de los\naprendices.',
-                                  style: TextStyle(
-                                    fontSize: subtitleFontSize,
-                                    color: Colors.white70,
-                                    height: 1.4,
-                                  ),
-                                ),
-                              ],
-                            ),
+      backgroundColor: AppColors.primaryBlue, // Azul principal
+      body: SafeArea(
+        bottom: false,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 800),
+          curve: Curves.easeOutCubic,
+          builder: (context, value, child) {
+            return Transform.translate(
+              offset: Offset(0, 30 * (1 - value)),
+              child: Opacity(
+                opacity: value,
+                child: child,
+              ),
+            );
+          },
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                physics: const ClampingScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: constraints.maxHeight,
+                  ),
+                  child: IntrinsicHeight(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // ── Zona superior (Textos y Logo) ──
+                        Padding(
+                          padding: EdgeInsets.only(
+                            left: horizontalPad,
+                            right: horizontalPad,
+                            top: isSmallPhone ? 16.0 : 24.0,
+                            bottom: isSmallPhone ? 12.0 : 20.0,
                           ),
-
-                          // ── Tarjeta blanca de Login ──
-                          Expanded(
-                            child: Container(
-                              width: double.infinity,
-                              // Padding interno ajustado (menos espacio vacío abajo)
-                              padding: EdgeInsets.fromLTRB(
-                                horizontalPad, 
-                                cardPadding, 
-                                horizontalPad, 
-                                mq.padding.bottom + 12.0,
-                              ),
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                // Bordes superiores muy redondeados (40px)
-                                borderRadius: BorderRadius.only(
-                                  topLeft: Radius.circular(40),
-                                  topRight: Radius.circular(40),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Logo SENA alineado a la izquierda
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Image.asset(
+                                  'assets/images/logo-Sena.png',
+                                  height: logoSize,
+                                  width: logoSize,
+                                  fit: BoxFit.contain,
+                                  color: AppColors.accentGreen, // verde SENA
+                                  colorBlendMode: BlendMode.srcIn,
                                 ),
-                                // Sin sombras exageradas, totalmente limpio
                               ),
-                              child: Form(
-                                key: _formKey,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Iniciar sesión',
-                                      style: TextStyle(
-                                        fontSize: titleFontSize * 0.9,
-                                        fontWeight: FontWeight.w800,
-                                        color: const Color(0xFF092444), 
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6.0),
-                                    Text(
-                                      'Ingresa tus credenciales para continuar',
-                                      style: TextStyle(
-                                        fontSize: subtitleFontSize,
-                                        color: const Color(0xFF596879),
-                                      ),
-                                    ),
-                                    SizedBox(height: sectionSpacing),
+                              SizedBox(height: isSmallPhone ? 12.0 : 18.0),
 
-                                    // Documento field Label
-                                    Text(
-                                      'Documento de Identidad',
-                                      style: TextStyle(
-                                        fontSize: bodyFontSize,
-                                        fontWeight: FontWeight.w700,
-                                        color: const Color(0xFF092444),
-                                      ),
+                              // Welcome Text Section
+                              Text(
+                                'Bienvenido a SIMA',
+                                style: TextStyle(
+                                  fontSize: welcomeFontSize,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.accentGreen,
+                                ),
+                              ),
+                              const SizedBox(height: 6.0),
+                              
+                              // Title
+                              Text(
+                                'Sistema Integral\nde Monitoreo del\nAprendiz',
+                                style: TextStyle(
+                                  fontSize: titleFontSize,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                  height: 1.15,
+                                ),
+                              ),
+                              const SizedBox(height: 10.0),
+                              
+                              // Subtitle
+                              Text(
+                                'Herramienta diseñada para el\nseguimiento académico de los\naprendices.',
+                                style: TextStyle(
+                                  fontSize: subtitleFontSize,
+                                  color: Colors.white.withValues(alpha: 0.7),
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // ── Tarjeta blanca de Login ──
+                        Expanded(
+                          child: Container(
+                            width: double.infinity,
+                            padding: EdgeInsets.fromLTRB(
+                              horizontalPad, 
+                              cardPadding, 
+                              horizontalPad, 
+                              mq.padding.bottom + 12.0,
+                            ),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.only(
+                                topLeft: Radius.circular(40),
+                                topRight: Radius.circular(40),
+                              ),
+                            ),
+                            child: Form(
+                              key: _formKey,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Iniciar sesión',
+                                    style: TextStyle(
+                                      fontSize: titleFontSize * 0.9,
+                                      fontWeight: FontWeight.w900,
+                                      color: AppColors.textMain, 
                                     ),
-                                    const SizedBox(height: 8.0),
-                                    // Documento field
-                                    CustomInput(
-                                      controller: _documentController,
-                                      hintText: 'Ingresa tu numero de documento',
-                                      keyboardType: TextInputType.number,
-                                      prefixIcon: const Icon(
-                                        Icons.mail_outline,
-                                        color: Color(0xFF566577),
+                                  ),
+                                  const SizedBox(height: 6.0),
+                                  Text(
+                                    'Ingresa tus credenciales para continuar',
+                                    style: TextStyle(
+                                      fontSize: subtitleFontSize,
+                                      color: AppColors.secondaryGrey,
+                                    ),
+                                  ),
+                                  SizedBox(height: sectionSpacing),
+
+                                  // Documento field (using consolidated AppTextField)
+                                  AppTextField(
+                                    controller: _documentController,
+                                    labelText: 'Documento de Identidad',
+                                    hintText: 'Ingresa tu número de documento',
+                                    keyboardType: TextInputType.number,
+                                    prefixIcon: const Icon(
+                                      Icons.mail_outline_rounded,
+                                      color: AppColors.secondaryGrey,
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.trim().isEmpty) {
+                                        return 'Por favor ingresa tu número de documento';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  SizedBox(height: fieldSpacing),
+
+                                  // Contraseña field
+                                  AppTextField(
+                                    controller: _passwordController,
+                                    labelText: 'Contraseña',
+                                    hintText: 'Ingresa tu contraseña',
+                                    obscureText: _obscurePassword,
+                                    prefixIcon: const Icon(
+                                      Icons.lock_outline_rounded,
+                                      color: AppColors.secondaryGrey,
+                                    ),
+                                    suffixIcon: IconButton(
+                                      icon: Icon(
+                                        _obscurePassword
+                                            ? Icons.visibility_off_outlined
+                                            : Icons.visibility_outlined,
+                                        color: AppColors.secondaryGrey,
                                       ),
-                                      validator: (value) {
-                                        if (value == null || value.trim().isEmpty) {
-                                          return 'Por favor ingresa tu número de documento';
-                                        }
-                                        return null;
+                                      onPressed: () {
+                                        setState(() {
+                                          _obscurePassword = !_obscurePassword;
+                                        });
                                       },
                                     ),
-                                    SizedBox(height: fieldSpacing),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Por favor ingresa tu contraseña';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 8.0),
 
-                                    // Contraseña field Label
-                                    Text(
-                                      'Contraseña',
-                                      style: TextStyle(
-                                        fontSize: bodyFontSize,
-                                        fontWeight: FontWeight.w700,
-                                        color: const Color(0xFF092444),
+                                  // Olvidaste tu contraseña link
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: () {},
+                                      style: TextButton.styleFrom(
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: Size.zero,
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        foregroundColor: AppColors.accentGreen, 
                                       ),
-                                    ),
-                                    const SizedBox(height: 8.0),
-                                    // Contraseña field
-                                    CustomInput(
-                                      controller: _passwordController,
-                                      hintText: 'Ingresa tu contraseña',
-                                      obscureText: _obscurePassword,
-                                      prefixIcon: const Icon(
-                                        Icons.lock_outline,
-                                        color: Color(0xFF566577),
-                                      ),
-                                      suffixIcon: IconButton(
-                                        icon: Icon(
-                                          _obscurePassword
-                                              ? Icons.visibility_off_outlined
-                                              : Icons.visibility_outlined,
-                                          color: const Color(0xFF566577),
-                                        ),
-                                        onPressed: () {
-                                          setState(() {
-                                            _obscurePassword = !_obscurePassword;
-                                          });
-                                        },
-                                      ),
-                                      validator: (value) {
-                                        if (value == null || value.isEmpty) {
-                                          return 'Por favor ingresa tu contraseña';
-                                        }
-                                        return null;
-                                      },
-                                    ),
-                                    const SizedBox(height: 8.0),
-
-                                    // Olvidaste tu contraseña link
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: TextButton(
-                                        onPressed: () {},
-                                        style: TextButton.styleFrom(
-                                          padding: EdgeInsets.zero,
-                                          minimumSize: Size.zero,
-                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                          foregroundColor: const Color(0xFF00A4E4), 
-                                        ),
-                                        child: Text(
-                                          'Olvidaste tu contraseña?',
-                                          style: TextStyle(
-                                            fontSize: bodyFontSize,
-                                            fontWeight: FontWeight.w500,
-                                            color: const Color(0xFF00A4E4), // Color cyan como en la referencia
-                                          ),
+                                      child: Text(
+                                        '¿Olvidaste tu contraseña?',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.accentGreen,
                                         ),
                                       ),
                                     ),
-                                    SizedBox(height: sectionSpacing),
+                                  ),
+                                  SizedBox(height: sectionSpacing),
 
-                                    // Button "Iniciar sesion"
-                                    CustomButton(
-                                      text: _isLoading ? 'Verificando...' : 'Iniciar sesión',
-                                      gradient: const LinearGradient(
-                                        colors: [Color(0xFF39A900), Color(0xFF238500)],
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                      ),
-                                      textColor: Colors.white,
-                                      onPressed: _isLoading ? null : _handleLogin,
-                                    ),
-                                    
-                                    SizedBox(height: sectionSpacing),
+                                  // Button "Iniciar sesion" (using custom AppPrimaryButton with press scaling)
+                                  AppPrimaryButton(
+                                    text: 'Iniciar sesión',
+                                    isLoading: _isLoading,
+                                    onPressed: _handleLogin,
+                                  ),
+                                  
+                                  SizedBox(height: sectionSpacing),
 
-                                    // ¿No tienes una cuenta? separator
-                                    Row(
-                                      children: [
-                                        Expanded(child: Divider(color: Colors.grey.shade300)),
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                                          child: FittedBox(
-                                            fit: BoxFit.scaleDown,
-                                            child: Text(
-                                              '¿No tienes una cuenta?',
-                                              style: TextStyle(
-                                                fontSize: footerFontSize,
-                                                color: const Color(0xFF092444), // Azul oscuro
-                                                fontWeight: FontWeight.w700, // En negrita como en la foto
-                                              ),
+                                  // ¿No tienes una cuenta? separator
+                                  Row(
+                                    children: [
+                                      Expanded(child: Divider(color: Colors.grey.shade200)),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                        child: FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Text(
+                                            '¿No tienes una cuenta?',
+                                            style: TextStyle(
+                                              fontSize: footerFontSize,
+                                              color: AppColors.textMain,
+                                              fontWeight: FontWeight.w800,
                                             ),
                                           ),
                                         ),
-                                        Expanded(child: Divider(color: Colors.grey.shade300)),
-                                      ],
-                                    ),
-                                    
-                                    const Spacer(),
-
-                                    // Footer (c) 2024 SENA (Color oscuro al estar sobre blanco)
-                                    Center(
-                                      child: Text(
-                                        '(c) 2024 SENA. Todos los derechos reservados.',
-                                        style: TextStyle(
-                                          fontSize: footerFontSize,
-                                          color: const Color(0xFF092444),
-                                          height: 1.5,
-                                        ),
-                                        textAlign: TextAlign.center,
                                       ),
+                                      Expanded(child: Divider(color: Colors.grey.shade200)),
+                                    ],
+                                  ),
+                                  
+                                  const Spacer(),
+
+                                  // Footer (c) 2024 SENA (Color oscuro al estar sobre blanco)
+                                  Center(
+                                    child: Text(
+                                      '(c) 2024 SENA. Todos los derechos reservados.',
+                                      style: TextStyle(
+                                        fontSize: footerFontSize,
+                                        color: AppColors.secondaryGrey,
+                                        height: 1.5,
+                                      ),
+                                      textAlign: TextAlign.center,
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
-        ],
+        ),
       ),
     );
   }

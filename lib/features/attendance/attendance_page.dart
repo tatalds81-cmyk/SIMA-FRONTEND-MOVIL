@@ -1,5 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:sima_movil_froned/services/attendance_service.dart';
+import 'package:sima_movil_froned/theme/app_colors.dart';
 import 'dart:math' as math;
 
 class AttendancePage extends StatefulWidget {
@@ -32,7 +33,7 @@ class _AttendancePageState extends State<AttendancePage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _fetchDashboard();
     _fetchCalendar();
     _fetchSessions();
@@ -119,18 +120,24 @@ class _AttendancePageState extends State<AttendancePage>
   void _showMonthPicker() {
     showModalBottomSheet(
       context: context,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
         return Container(
-          padding: const EdgeInsets.symmetric(vertical: 20),
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
                 'Seleccionar Mes',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textMain,
+                ),
               ),
               const SizedBox(height: 10),
               ListTile(
@@ -164,18 +171,24 @@ class _AttendancePageState extends State<AttendancePage>
   void _showFilterPicker() {
     showModalBottomSheet(
       context: context,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
         return Container(
-          padding: const EdgeInsets.symmetric(vertical: 20),
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
                 'Filtrar por Estado',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textMain,
+                ),
               ),
               const SizedBox(height: 10),
               ListTile(
@@ -230,28 +243,27 @@ class _AttendancePageState extends State<AttendancePage>
   Color _getStatusColor(String status) {
     switch (status.toUpperCase()) {
       case 'PENDIENTE':
-        return Colors.grey.shade500;
+        return AppColors.placeholderGrey;
       case 'PRESENTE':
-        return const Color(0xFF39A900);
+        return AppColors.accentGreen;
       case 'INASISTENTE':
-        return const Color(0xFFE53935);
+        return AppColors.alertCritical;
       case 'TARDE':
       case 'JUSTIFICADA':
-        return const Color(0xFFF6A900);
+        return AppColors.alertWarning;
       default:
-        return Colors.grey;
+        return AppColors.secondaryGrey;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FB),
+      backgroundColor: AppColors.scaffoldBg,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // â”€â”€ Header Principal â”€â”€
             const Padding(
               padding: EdgeInsets.fromLTRB(20, 20, 20, 4),
               child: Column(
@@ -260,7 +272,7 @@ class _AttendancePageState extends State<AttendancePage>
                   Text(
                     'Asistencia',
                     style: TextStyle(
-                      color: Color(0xFF092444),
+                      color: AppColors.textMain,
                       fontSize: 28,
                       fontWeight: FontWeight.w800,
                     ),
@@ -269,7 +281,7 @@ class _AttendancePageState extends State<AttendancePage>
                   Text(
                     'Registro y consulta de asistencia',
                     style: TextStyle(
-                      color: Color(0xFF607086),
+                      color: AppColors.secondaryGrey,
                       fontSize: 14,
                     ),
                   ),
@@ -277,10 +289,8 @@ class _AttendancePageState extends State<AttendancePage>
               ),
             ),
 
-            // â”€â”€ Banner Control de Asistencia (visible en todas las pestaÃ±as) â”€â”€
             _buildSessionBanner(),
 
-            // TabBar
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 20),
               decoration: BoxDecoration(
@@ -288,7 +298,7 @@ class _AttendancePageState extends State<AttendancePage>
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withValues(alpha: 0.08),
+                    color: AppColors.textMain.withValues(alpha: 0.04),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -296,53 +306,41 @@ class _AttendancePageState extends State<AttendancePage>
               ),
               child: TabBar(
                 controller: _tabController,
-                indicatorColor: const Color(0xFF39A900),
+                indicatorColor: AppColors.accentGreen,
                 indicatorWeight: 3,
-                labelColor: const Color(0xFF39A900),
-                unselectedLabelColor: const Color(0xFF607086),
+                labelColor: AppColors.accentGreen,
+                unselectedLabelColor: AppColors.secondaryGrey,
                 labelStyle: const TextStyle(
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                   fontSize: 13,
                 ),
                 unselectedLabelStyle: const TextStyle(
-                  fontWeight: FontWeight.w400,
+                  fontWeight: FontWeight.w500,
                   fontSize: 13,
                 ),
                 tabs: const [
                   Tab(text: 'Resumen'),
                   Tab(text: 'Historial'),
                   Tab(text: 'Justificar'),
-                  Tab(text: 'EstadÃ­sticas'),
                 ],
               ),
             ),
 
             const SizedBox(height: 10),
 
-            // Tab content
             Expanded(
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  // â”€â”€ Tab 0: Resumen â”€â”€
                   _buildResumenTab(),
-
-                  // â”€â”€ Tab 1: Historial â”€â”€
                   _buildHistorialTab(),
-
-                  // â”€â”€ Tab 2: Justificar (vacÃ­o) â”€â”€
                   const Center(
                     child: Text(
-                      'Justificar prÃ³ximamente',
-                      style: TextStyle(color: Color(0xFF607086), fontSize: 15),
-                    ),
-                  ),
-
-                  // â”€â”€ Tab 3: EstadÃ­sticas (vacÃ­o) â”€â”€
-                  const Center(
-                    child: Text(
-                      'EstadÃ­sticas prÃ³ximamente',
-                      style: TextStyle(color: Color(0xFF607086), fontSize: 15),
+                      'Justificar proximamente',
+                      style: TextStyle(
+                        color: AppColors.secondaryGrey,
+                        fontSize: 15,
+                      ),
                     ),
                   ),
                 ],
@@ -354,29 +352,29 @@ class _AttendancePageState extends State<AttendancePage>
     );
   }
 
-  // â”€â”€â”€ Banner "Control de Asistencia de Aprendices" â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Banner "Control de Asistencia de Aprendices" ──────────────────────
   Widget _buildSessionBanner() {
-    // â”€â”€ Extraer datos de la respuesta real del backend â”€â”€
+    // ── Extraer datos de la respuesta real del backend ──
     final ficha     = _sessionsData?['ficha']         as Map<String, dynamic>?;
     final sesion    = _sessionsData?['sesion_activa'] as Map<String, dynamic>?;
 
     // Ficha / Programa
-    final String numeroFicha = ficha?['numero_ficha']?.toString() ?? 'â€”';
+    final String numeroFicha = ficha?['numero_ficha']?.toString() ?? '—';
     final programa = ficha?['programa'] as Map<String, dynamic>?;
-    final String nombrePrograma = programa?['nombre_programa']?.toString() ?? 'â€”';
+    final String nombrePrograma = programa?['nombre_programa']?.toString() ?? '—';
 
-    // Instructor lÃ­der (viene en ficha.instructor_lider)
+    // Instructor líder (viene en ficha.instructor_lider)
     final instructorLider = ficha?['instructor_lider'] as Map<String, dynamic>?;
     final bool instructorRegistrado = instructorLider?['registrado'] == true;
     final String nombreInstructor = instructorRegistrado
-        ? (instructorLider?['nombre_completo']?.toString() ?? 'â€”')
-        : 'â€”';
+        ? (instructorLider?['nombre_completo']?.toString() ?? '—')
+        : '—';
 
     // Jornada del grupo
-    final String jornada = ficha?['jornada']?.toString() ?? 'â€”';
+    final String jornada = ficha?['jornada']?.toString() ?? '—';
 
-    // Fecha de la sesiÃ³n activa (formateada)
-    String fechaFormateada = 'â€”';
+    // Fecha de la sesión activa (formateada)
+    String fechaFormateada = '—';
     if (sesion != null) {
       final fechaRaw = sesion['fecha_clase']?.toString() ?? '';
       if (fechaRaw.length >= 10) {
@@ -393,7 +391,7 @@ class _AttendancePageState extends State<AttendancePage>
       }
     }
 
-    // Estado de sesiÃ³n
+    // Estado de sesión
     final bool haySession = sesion != null;
 
     return Container(
@@ -404,7 +402,7 @@ class _AttendancePageState extends State<AttendancePage>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.08),
+            color: AppColors.textMain.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -416,14 +414,14 @@ class _AttendancePageState extends State<AttendancePage>
           const Text(
             'Control de Asistencia de Aprendices',
             style: TextStyle(
-              color: Color(0xFF092444),
+              color: AppColors.textMain,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 16),
 
-          // â”€â”€ Estado: cargando â”€â”€
+          // ── Estado: cargando ──
           if (_isLoadingSessions)
             const SizedBox(
               height: 20,
@@ -434,29 +432,29 @@ class _AttendancePageState extends State<AttendancePage>
                     height: 14,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: Color(0xFF39A900),
+                      color: AppColors.accentGreen,
                     ),
                   ),
                   SizedBox(width: 10),
                   Text(
-                    'Cargando sesiÃ³n...',
-                    style: TextStyle(color: Color(0xFF607086), fontSize: 13),
+                    'Cargando sesión...',
+                    style: TextStyle(color: AppColors.secondaryGrey, fontSize: 13),
                   ),
                 ],
               ),
             )
 
-          // â”€â”€ Estado: error al cargar â”€â”€
+          // ── Estado: error al cargar ──
           else if (_sessionsError != null)
             Row(
               children: [
                 const Icon(Icons.warning_amber_rounded,
-                    size: 16, color: Color(0xFFF6A900)),
+                    size: 16, color: AppColors.alertWarning),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    'No se pudo cargar la sesiÃ³n',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                    'No se pudo cargar la sesión',
+                    style: TextStyle(color: AppColors.secondaryGrey, fontSize: 13),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -465,7 +463,7 @@ class _AttendancePageState extends State<AttendancePage>
                   child: const Text(
                     'Reintentar',
                     style: TextStyle(
-                      color: Color(0xFF39A900),
+                      color: AppColors.accentGreen,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
@@ -474,7 +472,7 @@ class _AttendancePageState extends State<AttendancePage>
               ],
             )
 
-          // â”€â”€ Estado: datos reales del backend â”€â”€
+          // ── Estado: datos reales del backend ──
           else
             LayoutBuilder(
               builder: (context, constraints) {
@@ -503,7 +501,7 @@ class _AttendancePageState extends State<AttendancePage>
                                 const Text(
                                   'Estado: ',
                                   style: TextStyle(
-                                    color: Color(0xFF607086),
+                                    color: AppColors.secondaryGrey,
                                     fontSize: 13,
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -514,17 +512,17 @@ class _AttendancePageState extends State<AttendancePage>
                             ),
                           ],
                         ),
-                        // Segunda fila: Fecha (solo si hay sesiÃ³n activa)
+                        // Segunda fila: Fecha (solo si hay sesión activa)
                         if (haySession) ...[
                           const SizedBox(height: 8),
-                          _bannerInlineText('Fecha de sesiÃ³n: ', fechaFormateada),
+                          _bannerInlineText('Fecha de sesión: ', fechaFormateada),
                         ] else ...[
                           const SizedBox(height: 8),
                           Text(
                             _sessionsData?['mensaje_sesion_activa']?.toString() ??
-                                'No hay sesiÃ³n activa en este momento',
+                                'No hay sesión activa en este momento',
                             style: TextStyle(
-                              color: Colors.grey.shade500,
+                              color: AppColors.secondaryGrey,
                               fontSize: 12,
                               fontStyle: FontStyle.italic,
                             ),
@@ -545,8 +543,8 @@ class _AttendancePageState extends State<AttendancePage>
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: const TextStyle(color: Color(0xFF607086), fontSize: 13, fontWeight: FontWeight.w500)),
-        Text(value, style: const TextStyle(color: Color(0xFF092444), fontSize: 13, fontWeight: FontWeight.bold)),
+        Text(label, style: const TextStyle(color: AppColors.secondaryGrey, fontSize: 13, fontWeight: FontWeight.w500)),
+        Text(value, style: const TextStyle(color: AppColors.textMain, fontSize: 13, fontWeight: FontWeight.bold)),
       ],
     );
   }
@@ -556,7 +554,7 @@ class _AttendancePageState extends State<AttendancePage>
       margin: const EdgeInsets.symmetric(horizontal: 12),
       width: 1,
       height: 16,
-      color: Colors.grey.shade300,
+      color: AppColors.borderGrey,
     );
   }
 
@@ -564,11 +562,11 @@ class _AttendancePageState extends State<AttendancePage>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: isActive ? const Color(0xFF39A900) : Colors.grey.shade400,
+        color: isActive ? AppColors.accentGreen : AppColors.placeholderGrey,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        isActive ? 'Activa' : 'Sin sesiÃ³n',
+        isActive ? 'Activa' : 'Sin sesión',
         style: const TextStyle(
           color: Colors.white,
           fontSize: 12,
@@ -587,14 +585,14 @@ class _AttendancePageState extends State<AttendancePage>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (context) {
-        return Container(
+        return SizedBox(
           height: MediaQuery.of(context).size.height * 0.65,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -632,7 +630,7 @@ class _AttendancePageState extends State<AttendancePage>
                       children: [
                         _buildTooltipInfo('Cantidad', '$count'),
                         _buildTooltipInfo('Instructor', instructor),
-                        _buildTooltipInfo('Ãšltima act.', ultActualizacion.length > 10 ? ultActualizacion.substring(0, 10) : ultActualizacion),
+                        _buildTooltipInfo('Última act.', ultActualizacion.length > 10 ? ultActualizacion.substring(0, 10) : ultActualizacion),
                       ],
                     ),
                   ],
@@ -643,7 +641,7 @@ class _AttendancePageState extends State<AttendancePage>
                     ? Center(
                         child: Text(
                           'No hay registros de asistencia disponibles.',
-                          style: TextStyle(color: Colors.grey.shade600),
+                          style: TextStyle(color: AppColors.secondaryGrey),
                         ),
                       )
                     : ListView.builder(
@@ -663,10 +661,10 @@ class _AttendancePageState extends State<AttendancePage>
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey.shade200),
+                              border: Border.all(color: AppColors.borderGrey),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.grey.withValues(alpha: 0.05),
+                                  color: AppColors.textMain.withValues(alpha: 0.05),
                                   blurRadius: 4,
                                   offset: const Offset(0, 2),
                                 )
@@ -683,7 +681,7 @@ class _AttendancePageState extends State<AttendancePage>
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 15,
-                                        color: Color(0xFF092444),
+                                        color: AppColors.textMain,
                                       ),
                                     ),
                                     Container(
@@ -706,23 +704,23 @@ class _AttendancePageState extends State<AttendancePage>
                                 const SizedBox(height: 8),
                                 Row(
                                   children: [
-                                    const Icon(Icons.person_outline, size: 16, color: Colors.grey),
+                                    const Icon(Icons.person_outline, size: 16, color: AppColors.secondaryGrey),
                                     const SizedBox(width: 4),
                                     Text(
                                       'Instructor: N/A',
-                                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                      style: TextStyle(color: AppColors.secondaryGrey, fontSize: 13),
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 4),
                                 Row(
                                   children: [
-                                    const Icon(Icons.book_outlined, size: 16, color: Colors.grey),
+                                    const Icon(Icons.book_outlined, size: 16, color: AppColors.secondaryGrey),
                                     const SizedBox(width: 4),
                                     Expanded(
                                       child: Text(
                                         'Materia: $materia',
-                                        style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                        style: TextStyle(color: AppColors.secondaryGrey, fontSize: 13),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
@@ -731,11 +729,11 @@ class _AttendancePageState extends State<AttendancePage>
                                 const SizedBox(height: 4),
                                 Row(
                                   children: [
-                                    const Icon(Icons.date_range_outlined, size: 16, color: Colors.grey),
+                                    const Icon(Icons.date_range_outlined, size: 16, color: AppColors.secondaryGrey),
                                     const SizedBox(width: 4),
                                     Text(
-                                      'DÃ­as faltados: $diasFaltados',
-                                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                      'Días faltados: $diasFaltados',
+                                      style: TextStyle(color: AppColors.secondaryGrey, fontSize: 13),
                                     ),
                                   ],
                                 ),
@@ -743,12 +741,12 @@ class _AttendancePageState extends State<AttendancePage>
                                 Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Icon(Icons.info_outline, size: 16, color: Colors.grey),
+                                    const Icon(Icons.info_outline, size: 16, color: AppColors.secondaryGrey),
                                     const SizedBox(width: 4),
                                     Expanded(
                                       child: Text(
-                                        'ObservaciÃ³n: $observacion',
-                                        style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                        'Observación: $observacion',
+                                        style: TextStyle(color: AppColors.secondaryGrey, fontSize: 13),
                                       ),
                                     ),
                                   ],
@@ -772,21 +770,21 @@ class _AttendancePageState extends State<AttendancePage>
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: 12, color: Colors.black.withValues(alpha: 0.6)),
+          style: TextStyle(fontSize: 12, color: AppColors.textMain.withValues(alpha: 0.6)),
         ),
         const SizedBox(height: 2),
         Text(
           value,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textMain),
         ),
       ],
     );
   }
 
-  // â”€â”€â”€ Tab Resumen con dona â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Tab Resumen con dona ──────────────────────────────────────────────
   Widget _buildResumenTab() {
     if (_isLoadingDashboard) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xFF39A900)));
+      return const Center(child: CircularProgressIndicator(color: AppColors.accentGreen));
     }
     
     if (_dashboardError != null) {
@@ -794,20 +792,20 @@ class _AttendancePageState extends State<AttendancePage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 48),
+            const Icon(Icons.error_outline, color: AppColors.alertCritical, size: 48),
             const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32.0),
               child: Text(
                 'Error al cargar el resumen:\n$_dashboardError',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFF607086)),
+                style: const TextStyle(color: AppColors.secondaryGrey),
               ),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _fetchDashboard,
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF39A900)),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.accentGreen),
               child: const Text('Reintentar', style: TextStyle(color: Colors.white)),
             ),
           ],
@@ -817,16 +815,14 @@ class _AttendancePageState extends State<AttendancePage>
 
     // Mapeo de datos reales desde el backend
     final asistenciaTrimestre = _dashboardData?['asistencia_trimestre'];
-    final int total = asistenciaTrimestre?['total'] ?? 0;
 
-    // Trimestre activo â€” leÃ­do directamente del dashboard, sin variables extra
+    // Trimestre activo — leído directamente del dashboard, sin variables extra
     final trimestreActivo = _dashboardData?['trimestre_activo'] as Map<String, dynamic>?;
     final bool trimestreRegistrado = trimestreActivo?['registrado'] == true;
     final int? numeroTrimestre = trimestreRegistrado
         ? (trimestreActivo?['numero_trimestre'] as int?)
         : null;
 
-    int pendiente = 0;
     int presente = 0;
     int ausente = 0;
     int retardado = 0;
@@ -838,14 +834,14 @@ class _AttendancePageState extends State<AttendancePage>
         final estado = estadoInfo['estado'];
         final cantidad = estadoInfo['cantidad'] as int;
 
-        if (estado == 'PENDIENTE') {
-          pendiente = cantidad;
-        } else if (estado == 'PRESENTE') presente = cantidad;
+        if (estado == 'PRESENTE') presente = cantidad;
         else if (estado == 'INASISTENTE') ausente = cantidad;
         else if (estado == 'TARDE') retardado = cantidad;
         else if (estado == 'JUSTIFICADA') justificado = cantidad;
       }
     }
+
+    final int totalResumen = presente + ausente + retardado + justificado;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
@@ -856,9 +852,9 @@ class _AttendancePageState extends State<AttendancePage>
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withValues(alpha: 0.08),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: AppColors.textMain.withValues(alpha: 0.03),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
@@ -871,12 +867,12 @@ class _AttendancePageState extends State<AttendancePage>
                 const Text(
                   'Resumen',
                   style: TextStyle(
-                    color: Color(0xFF092444),
+                    color: AppColors.textMain,
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                // Chip de trimestre â€” solo visible cuando el backend confirma
+                // Chip de trimestre — solo visible cuando el backend confirma
                 // trimestre_activo.registrado == true
                 if (numeroTrimestre != null)
                   Container(
@@ -884,7 +880,7 @@ class _AttendancePageState extends State<AttendancePage>
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.grey.shade300),
+                      border: Border.all(color: AppColors.borderGrey),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -892,7 +888,7 @@ class _AttendancePageState extends State<AttendancePage>
                         Text(
                           'Trimestre $numeroTrimestre',
                           style: const TextStyle(
-                            color: Color(0xFF092444),
+                            color: AppColors.textMain,
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
                           ),
@@ -901,7 +897,7 @@ class _AttendancePageState extends State<AttendancePage>
                         const Icon(
                           Icons.keyboard_arrow_down,
                           size: 16,
-                          color: Color(0xFF39A900),
+                          color: AppColors.accentGreen,
                         ),
                       ],
                     ),
@@ -910,9 +906,9 @@ class _AttendancePageState extends State<AttendancePage>
             ),
             const SizedBox(height: 4),
             Text(
-              'Total sesiones: $total',
+              'Total sesiones: $totalResumen',
               style: const TextStyle(
-                color: Color(0xFF607086),
+                color: AppColors.secondaryGrey,
                 fontSize: 13,
               ),
             ),
@@ -945,11 +941,10 @@ class _AttendancePageState extends State<AttendancePage>
                             if (adjustedAngle < 0) adjustedAngle += 2 * math.pi;
 
                             final segments = [
-                              {'cat': 'PENDIENTE', 'label': 'PENDIENTE', 'value': pendiente, 'color': Colors.grey.shade400},
-                              {'cat': 'PRESENTE', 'label': 'PRESENTE', 'value': presente, 'color': const Color(0xFF39A900)},
-                              {'cat': 'TARDE', 'label': 'TARDE', 'value': retardado, 'color': const Color(0xFFF6A900)},
-                              {'cat': 'INASISTENTE', 'label': 'INASISTENTE', 'value': ausente, 'color': const Color(0xFFE53935)},
-                              {'cat': 'JUSTIFICADA', 'label': 'JUSTIFICADA', 'value': justificado, 'color': const Color(0xFF1565C0)},
+                              {'cat': 'PRESENTE', 'label': 'PRESENTE', 'value': presente, 'color': AppColors.accentGreen},
+                              {'cat': 'TARDE', 'label': 'TARDE', 'value': retardado, 'color': AppColors.alertWarning},
+                              {'cat': 'INASISTENTE', 'label': 'INASISTENTE', 'value': ausente, 'color': AppColors.alertCritical},
+                              {'cat': 'JUSTIFICADA', 'label': 'JUSTIFICADA', 'value': justificado, 'color': AppColors.primaryBlue},
                             ];
 
                             double currentAngle = 0;
@@ -959,7 +954,7 @@ class _AttendancePageState extends State<AttendancePage>
                               final val = seg['value'] as int;
                               if (val == 0) continue;
                               
-                              final double sweep = (val / total) * 2 * math.pi - gap;
+                              final double sweep = (val / totalResumen) * 2 * math.pi - gap;
                               if (adjustedAngle >= currentAngle && adjustedAngle <= currentAngle + sweep) {
                                 setState(() {
                                   _hoveredSegmentData = seg;
@@ -1003,11 +998,10 @@ class _AttendancePageState extends State<AttendancePage>
                               if (adjustedAngle < 0) adjustedAngle += 2 * math.pi;
 
                               final segments = [
-                                {'cat': 'PENDIENTE', 'label': 'PENDIENTE', 'value': pendiente, 'color': Colors.grey.shade400},
-                                {'cat': 'PRESENTE', 'label': 'PRESENTE', 'value': presente, 'color': const Color(0xFF39A900)},
-                                {'cat': 'TARDE', 'label': 'TARDE', 'value': retardado, 'color': const Color(0xFFF6A900)},
-                                {'cat': 'INASISTENTE', 'label': 'INASISTENTE', 'value': ausente, 'color': const Color(0xFFE53935)},
-                                {'cat': 'JUSTIFICADA', 'label': 'JUSTIFICADA', 'value': justificado, 'color': const Color(0xFF1565C0)},
+                                {'cat': 'PRESENTE', 'label': 'PRESENTE', 'value': presente, 'color': AppColors.accentGreen},
+                                {'cat': 'TARDE', 'label': 'TARDE', 'value': retardado, 'color': AppColors.alertWarning},
+                                {'cat': 'INASISTENTE', 'label': 'INASISTENTE', 'value': ausente, 'color': AppColors.alertCritical},
+                                {'cat': 'JUSTIFICADA', 'label': 'JUSTIFICADA', 'value': justificado, 'color': AppColors.primaryBlue},
                               ];
 
                               double currentAngle = 0;
@@ -1017,7 +1011,7 @@ class _AttendancePageState extends State<AttendancePage>
                                 final val = seg['value'] as int;
                                 if (val == 0) continue;
                                 
-                                final double sweep = (val / total) * 2 * math.pi - gap;
+                                final double sweep = (val / totalResumen) * 2 * math.pi - gap;
                                 if (adjustedAngle >= currentAngle && adjustedAngle <= currentAngle + sweep) {
                                   _showDetailBottomSheet(seg['cat'] as String, seg['label'] as String, seg['color'] as Color);
                                   break;
@@ -1028,21 +1022,20 @@ class _AttendancePageState extends State<AttendancePage>
                           },
                           child: CustomPaint(
                             painter: _DonutChartPainter(
-                              pendiente: pendiente,
                               presente: presente,
                               ausente: ausente,
                               retardado: retardado,
                               justificado: justificado,
-                              total: total,
+                              total: totalResumen,
                             ),
                             child: Center(
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    '${((presente / (total == 0 ? 1 : total)) * 100).round()}%',
+                                    '${((presente / (totalResumen == 0 ? 1 : totalResumen)) * 100).round()}%',
                                     style: const TextStyle(
-                                      color: Color(0xFF092444),
+                                      color: AppColors.textMain,
                                       fontSize: 28,
                                       fontWeight: FontWeight.w800,
                                     ),
@@ -1050,7 +1043,7 @@ class _AttendancePageState extends State<AttendancePage>
                                   const Text(
                                     'PRESENTE',
                                     style: TextStyle(
-                                      color: Color(0xFF607086),
+                                      color: AppColors.secondaryGrey,
                                       fontSize: 13,
                                     ),
                                   ),
@@ -1091,8 +1084,8 @@ class _AttendancePageState extends State<AttendancePage>
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        '${_hoveredSegmentData!['label']}: ${_hoveredSegmentData!['value']} registros (${(((_hoveredSegmentData!['value'] as int) / total) * 100).round()}%)',
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF092444)),
+                                        '${_hoveredSegmentData!['label']}: ${_hoveredSegmentData!['value']} registros (${(((_hoveredSegmentData!['value'] as int) / totalResumen) * 100).round()}%)',
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textMain),
                                       ),
                                     ),
                                   ],
@@ -1113,15 +1106,13 @@ class _AttendancePageState extends State<AttendancePage>
             ),
             const SizedBox(height: 28),
             // Leyendas
-            _statRow('PENDIENTE', pendiente, total, Colors.grey.shade400, 'PENDIENTE'),
+            _statRow('PRESENTE', presente, totalResumen, AppColors.accentGreen, 'PRESENTE'),
             const SizedBox(height: 16),
-            _statRow('PRESENTE', presente, total, const Color(0xFF39A900), 'PRESENTE'),
+            _statRow('TARDE', retardado, totalResumen, AppColors.alertWarning, 'TARDE'),
             const SizedBox(height: 16),
-            _statRow('TARDE', retardado, total, const Color(0xFFF6A900), 'TARDE'),
+            _statRow('INASISTENTE', ausente, totalResumen, AppColors.alertCritical, 'INASISTENTE'),
             const SizedBox(height: 16),
-            _statRow('INASISTENTE', ausente, total, const Color(0xFFE53935), 'INASISTENTE'),
-            const SizedBox(height: 16),
-            _statRow('JUSTIFICADA', justificado, total, const Color(0xFF1565C0), 'JUSTIFICADA'),
+            _statRow('JUSTIFICADA', justificado, totalResumen, AppColors.primaryBlue, 'JUSTIFICADA'),
           ],
         ),
       ),
@@ -1188,7 +1179,7 @@ class _AttendancePageState extends State<AttendancePage>
                   child: const Icon(
                     Icons.visibility_outlined,
                     size: 14,
-                    color: Color(0xFF092444),
+                    color: AppColors.textMain,
                   ),
                 ),
               ],
@@ -1211,7 +1202,7 @@ class _AttendancePageState extends State<AttendancePage>
 
   Widget _buildHistorialTab() {
     if (_isLoadingCalendar) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xFF39A900)));
+      return const Center(child: CircularProgressIndicator(color: AppColors.accentGreen));
     }
     
     if (_calendarError != null) {
@@ -1219,17 +1210,17 @@ class _AttendancePageState extends State<AttendancePage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 48),
+            const Icon(Icons.error_outline, color: AppColors.alertCritical, size: 48),
             const SizedBox(height: 16),
             Text(
               'Error al cargar el historial:\n$_calendarError',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF607086)),
+              style: const TextStyle(color: AppColors.secondaryGrey),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _fetchCalendar,
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF39A900)),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.accentGreen),
               child: const Text('Reintentar', style: TextStyle(color: Colors.white)),
             ),
           ],
@@ -1248,7 +1239,6 @@ class _AttendancePageState extends State<AttendancePage>
       if (fechaClase.length >= 10) {
         final parts = fechaClase.substring(0, 10).split('-');
         if (parts.length == 3) {
-          final year = parts[0];
           final month = parts[1];
           final day = parts[2];
           
@@ -1290,7 +1280,7 @@ class _AttendancePageState extends State<AttendancePage>
               const Text(
                 'Historial',
                 style: TextStyle(
-                  color: Color(0xFF092444),
+                  color: AppColors.textMain,
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1334,19 +1324,19 @@ class _AttendancePageState extends State<AttendancePage>
                       decoration: BoxDecoration(
                         border: Border.all(
                           color: _selectedFilter == 'Todos'
-                              ? Colors.grey.shade300
-                              : const Color(0xFF39A900),
+                              ? AppColors.borderGrey
+                              : AppColors.accentGreen,
                         ),
                         color: _selectedFilter == 'Todos'
                             ? Colors.transparent
-                            : const Color(0xFF39A900).withValues(alpha: 0.1),
+                            : AppColors.accentGreen.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
-                        Icons.filter_list,
+                        Icons.filter_list_rounded,
                         color: _selectedFilter == 'Todos'
-                            ? Colors.grey.shade600
-                            : const Color(0xFF39A900),
+                            ? AppColors.secondaryGrey
+                            : AppColors.accentGreen,
                         size: 18,
                       ),
                     ),
@@ -1381,9 +1371,9 @@ class _AttendancePageState extends State<AttendancePage>
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.grey.withValues(alpha: 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
+                      color: AppColors.textMain.withValues(alpha: 0.03),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
                     ),
                   ],
                 ),
@@ -1413,7 +1403,7 @@ class _AttendancePageState extends State<AttendancePage>
                           Text(
                             item['date'],
                             style: const TextStyle(
-                              color: Color(0xFF092444),
+                              color: AppColors.textMain,
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
                             ),
@@ -1422,7 +1412,7 @@ class _AttendancePageState extends State<AttendancePage>
                           Text(
                             item['time'],
                             style: const TextStyle(
-                              color: Color(0xFF607086),
+                              color: AppColors.secondaryGrey,
                               fontSize: 13,
                             ),
                           ),
@@ -1458,7 +1448,6 @@ class _AttendancePageState extends State<AttendancePage>
 
 // Donut Chart Painter
 class _DonutChartPainter extends CustomPainter {
-  final int pendiente;
   final int presente;
   final int ausente;
   final int retardado;
@@ -1466,7 +1455,6 @@ class _DonutChartPainter extends CustomPainter {
   final int total;
 
   _DonutChartPainter({
-    required this.pendiente,
     required this.presente,
     required this.ausente,
     required this.retardado,
@@ -1482,12 +1470,15 @@ class _DonutChartPainter extends CustomPainter {
       radius: size.width / 2 - strokeWidth / 2,
     );
 
+    if (total == 0) {
+      return;
+    }
+
     final List<Map<String, dynamic>> segments = [
-      {'value': pendiente, 'color': Colors.grey.shade400},
-      {'value': presente, 'color': const Color(0xFF39A900)},
-      {'value': retardado, 'color': const Color(0xFFF6A900)},
-      {'value': ausente, 'color': const Color(0xFFE53935)},
-      {'value': justificado, 'color': const Color(0xFF1565C0)},
+      {'value': presente, 'color': AppColors.accentGreen},
+      {'value': retardado, 'color': AppColors.alertWarning},
+      {'value': ausente, 'color': AppColors.alertCritical},
+      {'value': justificado, 'color': AppColors.primaryBlue},
     ];
 
     double startAngle = -1.5707963;
@@ -1510,3 +1501,4 @@ class _DonutChartPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
+

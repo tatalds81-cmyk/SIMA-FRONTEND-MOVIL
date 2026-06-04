@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sima_movil_froned/features/login/login_page.dart';
 import 'package:sima_movil_froned/features/profile/data/profile_repository.dart';
 import 'package:sima_movil_froned/features/profile/models/apprentice_profile.dart';
+import 'package:sima_movil_froned/theme/app_colors.dart';
 
 const _wideBreakpoint = 760.0;
 
@@ -97,6 +98,9 @@ class _ProfilePageState extends State<ProfilePage> {
       isScrollControlled: true,
       showDragHandle: true,
       backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (sheetContext) {
         return _PersonalInformationForm(
           profile: profile,
@@ -112,6 +116,9 @@ class _ProfilePageState extends State<ProfilePage> {
       isScrollControlled: true,
       showDragHandle: true,
       backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (sheetContext) {
         return _ReadOnlySheet(
           title: 'Academico',
@@ -134,6 +141,9 @@ class _ProfilePageState extends State<ProfilePage> {
       isScrollControlled: true,
       showDragHandle: true,
       backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (sheetContext) {
         return _EmergencyContactForm(
           contact: profile.emergencyContact,
@@ -149,6 +159,9 @@ class _ProfilePageState extends State<ProfilePage> {
       isScrollControlled: true,
       showDragHandle: true,
       backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (sheetContext) {
         return _PasswordForm(onSave: _changePassword);
       },
@@ -707,7 +720,7 @@ class _ProfileAccessTile extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(16),
           onTap: onTap,
           child: _SurfaceCard(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -831,6 +844,8 @@ class _PersonalInformationFormState extends State<_PersonalInformationForm> {
     });
 
     final updated = widget.profile.copyWith(
+      firstName: _firstNameController.text.trim(),
+      lastName: _lastNameController.text.trim(),
       email: _emailController.text.trim(),
       phone: _phoneController.text.trim(),
     );
@@ -870,14 +885,12 @@ class _PersonalInformationFormState extends State<_PersonalInformationForm> {
               controller: _firstNameController,
               label: 'Nombres',
               validator: _requiredValidator,
-              readOnly: true,
             ),
             const SizedBox(height: 12),
             _ProfileTextField(
               controller: _lastNameController,
               label: 'Apellidos',
               validator: _requiredValidator,
-              readOnly: true,
             ),
             const SizedBox(height: 12),
             _ProfileTextField(
@@ -1233,7 +1246,7 @@ class _ProfileSheetScaffold extends StatelessWidget {
                     disabledBackgroundColor: _ProfileColors.line,
                     minimumSize: const Size.fromHeight(44),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                   child: isSaving
@@ -1285,13 +1298,13 @@ class _ProfileTextField extends StatelessWidget {
         labelText: label,
         filled: readOnly,
         fillColor: readOnly ? _ProfileColors.background : null,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: _ProfileColors.line),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: _ProfileColors.green, width: 1.5),
         ),
       ),
@@ -1315,12 +1328,12 @@ class _SurfaceCard extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _ProfileColors.line),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.035),
-            blurRadius: 14,
+            color: AppColors.textMain.withValues(alpha: 0.03),
+            blurRadius: 16,
             offset: const Offset(0, 8),
           ),
         ],
@@ -1415,7 +1428,7 @@ class _StatusNotice extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: _ProfileColors.green.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
@@ -1664,12 +1677,12 @@ String _cleanErrorMessage(Object? error) {
 }
 
 abstract final class _ProfileColors {
-  static const background = Color(0xFFF6F8FB);
-  static const navy = Color(0xFF062E4F);
-  static const headerBlue = Color(0xFF063450);
-  static const green = Color(0xFF39A900);
-  static const greenLight = Color(0xFFBDE9B2);
-  static const muted = Color(0xFF6F7C8E);
-  static const line = Color(0xFFE8EDF4);
-  static const danger = Color(0xFFE04444);
+  static const background = AppColors.scaffoldBg;
+  static const navy = AppColors.textMain;
+  static const headerBlue = AppColors.primaryBlue;
+  static const green = AppColors.accentGreen;
+  static const greenLight = AppColors.bgSuccess;
+  static const muted = AppColors.secondaryGrey;
+  static const line = AppColors.borderGrey;
+  static const danger = AppColors.alertCritical;
 }

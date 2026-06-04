@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sima_movil_froned/features/observatory/data/observations_repository.dart';
+import 'package:sima_movil_froned/features/observatory/models/observation.dart';
 import 'package:sima_movil_froned/features/observatory/observatory_page.dart';
 import 'package:sima_movil_froned/features/profile/data/profile_repository.dart';
 import 'package:sima_movil_froned/features/profile/profile_page.dart';
@@ -29,16 +30,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
 
-    expect(find.text('Mis observaciones'), findsOneWidget);
+    expect(find.text('Observatorio'), findsOneWidget);
     expect(find.text('Seguimiento registrado para Juan Perez'), findsOneWidget);
-    expect(find.text('Filtros de consulta'), findsOneWidget);
-    expect(find.text('Total: 3'), findsOneWidget);
+    expect(find.text('Filtros'), findsOneWidget);
+    expect(find.text('Total de observaciones: 3'), findsOneWidget);
     expect(find.text('Abiertas: 3'), findsOneWidget);
-    expect(find.text('Requiere respuesta'), findsOneWidget);
     expect(find.text('Observaciones registradas'), findsOneWidget);
-    expect(find.text('Mostrando 3 de 3 observaciones'), findsOneWidget);
+    expect(find.text('Mostrando 3 observaciones'), findsOneWidget);
     expect(find.text('Asistencia por justificar'), findsOneWidget);
-    expect(find.text('Enviar soporte'), findsWidgets);
   });
 
   testWidgets('Perfil keeps details inside personal access', (
@@ -147,4 +146,96 @@ void main() {
     );
     expect(find.text('Cerrar sesion'), findsNWidgets(2));
   });
+}
+
+class MockObservationsRepository implements ObservatoryRepository {
+  const MockObservationsRepository();
+
+  @override
+  Future<ObservatoryObservationResponse> fetchObservations(
+    ObservatoryFilters filters,
+  ) async {
+    return ObservatoryObservationResponse(
+      metrics: const ObservatoryMetrics(
+        total: 3,
+        abiertas: 3,
+        cerradas: 0,
+        alta: 1,
+        media: 1,
+        baja: 1,
+      ),
+      items: [
+        ObservatoryObservation(
+          id: 'obs-001',
+          fecha: DateTime(2024, 5, 29),
+          tipo: 'General',
+          severidad: 'LEVE',
+          estado: 'ABIERTA',
+          descripcion: 'Seguimiento registrado para Juan Perez',
+          responsableNombre: 'Juan Perez',
+          responsableRol: 'Instructor',
+        ),
+        ObservatoryObservation(
+          id: 'obs-002',
+          fecha: DateTime(2024, 5, 24),
+          tipo: 'Academica',
+          severidad: 'MODERADA',
+          estado: 'ABIERTA',
+          descripcion: 'La evidencia del proyecto formativo requiere un ajuste',
+          responsableNombre: 'Carlos Ramirez',
+          responsableRol: 'Instructor',
+        ),
+        ObservatoryObservation(
+          id: 'obs-003',
+          fecha: DateTime(2024, 5, 20),
+          tipo: 'Asistencia por justificar',
+          severidad: 'GRAVE',
+          estado: 'ABIERTA',
+          descripcion: 'Registra una inasistencia pendiente.',
+          responsableNombre: 'Franco Reina',
+          responsableRol: 'Coordinador',
+        ),
+      ],
+      message: 'Ok',
+    );
+  }
+
+  @override
+  Future<ObservatoryAlertResponse> fetchAlerts(
+    ObservatoryFilters filters,
+  ) async {
+    return ObservatoryAlertResponse(
+      metrics: const ObservatoryMetrics(
+        total: 3,
+        abiertas: 3,
+        cerradas: 0,
+        alta: 1,
+        media: 1,
+        baja: 1,
+      ),
+      items: [
+        ObservatoryAlert(
+          id: 'alt-001',
+          tipo: 'Asistencia por justificar',
+          severidad: 'GRAVE',
+          estado: 'ABIERTA',
+          origen: 'Sistema',
+          reglaDisparo: 'Inasistencia',
+          descripcion: 'Falta sin justificar',
+          fechaAlerta: DateTime(2024, 5, 29),
+          fechaCierre: null,
+          justificacionCierre: '',
+          fechaReapertura: null,
+          justificacionReapertura: '',
+          responsableNombre: 'Franco Reina',
+          responsableRol: 'Coordinador',
+          responsableCierreNombre: '',
+          responsableCierreRol: '',
+          responsableReaperturaNombre: '',
+          responsableReaperturaRol: '',
+        ),
+      ],
+      message: 'Ok',
+    );
+  }
 }

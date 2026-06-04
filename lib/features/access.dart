@@ -5,6 +5,7 @@ import 'package:sima_movil_froned/features/home/home_page.dart';
 import 'package:sima_movil_froned/features/observatory/observatory_page.dart';
 import 'package:sima_movil_froned/features/profile/profile_page.dart';
 import 'package:sima_movil_froned/widgets/sima_bottom_nav_bar.dart';
+import 'package:sima_movil_froned/theme/app_colors.dart';
 
 class AccessPage extends StatefulWidget {
   const AccessPage({super.key});
@@ -59,7 +60,7 @@ class _AccessPageState extends State<AccessPage> {
             FloatingActionButton(
               heroTag: 'global_qr_attendance_button',
               onPressed: _isQrFlowRunning ? null : _startQrFlow,
-              backgroundColor: const Color(0xFF39A900),
+              backgroundColor: AppColors.accentGreen,
               elevation: 6,
               shape: const CircleBorder(),
               child: _isQrFlowRunning
@@ -72,7 +73,7 @@ class _AccessPageState extends State<AccessPage> {
                       ),
                     )
                   : const Icon(
-                      Icons.qr_code_scanner,
+                      Icons.qr_code_scanner_rounded,
                       color: Colors.white,
                       size: 28,
                     ),
@@ -81,9 +82,9 @@ class _AccessPageState extends State<AccessPage> {
             const Text(
               'Escanear QR',
               style: TextStyle(
-                color: Color(0xFF39A900),
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
+                color: AppColors.accentGreen,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
               ),
             ),
           ],

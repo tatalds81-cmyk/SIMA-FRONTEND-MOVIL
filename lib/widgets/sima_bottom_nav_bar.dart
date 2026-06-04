@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sima_movil_froned/theme/app_colors.dart';
 
 class SimaBottomNavBar extends StatelessWidget {
   const SimaBottomNavBar({
@@ -10,19 +11,19 @@ class SimaBottomNavBar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onItemSelected;
 
-  static const _activeColor = Color(0xFF44C21E);
-  static const _inactiveColor = Color(0xFF6E7B8D);
+  static const _activeColor = AppColors.accentGreen;
+  static const _inactiveColor = AppColors.secondaryGrey;
 
   @override
   Widget build(BuildContext context) {
     final items = [
       _NavBarItem(icon: Icons.home_rounded, label: 'Inicio'),
       _NavBarItem(
-        icon: Icons.assignment_turned_in_outlined,
+        icon: Icons.assignment_turned_in_rounded,
         label: 'Asistencia',
       ),
       _NavBarItem(icon: Icons.track_changes_rounded, label: 'Observaciones'),
-      _NavBarItem(icon: Icons.person_outline_rounded, label: 'Perfil'),
+      _NavBarItem(icon: Icons.person_rounded, label: 'Perfil'),
     ];
 
     return SafeArea(
@@ -33,14 +34,14 @@ class SimaBottomNavBar extends StatelessWidget {
           borderRadius: BorderRadius.circular(30),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.10),
+              color: AppColors.textMain.withValues(alpha: 0.06),
               blurRadius: 18,
               offset: const Offset(0, 6),
             ),
           ],
         ),
         child: SizedBox(
-          height: 70,
+          height: 72,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: List.generate(items.length, (index) {
@@ -51,28 +52,43 @@ class SimaBottomNavBar extends StatelessWidget {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(28),
                   onTap: () => onItemSelected(index),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        item.icon,
-                        color: isSelected ? _activeColor : _inactiveColor,
-                        size: 23,
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        item.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: isSelected ? _activeColor : _inactiveColor,
-                          fontSize: 10,
-                          fontWeight: isSelected
-                              ? FontWeight.w700
-                              : FontWeight.w500,
+                  child: AnimatedScale(
+                    scale: isSelected ? 1.05 : 1.0,
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOutCubic,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.accentGreen.withValues(alpha: 0.1)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Icon(
+                            item.icon,
+                            color: isSelected ? _activeColor : _inactiveColor,
+                            size: 22,
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        Text(
+                          item.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: isSelected ? _activeColor : _inactiveColor,
+                            fontSize: 10.5,
+                            fontWeight: isSelected
+                                ? FontWeight.w800
+                                : FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
