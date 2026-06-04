@@ -178,7 +178,7 @@ class _WelcomePageState extends State<WelcomePage> {
                                 height: height * 0.2,
                                 width: double.infinity,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF052D4F).withOpacity(0.05),
+                                  color: const Color(0xFF052D4F).withValues(alpha: 0.05),
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                                 child: const Column(
