@@ -1,301 +1,288 @@
-enum ObservationSeverity { actionRequired, inProgress, informative, closed }
-
-enum ObservationActionType { uploadSupport, viewDetail, contactSupport, none }
-
-class ObservationDashboard {
-  const ObservationDashboard({
-    required this.apprenticeId,
-    required this.apprenticeName,
-    required this.observations,
-    required this.generatedAt,
+class ObservatoryFilters {
+  const ObservatoryFilters({
+    this.fechaDesde,
+    this.fechaHasta,
+    this.severidad,
+    this.tipo,
+    this.estado,
   });
 
-  factory ObservationDashboard.fromJson(Map<String, dynamic> json) {
-    final apprentice = _firstMap([
-      json['apprentice'],
-      json['aprendiz'],
-      json['usuario'],
-      json['user'],
-    ]);
-    final observationsJson =
-        _firstList([
-          json['observations'],
-          json['observaciones'],
-          json['items'],
-          json['registros'],
-        ]) ??
-        const [];
+  final DateTime? fechaDesde;
+  final DateTime? fechaHasta;
+  final String? severidad;
+  final String? tipo;
+  final String? estado;
 
-    return ObservationDashboard(
-      apprenticeId: _firstString([
-        apprentice['id'],
-        apprentice['id_aprendiz'],
-        apprentice['id_usuario'],
-      ]),
-      apprenticeName: _firstString([
-        apprentice['name'],
-        apprentice['nombre_completo'],
-        apprentice['nombre'],
-        'Aprendiz',
-      ]),
-      generatedAt: _parseDateTime(
-        _firstValue([json['generated_at'], json['fecha_generacion']]),
-      ),
-      observations: observationsJson
-          .whereType<Map<String, dynamic>>()
-          .map(Observation.fromJson)
-          .toList(growable: false),
+  ObservatoryFilters copyWith({
+    DateTime? fechaDesde,
+    DateTime? fechaHasta,
+    String? severidad,
+    String? tipo,
+    String? estado,
+    bool clearFechaDesde = false,
+    bool clearFechaHasta = false,
+    bool clearSeveridad = false,
+    bool clearTipo = false,
+    bool clearEstado = false,
+  }) {
+    return ObservatoryFilters(
+      fechaDesde: clearFechaDesde ? null : fechaDesde ?? this.fechaDesde,
+      fechaHasta: clearFechaHasta ? null : fechaHasta ?? this.fechaHasta,
+      severidad: clearSeveridad ? null : severidad ?? this.severidad,
+      tipo: clearTipo ? null : tipo ?? this.tipo,
+      estado: clearEstado ? null : estado ?? this.estado,
     );
   }
 
-  final String apprenticeId;
-  final String apprenticeName;
-  final List<Observation> observations;
-  final DateTime generatedAt;
-
-  int get actionRequiredCount => observations
-      .where(
-        (observation) =>
-            observation.severity == ObservationSeverity.actionRequired,
-      )
-      .length;
-
-  int get inProgressCount => observations
-      .where(
-        (observation) => observation.severity == ObservationSeverity.inProgress,
-      )
-      .length;
-
-  int get informativeCount => observations
-      .where(
-        (observation) =>
-            observation.severity == ObservationSeverity.informative,
-      )
-      .length;
-
-  Observation? get nextAction {
-    final required = observations.where(
-      (observation) =>
-          observation.severity == ObservationSeverity.actionRequired,
-    );
-
-    if (required.isNotEmpty) {
-      return required.first;
+  Map<String, String> toQueryParams() {
+    final params = <String, String>{};
+    if (fechaDesde != null) {
+      params['fecha_desde'] = _isoDate(fechaDesde!);
     }
-
-    final actionable = observations.where(
-      (observation) => observation.actionType != ObservationActionType.none,
-    );
-
-    return actionable.isEmpty ? null : actionable.first;
+    if (fechaHasta != null) {
+      params['fecha_hasta'] = _isoDate(fechaHasta!);
+    }
+    if (_hasText(severidad)) {
+      params['severidad'] = severidad!.trim();
+    }
+    if (_hasText(tipo)) {
+      params['tipo'] = tipo!.trim();
+    }
+    if (_hasText(estado)) {
+      params['estado'] = estado!.trim();
+    }
+    return params;
   }
 }
 
-class Observation {
-  const Observation({
-    required this.id,
-    required this.apprenticeId,
-    required this.title,
-    required this.typeLabel,
-    required this.area,
-    required this.description,
-    required this.date,
-    required this.authorName,
-    required this.statusLabel,
-    required this.severity,
-    required this.actionLabel,
-    required this.actionType,
-    required this.isActive,
-    this.dueDate,
+class ObservatoryMetrics {
+  const ObservatoryMetrics({
+    required this.total,
+    required this.abiertas,
+    required this.cerradas,
+    required this.alta,
+    required this.media,
+    required this.baja,
   });
 
-  factory Observation.fromJson(Map<String, dynamic> json) {
-    final typeLabel = _firstString([
-      json['type_label'],
-      json['tipo_label'],
-      json['tipo_observacion'],
-      json['tipo'],
-      json['categoria'],
-      'General',
+  factory ObservatoryMetrics.fromJson(Map<String, dynamic>? json) {
+    final porEstado = _firstMap([json?['por_estado'], json?['estado']]);
+    final porSeveridad = _firstMap([
+      json?['por_severidad'],
+      json?['severidad'],
     ]);
-    final statusLabel = _firstString([
-      json['status_label'],
-      json['estado_label'],
-      json['estado'],
-      json['estado_observacion'],
-    ]);
-    final actionType = ObservationActionTypeX.fromBackend(
-      _firstString([json['action_type'], json['tipo_accion'], json['accion']]),
-    );
 
-    return Observation(
-      id: _firstString([json['id'], json['id_observacion']]),
-      apprenticeId: _firstString([
-        json['apprentice_id'],
-        json['id_aprendiz'],
-        json['aprendiz_id'],
-      ]),
-      title: _firstString([
-        json['title'],
-        json['titulo'],
-        json['asunto'],
-        typeLabel,
-      ]),
-      typeLabel: typeLabel,
-      area: _firstString([
-        json['area'],
-        json['dependencia'],
-        json['fuente'],
-        json['modulo'],
-        json['grupo'],
-      ]),
-      description: _firstString([
-        json['description'],
-        json['descripcion'],
-        json['observacion'],
-        json['detalle'],
-      ]),
-      date: _parseDateTime(
-        _firstValue([
-          json['date'],
-          json['fecha'],
-          json['fecha_observacion'],
-          json['created_at'],
-        ]),
+    return ObservatoryMetrics(
+      total: _toInt(json?['total']),
+      abiertas: _toInt(porEstado['ABIERTA']),
+      cerradas: _toInt(porEstado['CERRADA']),
+      alta: _toInt(porSeveridad['GRAVE']) + _toInt(porSeveridad['CRITICA']),
+      media: _toInt(porSeveridad['MODERADA']),
+      baja: _toInt(porSeveridad['LEVE']),
+    );
+  }
+
+  final int total;
+  final int abiertas;
+  final int cerradas;
+  final int alta;
+  final int media;
+  final int baja;
+}
+
+class ObservatoryObservationResponse {
+  const ObservatoryObservationResponse({
+    required this.metrics,
+    required this.items,
+    required this.message,
+  });
+
+  factory ObservatoryObservationResponse.fromJson(Map<String, dynamic> json) {
+    final items = _firstList([
+      json['observaciones'],
+      json['observations'],
+      json['items'],
+    ]);
+
+    return ObservatoryObservationResponse(
+      metrics: ObservatoryMetrics.fromJson(
+        _firstMap([json['metricas'], json['metrics']]),
       ),
-      dueDate:
-          _firstValue([
-                json['due_date'],
-                json['fecha_limite'],
-                json['fecha_vencimiento'],
-              ]) ==
-              null
-          ? null
-          : _parseDateTime(
-              _firstValue([
-                json['due_date'],
-                json['fecha_limite'],
-                json['fecha_vencimiento'],
-              ]),
-            ),
-      authorName: _firstString([
-        json['author_name'],
-        json['author'],
-        json['autor'],
-        json['registrado_por'],
-        json['instructor'],
-        'Instructor',
+      items: items
+          .whereType<Map<String, dynamic>>()
+          .map(ObservatoryObservation.fromJson)
+          .toList(growable: false),
+      message: _firstString([
+        json['mensaje'],
+        json['message'],
+        'No tienes observaciones por el momento',
       ]),
-      statusLabel: statusLabel,
-      severity: ObservationSeverityX.fromBackend(
-        _firstString([
-          json['severity'],
-          json['severidad'],
-          json['prioridad'],
-          statusLabel,
-        ]),
+    );
+  }
+
+  final ObservatoryMetrics metrics;
+  final List<ObservatoryObservation> items;
+  final String message;
+}
+
+class ObservatoryAlertResponse {
+  const ObservatoryAlertResponse({
+    required this.metrics,
+    required this.items,
+    required this.message,
+  });
+
+  factory ObservatoryAlertResponse.fromJson(Map<String, dynamic> json) {
+    final items = _firstList([json['alertas'], json['alerts'], json['items']]);
+
+    return ObservatoryAlertResponse(
+      metrics: ObservatoryMetrics.fromJson(
+        _firstMap([json['metricas'], json['metrics']]),
       ),
-      actionLabel: _firstString([
-        json['action_label'],
-        json['accion_label'],
-        json['label_accion'],
-        actionType.defaultLabel,
+      items: items
+          .whereType<Map<String, dynamic>>()
+          .map(ObservatoryAlert.fromJson)
+          .toList(growable: false),
+      message: _firstString([
+        json['mensaje'],
+        json['message'],
+        'No tienes alertas por el momento',
       ]),
-      actionType: actionType,
-      isActive: _isActive(json, statusLabel),
+    );
+  }
+
+  final ObservatoryMetrics metrics;
+  final List<ObservatoryAlert> items;
+  final String message;
+}
+
+class ObservatoryObservation {
+  const ObservatoryObservation({
+    required this.id,
+    required this.fecha,
+    required this.tipo,
+    required this.severidad,
+    required this.estado,
+    required this.descripcion,
+    required this.responsableNombre,
+    required this.responsableRol,
+  });
+
+  factory ObservatoryObservation.fromJson(Map<String, dynamic> json) {
+    final responsable = _firstMap([json['responsable']]);
+    return ObservatoryObservation(
+      id: _firstString([json['id_observacion'], json['id']]),
+      fecha: _parseDate(_firstValue([json['fecha'], json['fecha_observacion']])),
+      tipo: _firstString([json['tipo'], json['tipo_observacion'], 'General']),
+      severidad: _firstString([json['severidad'], 'LEVE']),
+      estado: _firstString([json['estado'], 'ABIERTA']),
+      descripcion: _firstString([json['descripcion'], json['detalle']]),
+      responsableNombre: _firstString([
+        responsable['nombre_completo'],
+        responsable['nombre'],
+        'Sin responsable',
+      ]),
+      responsableRol: _firstString([responsable['rol'], 'responsable']),
     );
   }
 
   final String id;
-  final String apprenticeId;
-  final String title;
-  final String typeLabel;
-  final String area;
-  final String description;
-  final DateTime date;
-  final DateTime? dueDate;
-  final String authorName;
-  final String statusLabel;
-  final ObservationSeverity severity;
-  final String actionLabel;
-  final ObservationActionType actionType;
-  final bool isActive;
+  final DateTime fecha;
+  final String tipo;
+  final String severidad;
+  final String estado;
+  final String descripcion;
+  final String responsableNombre;
+  final String responsableRol;
 }
 
-extension ObservationSeverityX on ObservationSeverity {
-  static ObservationSeverity fromBackend(String value) {
-    final normalized = value.toLowerCase().trim();
-    return switch (normalized) {
-      'action_required' ||
-      'requiere_respuesta' ||
-      'requiere respuesta' ||
-      'alta' ||
-      'grave' ||
-      'pendiente' => ObservationSeverity.actionRequired,
-      'in_progress' ||
-      'en seguimiento' ||
-      'en_seguimiento' ||
-      'media' ||
-      'proceso' => ObservationSeverity.inProgress,
-      'informative' ||
-      'informativa' ||
-      'baja' ||
-      'info' => ObservationSeverity.informative,
-      'closed' ||
-      'cerrada' ||
-      'cerrado' ||
-      'resuelta' ||
-      'resuelto' => ObservationSeverity.closed,
-      _ => ObservationSeverity.informative,
-    };
+class ObservatoryAlert {
+  const ObservatoryAlert({
+    required this.id,
+    required this.tipo,
+    required this.severidad,
+    required this.estado,
+    required this.origen,
+    required this.reglaDisparo,
+    required this.descripcion,
+    required this.fechaAlerta,
+    required this.fechaCierre,
+    required this.justificacionCierre,
+    required this.fechaReapertura,
+    required this.justificacionReapertura,
+    required this.responsableNombre,
+    required this.responsableRol,
+    required this.responsableCierreNombre,
+    required this.responsableCierreRol,
+    required this.responsableReaperturaNombre,
+    required this.responsableReaperturaRol,
+  });
+
+  factory ObservatoryAlert.fromJson(Map<String, dynamic> json) {
+    final responsable = _firstMap([json['responsable']]);
+    final cierre = _firstMap([json['responsable_cierre']]);
+    final reapertura = _firstMap([json['responsable_reapertura']]);
+
+    return ObservatoryAlert(
+      id: _firstString([json['id_alerta'], json['id']]),
+      tipo: _firstString([json['tipo'], json['tipo_alerta'], 'General']),
+      severidad: _firstString([json['severidad'], 'LEVE']),
+      estado: _firstString([json['estado'], 'ABIERTA']),
+      origen: _firstString([json['origen'], 'Sin origen']),
+      reglaDisparo: _firstString([json['regla_disparo']]),
+      descripcion: _firstString([json['descripcion'], json['detalle']]),
+      fechaAlerta: _parseDate(_firstValue([json['fecha_alerta'], json['fecha']])),
+      fechaCierre: _parseNullableDate(json['fecha_cierre']),
+      justificacionCierre: _firstString([json['justificacion_cierre']]),
+      fechaReapertura: _parseNullableDate(json['fecha_reapertura']),
+      justificacionReapertura: _firstString([
+        json['justificacion_reapertura'],
+      ]),
+      responsableNombre: _firstString([
+        responsable['nombre_completo'],
+        responsable['nombre'],
+        'Sin responsable',
+      ]),
+      responsableRol: _firstString([responsable['rol'], 'responsable']),
+      responsableCierreNombre: _firstString([
+        cierre['nombre_completo'],
+        cierre['nombre'],
+      ]),
+      responsableCierreRol: _firstString([cierre['rol']]),
+      responsableReaperturaNombre: _firstString([
+        reapertura['nombre_completo'],
+        reapertura['nombre'],
+      ]),
+      responsableReaperturaRol: _firstString([reapertura['rol']]),
+    );
   }
 
-  String get backendValue {
-    return switch (this) {
-      ObservationSeverity.actionRequired => 'action_required',
-      ObservationSeverity.inProgress => 'in_progress',
-      ObservationSeverity.informative => 'informative',
-      ObservationSeverity.closed => 'closed',
-    };
-  }
+  final String id;
+  final String tipo;
+  final String severidad;
+  final String estado;
+  final String origen;
+  final String reglaDisparo;
+  final String descripcion;
+  final DateTime fechaAlerta;
+  final DateTime? fechaCierre;
+  final String justificacionCierre;
+  final DateTime? fechaReapertura;
+  final String justificacionReapertura;
+  final String responsableNombre;
+  final String responsableRol;
+  final String responsableCierreNombre;
+  final String responsableCierreRol;
+  final String responsableReaperturaNombre;
+  final String responsableReaperturaRol;
 }
 
-extension ObservationActionTypeX on ObservationActionType {
-  static ObservationActionType fromBackend(String value) {
-    final normalized = value.toLowerCase().trim();
-    return switch (normalized) {
-      'upload_support' ||
-      'subir_soporte' ||
-      'enviar_soporte' ||
-      'soporte' => ObservationActionType.uploadSupport,
-      'view_detail' ||
-      'ver_detalle' ||
-      'detalle' => ObservationActionType.viewDetail,
-      'contact_support' ||
-      'contactar' ||
-      'bienestar' => ObservationActionType.contactSupport,
-      'none' || 'ninguna' || '' => ObservationActionType.none,
-      _ => ObservationActionType.none,
-    };
-  }
+bool _hasText(String? value) => value != null && value.trim().isNotEmpty;
 
-  String get backendValue {
-    return switch (this) {
-      ObservationActionType.uploadSupport => 'upload_support',
-      ObservationActionType.viewDetail => 'view_detail',
-      ObservationActionType.contactSupport => 'contact_support',
-      ObservationActionType.none => 'none',
-    };
-  }
-
-  String get defaultLabel {
-    return switch (this) {
-      ObservationActionType.uploadSupport => 'Enviar soporte',
-      ObservationActionType.viewDetail => 'Ver detalle',
-      ObservationActionType.contactSupport => 'Contactar',
-      ObservationActionType.none => 'Ver detalle',
-    };
-  }
+String _isoDate(DateTime date) {
+  final month = date.month.toString().padLeft(2, '0');
+  final day = date.day.toString().padLeft(2, '0');
+  return '${date.year}-$month-$day';
 }
 
 Object? _firstValue(List<Object?> values) {
@@ -316,13 +303,13 @@ Map<String, dynamic> _firstMap(List<Object?> values) {
   return const {};
 }
 
-List<dynamic>? _firstList(List<Object?> values) {
+List<dynamic> _firstList(List<Object?> values) {
   for (final value in values) {
     if (value is List<dynamic>) {
       return value;
     }
   }
-  return null;
+  return const [];
 }
 
 String _firstString(List<Object?> values) {
@@ -330,58 +317,43 @@ String _firstString(List<Object?> values) {
     if (value == null) {
       continue;
     }
-    if (value is Map<String, dynamic>) {
-      final firstName = value['nombres']?.toString().trim() ?? '';
-      final lastName = value['apellidos']?.toString().trim() ?? '';
-      final fullName = '$firstName $lastName'.trim();
-      if (fullName.isNotEmpty) {
-        return fullName;
-      }
-
-      final nested = _firstString([
-        value['nombre_completo'],
-        value['nombre'],
-        value['name'],
-        value['label'],
-        value['descripcion'],
-        value['numero_ficha'],
-        value['persona'],
-        value['usuario'],
-      ]);
-      if (nested.isNotEmpty) {
-        return nested;
-      }
-      continue;
-    }
     final text = value.toString().trim();
-    if (text.isNotEmpty) {
+    if (text.isNotEmpty && text != 'null') {
       return text;
     }
   }
   return '';
 }
 
-bool _isActive(Map<String, dynamic> json, String statusLabel) {
-  final explicit = _firstValue([json['active'], json['activo']]);
-  if (explicit is bool) {
-    return explicit;
+int _toInt(Object? value) {
+  if (value is int) {
+    return value;
   }
-
-  final normalized = statusLabel.toLowerCase().trim();
-  return normalized != 'cerrada' &&
-      normalized != 'cerrado' &&
-      normalized != 'resuelta' &&
-      normalized != 'resuelto';
+  if (value is num) {
+    return value.toInt();
+  }
+  return int.tryParse(value?.toString() ?? '') ?? 0;
 }
 
-DateTime _parseDateTime(Object? value) {
+DateTime _parseDate(Object? value) {
   if (value is DateTime) {
     return value;
   }
-
-  if (value is String && value.isNotEmpty) {
+  if (value is String && value.trim().isNotEmpty) {
     return DateTime.tryParse(value) ?? DateTime.now();
   }
-
   return DateTime.now();
+}
+
+DateTime? _parseNullableDate(Object? value) {
+  if (value == null) {
+    return null;
+  }
+  if (value is DateTime) {
+    return value;
+  }
+  if (value is String && value.trim().isNotEmpty) {
+    return DateTime.tryParse(value);
+  }
+  return null;
 }

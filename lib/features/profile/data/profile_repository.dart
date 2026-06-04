@@ -98,19 +98,10 @@ class BackendProfileRepository implements ProfileRepository {
   ) async {
     await _sendJson(
       method: 'PUT',
-      url: ApiConfig.currentUser,
+      url: ApiConfig.profileOverview,
       payload: {
-        'nombre': profile.firstName,
-        'nombres': profile.firstName,
-        'apellido': profile.lastName,
-        'apellidos': profile.lastName,
-        'tipo_documento': profile.documentType,
-        'numero_documento': profile.documentNumber,
-        'documento': profile.documentNumber,
-        'correo': profile.email,
         'email': profile.email,
         'telefono': profile.phone,
-        'celular': profile.phone,
       },
     );
 
@@ -123,7 +114,7 @@ class BackendProfileRepository implements ProfileRepository {
   ) async {
     await _sendJson(
       method: 'PUT',
-      url: ApiConfig.currentUser,
+      url: ApiConfig.profileOverview,
       payload: {
         'contacto_emergencia': {
           'nombre': contact.name,
@@ -149,12 +140,10 @@ class BackendProfileRepository implements ProfileRepository {
   }) async {
     await _sendJson(
       method: 'PUT',
-      url: ApiConfig.currentUser,
+      url: ApiConfig.profileOverview,
       payload: {
         'password_actual': currentPassword,
-        'current_password': currentPassword,
-        'password': newPassword,
-        'new_password': newPassword,
+        'password_nuevo': newPassword,
       },
     );
   }

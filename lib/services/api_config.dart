@@ -31,7 +31,12 @@ class ApiConfig {
   static const String qrAttendance = '$baseUrl/attendances/qr';
   static const String currentApprentice = '$baseUrl/apprentices/me';
   static const String currentUser = '$baseUrl/users/me';
+  static const String profileOverview = '$baseUrl/profile/overview';
   static const String myObservations = '$baseUrl/observations/my';
+  static const String apprenticeObservatoryObservations =
+      '$baseUrl/apprentice-portal/observatory/observations';
+  static const String apprenticeObservatoryAlerts =
+      '$baseUrl/apprentice-portal/observatory/alerts';
 
   static String observation(String id) => '$baseUrl/observations/$id';
 }

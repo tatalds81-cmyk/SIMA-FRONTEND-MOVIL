@@ -1,8 +1,5 @@
-import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:sima_movil_froned/services/attendance_service.dart';
-import 'package:sima_movil_froned/services/hardware/location_service.dart';
-import 'package:sima_movil_froned/services/hardware/local_auth_service.dart';
 import 'dart:math' as math;
 
 class AttendancePage extends StatefulWidget {
@@ -117,31 +114,6 @@ class _AttendancePageState extends State<AttendancePage>
   void dispose() {
     _tabController.dispose();
     super.dispose();
-  }
-
-  void _openScanner(BuildContext context) async {
-    final sesionActiva = _sessionsData?['sesion_activa'];
-    if (sesionActiva == null || sesionActiva['id_sesion_formacion'] == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No hay una sesión activa para registrar asistencia.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    final int idSesionActiva = sesionActiva['id_sesion_formacion'];
-
-    final bool? success = await Navigator.of(context).push(MaterialPageRoute(
-      builder: (context) => ScannerScreen(idSesionActiva: idSesionActiva),
-    ));
-
-    if (success == true) {
-      _fetchDashboard();
-      _fetchCalendar();
-      _fetchSessions();
-    }
   }
 
   void _showMonthPicker() {
@@ -275,39 +247,11 @@ class _AttendancePageState extends State<AttendancePage>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F8FB),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 70),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            FloatingActionButton(
-              onPressed: () => _openScanner(context),
-              backgroundColor: const Color(0xFF39A900),
-              elevation: 6,
-              shape: const CircleBorder(),
-              child: const Icon(
-                Icons.qr_code_scanner,
-                color: Colors.white,
-                size: 28,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Escanear QR',
-              style: TextStyle(
-                color: Color(0xFF39A900),
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header Principal ──
+            // â”€â”€ Header Principal â”€â”€
             const Padding(
               padding: EdgeInsets.fromLTRB(20, 20, 20, 4),
               child: Column(
@@ -333,7 +277,7 @@ class _AttendancePageState extends State<AttendancePage>
               ),
             ),
 
-            // ── Banner Control de Asistencia (visible en todas las pestañas) ──
+            // â”€â”€ Banner Control de Asistencia (visible en todas las pestaÃ±as) â”€â”€
             _buildSessionBanner(),
 
             // TabBar
@@ -368,7 +312,7 @@ class _AttendancePageState extends State<AttendancePage>
                   Tab(text: 'Resumen'),
                   Tab(text: 'Historial'),
                   Tab(text: 'Justificar'),
-                  Tab(text: 'Estadísticas'),
+                  Tab(text: 'EstadÃ­sticas'),
                 ],
               ),
             ),
@@ -380,24 +324,24 @@ class _AttendancePageState extends State<AttendancePage>
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  // ── Tab 0: Resumen ──
+                  // â”€â”€ Tab 0: Resumen â”€â”€
                   _buildResumenTab(),
 
-                  // ── Tab 1: Historial ──
+                  // â”€â”€ Tab 1: Historial â”€â”€
                   _buildHistorialTab(),
 
-                  // ── Tab 2: Justificar (vacío) ──
+                  // â”€â”€ Tab 2: Justificar (vacÃ­o) â”€â”€
                   const Center(
                     child: Text(
-                      'Justificar próximamente',
+                      'Justificar prÃ³ximamente',
                       style: TextStyle(color: Color(0xFF607086), fontSize: 15),
                     ),
                   ),
 
-                  // ── Tab 3: Estadísticas (vacío) ──
+                  // â”€â”€ Tab 3: EstadÃ­sticas (vacÃ­o) â”€â”€
                   const Center(
                     child: Text(
-                      'Estadísticas próximamente',
+                      'EstadÃ­sticas prÃ³ximamente',
                       style: TextStyle(color: Color(0xFF607086), fontSize: 15),
                     ),
                   ),
@@ -410,29 +354,29 @@ class _AttendancePageState extends State<AttendancePage>
     );
   }
 
-  // ─── Banner "Control de Asistencia de Aprendices" ───────────────────────
+  // â”€â”€â”€ Banner "Control de Asistencia de Aprendices" â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildSessionBanner() {
-    // ── Extraer datos de la respuesta real del backend ──
+    // â”€â”€ Extraer datos de la respuesta real del backend â”€â”€
     final ficha     = _sessionsData?['ficha']         as Map<String, dynamic>?;
     final sesion    = _sessionsData?['sesion_activa'] as Map<String, dynamic>?;
 
     // Ficha / Programa
-    final String numeroFicha = ficha?['numero_ficha']?.toString() ?? '—';
+    final String numeroFicha = ficha?['numero_ficha']?.toString() ?? 'â€”';
     final programa = ficha?['programa'] as Map<String, dynamic>?;
-    final String nombrePrograma = programa?['nombre_programa']?.toString() ?? '—';
+    final String nombrePrograma = programa?['nombre_programa']?.toString() ?? 'â€”';
 
-    // Instructor líder (viene en ficha.instructor_lider)
+    // Instructor lÃ­der (viene en ficha.instructor_lider)
     final instructorLider = ficha?['instructor_lider'] as Map<String, dynamic>?;
     final bool instructorRegistrado = instructorLider?['registrado'] == true;
     final String nombreInstructor = instructorRegistrado
-        ? (instructorLider?['nombre_completo']?.toString() ?? '—')
-        : '—';
+        ? (instructorLider?['nombre_completo']?.toString() ?? 'â€”')
+        : 'â€”';
 
     // Jornada del grupo
-    final String jornada = ficha?['jornada']?.toString() ?? '—';
+    final String jornada = ficha?['jornada']?.toString() ?? 'â€”';
 
-    // Fecha de la sesión activa (formateada)
-    String fechaFormateada = '—';
+    // Fecha de la sesiÃ³n activa (formateada)
+    String fechaFormateada = 'â€”';
     if (sesion != null) {
       final fechaRaw = sesion['fecha_clase']?.toString() ?? '';
       if (fechaRaw.length >= 10) {
@@ -449,7 +393,7 @@ class _AttendancePageState extends State<AttendancePage>
       }
     }
 
-    // Estado de sesión
+    // Estado de sesiÃ³n
     final bool haySession = sesion != null;
 
     return Container(
@@ -479,7 +423,7 @@ class _AttendancePageState extends State<AttendancePage>
           ),
           const SizedBox(height: 16),
 
-          // ── Estado: cargando ──
+          // â”€â”€ Estado: cargando â”€â”€
           if (_isLoadingSessions)
             const SizedBox(
               height: 20,
@@ -495,14 +439,14 @@ class _AttendancePageState extends State<AttendancePage>
                   ),
                   SizedBox(width: 10),
                   Text(
-                    'Cargando sesión...',
+                    'Cargando sesiÃ³n...',
                     style: TextStyle(color: Color(0xFF607086), fontSize: 13),
                   ),
                 ],
               ),
             )
 
-          // ── Estado: error al cargar ──
+          // â”€â”€ Estado: error al cargar â”€â”€
           else if (_sessionsError != null)
             Row(
               children: [
@@ -511,7 +455,7 @@ class _AttendancePageState extends State<AttendancePage>
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    'No se pudo cargar la sesión',
+                    'No se pudo cargar la sesiÃ³n',
                     style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -530,7 +474,7 @@ class _AttendancePageState extends State<AttendancePage>
               ],
             )
 
-          // ── Estado: datos reales del backend ──
+          // â”€â”€ Estado: datos reales del backend â”€â”€
           else
             LayoutBuilder(
               builder: (context, constraints) {
@@ -570,15 +514,15 @@ class _AttendancePageState extends State<AttendancePage>
                             ),
                           ],
                         ),
-                        // Segunda fila: Fecha (solo si hay sesión activa)
+                        // Segunda fila: Fecha (solo si hay sesiÃ³n activa)
                         if (haySession) ...[
                           const SizedBox(height: 8),
-                          _bannerInlineText('Fecha de sesión: ', fechaFormateada),
+                          _bannerInlineText('Fecha de sesiÃ³n: ', fechaFormateada),
                         ] else ...[
                           const SizedBox(height: 8),
                           Text(
                             _sessionsData?['mensaje_sesion_activa']?.toString() ??
-                                'No hay sesión activa en este momento',
+                                'No hay sesiÃ³n activa en este momento',
                             style: TextStyle(
                               color: Colors.grey.shade500,
                               fontSize: 12,
@@ -624,7 +568,7 @@ class _AttendancePageState extends State<AttendancePage>
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        isActive ? 'Activa' : 'Sin sesión',
+        isActive ? 'Activa' : 'Sin sesiÃ³n',
         style: const TextStyle(
           color: Colors.white,
           fontSize: 12,
@@ -688,7 +632,7 @@ class _AttendancePageState extends State<AttendancePage>
                       children: [
                         _buildTooltipInfo('Cantidad', '$count'),
                         _buildTooltipInfo('Instructor', instructor),
-                        _buildTooltipInfo('Última act.', ultActualizacion.length > 10 ? ultActualizacion.substring(0, 10) : ultActualizacion),
+                        _buildTooltipInfo('Ãšltima act.', ultActualizacion.length > 10 ? ultActualizacion.substring(0, 10) : ultActualizacion),
                       ],
                     ),
                   ],
@@ -790,7 +734,7 @@ class _AttendancePageState extends State<AttendancePage>
                                     const Icon(Icons.date_range_outlined, size: 16, color: Colors.grey),
                                     const SizedBox(width: 4),
                                     Text(
-                                      'Días faltados: $diasFaltados',
+                                      'DÃ­as faltados: $diasFaltados',
                                       style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                                     ),
                                   ],
@@ -803,7 +747,7 @@ class _AttendancePageState extends State<AttendancePage>
                                     const SizedBox(width: 4),
                                     Expanded(
                                       child: Text(
-                                        'Observación: $observacion',
+                                        'ObservaciÃ³n: $observacion',
                                         style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                                       ),
                                     ),
@@ -839,7 +783,7 @@ class _AttendancePageState extends State<AttendancePage>
     );
   }
 
-  // ─── Tab Resumen con dona ────────────────────────────────────────────────
+  // â”€â”€â”€ Tab Resumen con dona â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildResumenTab() {
     if (_isLoadingDashboard) {
       return const Center(child: CircularProgressIndicator(color: Color(0xFF39A900)));
@@ -875,7 +819,7 @@ class _AttendancePageState extends State<AttendancePage>
     final asistenciaTrimestre = _dashboardData?['asistencia_trimestre'];
     final int total = asistenciaTrimestre?['total'] ?? 0;
 
-    // Trimestre activo — leído directamente del dashboard, sin variables extra
+    // Trimestre activo â€” leÃ­do directamente del dashboard, sin variables extra
     final trimestreActivo = _dashboardData?['trimestre_activo'] as Map<String, dynamic>?;
     final bool trimestreRegistrado = trimestreActivo?['registrado'] == true;
     final int? numeroTrimestre = trimestreRegistrado
@@ -894,8 +838,9 @@ class _AttendancePageState extends State<AttendancePage>
         final estado = estadoInfo['estado'];
         final cantidad = estadoInfo['cantidad'] as int;
 
-        if (estado == 'PENDIENTE') pendiente = cantidad;
-        else if (estado == 'PRESENTE') presente = cantidad;
+        if (estado == 'PENDIENTE') {
+          pendiente = cantidad;
+        } else if (estado == 'PRESENTE') presente = cantidad;
         else if (estado == 'INASISTENTE') ausente = cantidad;
         else if (estado == 'TARDE') retardado = cantidad;
         else if (estado == 'JUSTIFICADA') justificado = cantidad;
@@ -931,7 +876,7 @@ class _AttendancePageState extends State<AttendancePage>
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                // Chip de trimestre — solo visible cuando el backend confirma
+                // Chip de trimestre â€” solo visible cuando el backend confirma
                 // trimestre_activo.registrado == true
                 if (numeroTrimestre != null)
                   Container(
@@ -1154,7 +1099,7 @@ class _AttendancePageState extends State<AttendancePage>
                                 ),
                                 const SizedBox(height: 8),
                                 const Text(
-                                  'Haz clic en el ícono del ojo para ver el detalle',
+                                  'Haz clic en el Ã­cono del ojo para ver el detalle',
                                   style: TextStyle(fontSize: 12, color: Colors.grey),
                                 ),
                               ],
@@ -1511,235 +1456,7 @@ class _AttendancePageState extends State<AttendancePage>
   }
 }
 
-// ─────────────────────────────────────────────
-// Scanner Screen (QR y Geolocalización)
-// ─────────────────────────────────────────────
-class ScannerScreen extends StatefulWidget {
-  final int idSesionActiva;
-
-  const ScannerScreen({super.key, required this.idSesionActiva});
-
-  @override
-  State<ScannerScreen> createState() => _ScannerScreenState();
-}
-
-class _ScannerScreenState extends State<ScannerScreen> {
-  final MobileScannerController controller = MobileScannerController();
-  bool _isProcessing = false;
-
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-        actions: [
-          IconButton(
-            icon: ValueListenableBuilder(
-              valueListenable: controller,
-              builder: (context, state, child) {
-                switch (state.torchState) {
-                  case TorchState.off:
-                  case TorchState.unavailable:
-                    return const Icon(Icons.flash_off, color: Colors.grey);
-                  case TorchState.on:
-                  case TorchState.auto:
-                    return const Icon(Icons.flash_on, color: Colors.yellow);
-                }
-              },
-            ),
-            onPressed: () => controller.toggleTorch(),
-          ),
-          IconButton(
-            color: Colors.white,
-            icon: ValueListenableBuilder(
-              valueListenable: controller,
-              builder: (context, state, child) {
-                switch (state.cameraDirection) {
-                  case CameraFacing.front:
-                    return const Icon(Icons.camera_front);
-                  case CameraFacing.back:
-                  case CameraFacing.unknown:
-                  case CameraFacing.external:
-                    return const Icon(Icons.camera_rear);
-                }
-              },
-            ),
-            onPressed: () => controller.switchCamera(),
-          ),
-        ],
-      ),
-      extendBodyBehindAppBar: true,
-      body: Stack(
-        children: [
-          MobileScanner(
-            controller: controller,
-            onDetect: (capture) async {
-              if (_isProcessing) return;
-
-              final List<Barcode> barcodes = capture.barcodes;
-              if (barcodes.isNotEmpty) {
-                final barcode = barcodes.first;
-                if (barcode.rawValue != null) {
-                  setState(() => _isProcessing = true);
-                  controller.stop();
-
-                  // Mostrar modal de procesamiento
-                  showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (context) => const AlertDialog(
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(color: Color(0xFF39A900)),
-                          SizedBox(height: 20),
-                          Text('Validando ubicación y seguridad...'),
-                        ],
-                      ),
-                    ),
-                  );
-
-                  try {
-                    // 1. Validar identidad local
-                    final authSuccess = await LocalAuthService.authenticate();
-                    if (!authSuccess) {
-                      throw Exception('Autenticación cancelada o fallida.');
-                    }
-
-                    // 2. Obtener ubicación
-                    final locationData = await LocationService.getCurrentLocation();
-
-                    // 3. Ensamblar payload (sin device_uuid por ser opcional)
-                    final payload = {
-                      'id_sesion_formacion': widget.idSesionActiva,
-                      'token_qr': barcode.rawValue!,
-                      'latitud': locationData['latitud'],
-                      'longitud': locationData['longitud'],
-                      'precision': locationData['precision'],
-                      'mocked': locationData['mocked'],
-                      'local_auth': true,
-                    };
-
-                    // 4. Enviar al backend
-                    await AttendanceService.registerQrAttendance(payload);
-
-                    // 5. Quitar loading y mostrar éxito
-                    if (context.mounted) {
-                      Navigator.of(context).pop(); // Quitar loading
-                      await showDialog(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (context) => AlertDialog(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          title: Row(
-                            children: const [
-                              Icon(Icons.check_circle, color: Color(0xFF39A900), size: 30),
-                              SizedBox(width: 10),
-                              Text('Éxito'),
-                            ],
-                          ),
-                          content: const Text('Asistencia registrada correctamente.'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(context).pop(),
-                              child: const Text('Aceptar', style: TextStyle(color: Color(0xFF39A900))),
-                            ),
-                          ],
-                        ),
-                      );
-                      // Cerrar ScannerScreen retornando true
-                      if (context.mounted) {
-                        Navigator.of(context).pop(true);
-                      }
-                    }
-                  } catch (e) {
-                    // Quitar loading y mostrar error
-                    if (context.mounted) {
-                      Navigator.of(context).pop(); // Quitar loading
-                      await showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Error de Registro'),
-                          content: Text(e.toString().replaceAll('Exception: ', '')),
-                          actions: [
-                            TextButton(
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                                setState(() => _isProcessing = false);
-                                controller.start(); // Reiniciar cámara para reintento
-                              },
-                              child: const Text('Reintentar', style: TextStyle(color: Color(0xFF39A900))),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                  }
-                }
-              }
-            },
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                const SizedBox(height: 60),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  child: const Text(
-                    'Busque un código',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                Center(
-                  child: Container(
-                    width: 250,
-                    height: 250,
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                          color: const Color(0xFF39A900), width: 3),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 40),
-                  child: Text(
-                    'Alinee el código QR dentro del marco',
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Donut Chart Painter ────────────────────────────────────────────────────
+// Donut Chart Painter
 class _DonutChartPainter extends CustomPainter {
   final int pendiente;
   final int presente;
