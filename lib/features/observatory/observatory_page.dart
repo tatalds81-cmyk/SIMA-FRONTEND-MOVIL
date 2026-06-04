@@ -2,829 +2,456 @@ import 'package:flutter/material.dart';
 import 'package:sima_movil_froned/features/observatory/data/observations_repository.dart';
 import 'package:sima_movil_froned/features/observatory/models/observation.dart';
 
-const _wideBreakpoint = 760.0;
 const _allOption = 'Todos';
+const _wideBreakpoint = 760.0;
 
 class ObservatoryPage extends StatefulWidget {
   const ObservatoryPage({
     super.key,
-    this.repository = const BackendObservationsRepository(),
+    this.repository = const BackendObservatoryRepository(),
   });
 
-  final ObservationsRepository repository;
+  final ObservatoryRepository repository;
 
   @override
   State<ObservatoryPage> createState() => _ObservatoryPageState();
 }
 
-class _ObservatoryPageState extends State<ObservatoryPage> {
-  late Future<ObservationDashboard> _dashboardFuture;
-  String _selectedType = _allOption;
-  String _selectedSeverity = _allOption;
-  String _selectedStatus = _allOption;
-  DateTime? _fromDate;
-  DateTime? _toDate;
+class _ObservatoryPageState extends State<ObservatoryPage>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  ObservatoryFilters _observationFilters = const ObservatoryFilters();
+  ObservatoryFilters _alertFilters = const ObservatoryFilters();
+
+  late Future<ObservatoryObservationResponse> _observationsFuture;
+  late Future<ObservatoryAlertResponse> _alertsFuture;
 
   @override
   void initState() {
     super.initState();
-    _dashboardFuture = widget.repository.fetchCurrentApprenticeObservations();
+    _tabController = TabController(length: 2, vsync: this);
+    _observationsFuture =
+        widget.repository.fetchObservations(_observationFilters);
+    _alertsFuture = widget.repository.fetchAlerts(_alertFilters);
   }
 
-  void _reload() {
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _reloadObservations() {
     setState(() {
-      _dashboardFuture = widget.repository.fetchCurrentApprenticeObservations();
+      _observationsFuture =
+          widget.repository.fetchObservations(_observationFilters);
     });
   }
 
-  List<Observation> _filterObservations(List<Observation> observations) {
-    return observations
-        .where((observation) {
-          final observationDate = _dateOnly(observation.date);
-          final matchesType =
-              _selectedType == _allOption ||
-              observation.typeLabel == _selectedType;
-          final matchesSeverity =
-              _selectedSeverity == _allOption ||
-              _severityLabel(observation.severity) == _selectedSeverity;
-          final matchesStatus =
-              _selectedStatus == _allOption ||
-              observation.statusLabel == _selectedStatus;
-          final matchesFrom =
-              _fromDate == null ||
-              !observationDate.isBefore(_dateOnly(_fromDate!));
-          final matchesTo =
-              _toDate == null || !observationDate.isAfter(_dateOnly(_toDate!));
-
-          return matchesType &&
-              matchesSeverity &&
-              matchesStatus &&
-              matchesFrom &&
-              matchesTo;
-        })
-        .toList(growable: false);
+  void _reloadAlerts() {
+    setState(() {
+      _alertsFuture = widget.repository.fetchAlerts(_alertFilters);
+    });
   }
 
-  Future<void> _pickDate({required bool isFrom}) async {
-    final selected = await showDatePicker(
+  void _setObservationFilters(ObservatoryFilters filters, {bool reload = false}) {
+    setState(() {
+      _observationFilters = filters;
+      if (reload) {
+        _observationsFuture =
+            widget.repository.fetchObservations(_observationFilters);
+      }
+    });
+  }
+
+  void _setAlertFilters(ObservatoryFilters filters, {bool reload = false}) {
+    setState(() {
+      _alertFilters = filters;
+      if (reload) {
+        _alertsFuture = widget.repository.fetchAlerts(_alertFilters);
+      }
+    });
+  }
+
+  Future<DateTime?> _pickDate(DateTime? current, DateTime? minimum) {
+    return showDatePicker(
       context: context,
-      initialDate: isFrom
-          ? (_fromDate ?? DateTime.now())
-          : (_toDate ?? _fromDate ?? DateTime.now()),
+      initialDate: current ?? minimum ?? DateTime.now(),
       firstDate: DateTime(2020),
       lastDate: DateTime(2035),
-    );
-
-    if (selected == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      if (isFrom) {
-        _fromDate = selected;
-        if (_toDate != null && _toDate!.isBefore(selected)) {
-          _toDate = selected;
-        }
-      } else {
-        _toDate = selected;
-        if (_fromDate != null && selected.isBefore(_fromDate!)) {
-          _fromDate = selected;
-        }
-      }
-    });
-  }
-
-  void _clearFilters() {
-    setState(() {
-      _selectedType = _allOption;
-      _selectedSeverity = _allOption;
-      _selectedStatus = _allOption;
-      _fromDate = null;
-      _toDate = null;
-    });
-  }
-
-  void _applyFilters() {
-    _showMessage('Filtros aplicados.');
-  }
-
-  Future<void> _handleObservationAction(Observation observation) async {
-    try {
-      await widget.repository.registerObservationAction(
-        observationId: observation.id,
-        actionType: observation.actionType,
-      );
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      _showMessage(_cleanErrorMessage(error));
-    }
-
-    switch (observation.actionType) {
-      case ObservationActionType.uploadSupport:
-        _showMessage('Modulo de soportes listo para conectar.');
-      case ObservationActionType.viewDetail:
-        _showObservationDetail(observation);
-      case ObservationActionType.contactSupport:
-        _showMessage('Solicitud enviada al equipo de bienestar.');
-      case ObservationActionType.none:
-        _showObservationDetail(observation);
-    }
-  }
-
-  void _showObservationDetail(Observation observation) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: Colors.white,
-      builder: (context) => _ObservationDetailSheet(
-        observation: observation,
-        onActionPressed: () {
-          Navigator.of(context).pop();
-          _handleObservationAction(observation);
-        },
-      ),
-    );
-  }
-
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: _ObservationColors.navy,
-      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: _ObservationColors.background,
+      color: _ObservatoryColors.background,
       child: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= _wideBreakpoint;
-
-            return SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                isWide ? 32 : 20,
-                22,
-                isWide ? 32 : 20,
-                isWide ? 32 : 112,
-              ),
-              child: FutureBuilder<ObservationDashboard>(
-                future: _dashboardFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState != ConnectionState.done) {
-                    return const _ObservationLoading();
-                  }
-
-                  if (snapshot.hasError) {
-                    final message = _cleanErrorMessage(snapshot.error);
-                    return _ObservationError(
-                      message: message,
-                      isAccessDenied: _isAccessDeniedMessage(message),
-                      onRetry: _reload,
-                    );
-                  }
-
-                  final dashboard = snapshot.data;
-                  if (dashboard == null) {
-                    return _ObservationError(
-                      message:
-                          'No se recibieron datos de observaciones desde el backend.',
-                      onRetry: _reload,
-                    );
-                  }
-
-                  return _ObservationContent(
-                    dashboard: dashboard,
-                    observations: _filterObservations(dashboard.observations),
-                    selectedType: _selectedType,
-                    selectedSeverity: _selectedSeverity,
-                    selectedStatus: _selectedStatus,
-                    fromDate: _fromDate,
-                    toDate: _toDate,
-                    onTypeChanged: (value) {
-                      setState(() => _selectedType = value);
-                    },
-                    onSeverityChanged: (value) {
-                      setState(() => _selectedSeverity = value);
-                    },
-                    onStatusChanged: (value) {
-                      setState(() => _selectedStatus = value);
-                    },
-                    onPickFromDate: () => _pickDate(isFrom: true),
-                    onPickToDate: () => _pickDate(isFrom: false),
-                    onApplyFilters: _applyFilters,
-                    onClearFilters: _clearFilters,
-                    onObservationTap: _showObservationDetail,
-                    onActionPressed: _handleObservationAction,
-                  );
-                },
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _ObservationContent extends StatelessWidget {
-  const _ObservationContent({
-    required this.dashboard,
-    required this.observations,
-    required this.selectedType,
-    required this.selectedSeverity,
-    required this.selectedStatus,
-    required this.fromDate,
-    required this.toDate,
-    required this.onTypeChanged,
-    required this.onSeverityChanged,
-    required this.onStatusChanged,
-    required this.onPickFromDate,
-    required this.onPickToDate,
-    required this.onApplyFilters,
-    required this.onClearFilters,
-    required this.onObservationTap,
-    required this.onActionPressed,
-  });
-
-  final ObservationDashboard dashboard;
-  final List<Observation> observations;
-  final String selectedType;
-  final String selectedSeverity;
-  final String selectedStatus;
-  final DateTime? fromDate;
-  final DateTime? toDate;
-  final ValueChanged<String> onTypeChanged;
-  final ValueChanged<String> onSeverityChanged;
-  final ValueChanged<String> onStatusChanged;
-  final VoidCallback onPickFromDate;
-  final VoidCallback onPickToDate;
-  final VoidCallback onApplyFilters;
-  final VoidCallback onClearFilters;
-  final ValueChanged<Observation> onObservationTap;
-  final ValueChanged<Observation> onActionPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final total = dashboard.observations.length;
-    final open = dashboard.observations.where(_isOpenObservation).length;
-    final typeOptions = _optionList(
-      dashboard.observations.map((observation) => observation.typeLabel),
-    );
-    final severityOptions = _optionList(
-      dashboard.observations.map(
-        (observation) => _severityLabel(observation.severity),
-      ),
-    );
-    final statusOptions = _optionList(
-      dashboard.observations.map((observation) => observation.statusLabel),
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _ObservationHeader(apprenticeName: dashboard.apprenticeName),
-        const SizedBox(height: 14),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _CountPill(label: 'Total', value: total.toString()),
-            _CountPill(
-              label: 'Abiertas',
-              value: open.toString(),
-              highlight: true,
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 22, 20, 12),
+              child: _ObservatoryHeader(),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _TabSurface(
+                controller: _tabController,
+                tabs: const [
+                  Tab(text: 'Observaciones'),
+                  Tab(text: 'Alertas'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _ObservationsTab(
+                    future: _observationsFuture,
+                    filters: _observationFilters,
+                    onRetry: _reloadObservations,
+                    onFiltersChanged: _setObservationFilters,
+                    onPickDate: _pickDate,
+                  ),
+                  _AlertsTab(
+                    future: _alertsFuture,
+                    filters: _alertFilters,
+                    onRetry: _reloadAlerts,
+                    onFiltersChanged: _setAlertFilters,
+                    onPickDate: _pickDate,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        _ObservationFilterCard(
-          typeOptions: typeOptions,
-          severityOptions: severityOptions,
-          statusOptions: statusOptions,
-          selectedType: _safeSelected(selectedType, typeOptions),
-          selectedSeverity: _safeSelected(selectedSeverity, severityOptions),
-          selectedStatus: _safeSelected(selectedStatus, statusOptions),
-          fromDate: fromDate,
-          toDate: toDate,
-          onTypeChanged: onTypeChanged,
-          onSeverityChanged: onSeverityChanged,
-          onStatusChanged: onStatusChanged,
-          onPickFromDate: onPickFromDate,
-          onPickToDate: onPickToDate,
-          onApplyFilters: onApplyFilters,
-          onClearFilters: onClearFilters,
-        ),
-        const SizedBox(height: 16),
-        _ObservationListPanel(
-          total: total,
-          observations: observations,
-          onObservationTap: onObservationTap,
-          onActionPressed: onActionPressed,
-        ),
-      ],
-    );
-  }
-}
-
-class _ObservationHeader extends StatelessWidget {
-  const _ObservationHeader({required this.apprenticeName});
-
-  final String apprenticeName;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Mis observaciones',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: _ObservationColors.navy,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Seguimiento registrado para $apprenticeName',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: _ObservationColors.muted,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const _HeaderBadge(label: 'Aprendiz'),
-      ],
-    );
-  }
-}
-
-class _ObservationFilterCard extends StatelessWidget {
-  const _ObservationFilterCard({
-    required this.typeOptions,
-    required this.severityOptions,
-    required this.statusOptions,
-    required this.selectedType,
-    required this.selectedSeverity,
-    required this.selectedStatus,
-    required this.fromDate,
-    required this.toDate,
-    required this.onTypeChanged,
-    required this.onSeverityChanged,
-    required this.onStatusChanged,
-    required this.onPickFromDate,
-    required this.onPickToDate,
-    required this.onApplyFilters,
-    required this.onClearFilters,
-  });
-
-  final List<String> typeOptions;
-  final List<String> severityOptions;
-  final List<String> statusOptions;
-  final String selectedType;
-  final String selectedSeverity;
-  final String selectedStatus;
-  final DateTime? fromDate;
-  final DateTime? toDate;
-  final ValueChanged<String> onTypeChanged;
-  final ValueChanged<String> onSeverityChanged;
-  final ValueChanged<String> onStatusChanged;
-  final VoidCallback onPickFromDate;
-  final VoidCallback onPickToDate;
-  final VoidCallback onApplyFilters;
-  final VoidCallback onClearFilters;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SurfaceCard(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SectionTitle(
-            title: 'Filtros de consulta',
-            icon: Icons.tune_rounded,
-          ),
-          const SizedBox(height: 10),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              const spacing = 10.0;
-              final maxWidth = constraints.maxWidth;
-              late final double fieldWidth;
-              late final double buttonWidth;
-
-              if (maxWidth >= 1040) {
-                fieldWidth = (maxWidth - spacing * 6) / 7;
-                buttonWidth = fieldWidth;
-              } else if (maxWidth >= 720) {
-                fieldWidth = (maxWidth - spacing * 2) / 3;
-                buttonWidth = (maxWidth - spacing) / 2;
-              } else if (maxWidth >= 480) {
-                fieldWidth = (maxWidth - spacing) / 2;
-                buttonWidth = fieldWidth;
-              } else {
-                fieldWidth = maxWidth;
-                buttonWidth = maxWidth;
-              }
-
-              return Wrap(
-                spacing: spacing,
-                runSpacing: 10,
-                children: [
-                  SizedBox(
-                    width: fieldWidth,
-                    child: _DropdownFilterField(
-                      label: 'Tipo',
-                      value: selectedType,
-                      options: typeOptions,
-                      onChanged: onTypeChanged,
-                    ),
-                  ),
-                  SizedBox(
-                    width: fieldWidth,
-                    child: _DropdownFilterField(
-                      label: 'Severidad',
-                      value: selectedSeverity,
-                      options: severityOptions,
-                      onChanged: onSeverityChanged,
-                    ),
-                  ),
-                  SizedBox(
-                    width: fieldWidth,
-                    child: _DropdownFilterField(
-                      label: 'Estado',
-                      value: selectedStatus,
-                      options: statusOptions,
-                      onChanged: onStatusChanged,
-                    ),
-                  ),
-                  SizedBox(
-                    width: fieldWidth,
-                    child: _DateFilterField(
-                      label: 'Desde',
-                      value: fromDate,
-                      onTap: onPickFromDate,
-                    ),
-                  ),
-                  SizedBox(
-                    width: fieldWidth,
-                    child: _DateFilterField(
-                      label: 'Hasta',
-                      value: toDate,
-                      onTap: onPickToDate,
-                    ),
-                  ),
-                  SizedBox(
-                    width: buttonWidth,
-                    child: FilledButton.icon(
-                      onPressed: onApplyFilters,
-                      icon: const Icon(Icons.search_rounded, size: 17),
-                      label: const Text('Buscar'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _ObservationColors.green,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size.fromHeight(42),
-                        textStyle: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: buttonWidth,
-                    child: OutlinedButton(
-                      onPressed: onClearFilters,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _ObservationColors.navy,
-                        minimumSize: const Size.fromHeight(42),
-                        textStyle: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                        ),
-                        side: const BorderSide(color: _ObservationColors.line),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: const Text('Limpiar'),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
       ),
     );
   }
 }
 
-class _ObservationListPanel extends StatelessWidget {
-  const _ObservationListPanel({
-    required this.total,
-    required this.observations,
-    required this.onObservationTap,
-    required this.onActionPressed,
+class _ObservatoryHeader extends StatelessWidget {
+  const _ObservatoryHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Observatorio',
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: _ObservatoryColors.navy,
+                fontWeight: FontWeight.w900,
+              ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Consulta tus observaciones y alertas de seguimiento.',
+          style: TextStyle(
+            color: _ObservatoryColors.muted,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ObservationsTab extends StatelessWidget {
+  const _ObservationsTab({
+    required this.future,
+    required this.filters,
+    required this.onRetry,
+    required this.onFiltersChanged,
+    required this.onPickDate,
   });
 
-  final int total;
-  final List<Observation> observations;
-  final ValueChanged<Observation> onObservationTap;
-  final ValueChanged<Observation> onActionPressed;
+  final Future<ObservatoryObservationResponse> future;
+  final ObservatoryFilters filters;
+  final VoidCallback onRetry;
+  final void Function(ObservatoryFilters filters, {bool reload})
+      onFiltersChanged;
+  final Future<DateTime?> Function(DateTime? current, DateTime? minimum)
+      onPickDate;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<ObservatoryObservationResponse>(
+      future: future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const _ObservatoryLoading();
+        }
+        if (snapshot.hasError) {
+          return _ErrorPanel(
+            message: _cleanErrorMessage(snapshot.error),
+            onRetry: onRetry,
+          );
+        }
+
+        final data = snapshot.data ??
+            const ObservatoryObservationResponse(
+              metrics: ObservatoryMetrics(
+                total: 0,
+                abiertas: 0,
+                cerradas: 0,
+                alta: 0,
+                media: 0,
+                baja: 0,
+              ),
+              items: [],
+              message: 'No tienes observaciones por el momento',
+            );
+
+        return _ScrollableTabBody(
+          children: [
+            _MetricsGrid(
+              title: 'Metricas de observaciones',
+              totalLabel: 'Total de observaciones',
+              metrics: data.metrics,
+            ),
+            const SizedBox(height: 14),
+            _FiltersCard(
+              filters: filters,
+              onFiltersChanged: onFiltersChanged,
+              onPickDate: onPickDate,
+            ),
+            const SizedBox(height: 14),
+            _SectionCard(
+              title: 'Observaciones registradas',
+              subtitle: 'Mostrando ${data.items.length} observaciones',
+              emptyMessage: 'No tienes observaciones por el momento.',
+              isEmpty: data.items.isEmpty,
+              child: Column(
+                children: data.items
+                    .map(
+                      (item) => _RecordTile(
+                        icon: Icons.assignment_outlined,
+                        title: item.tipo,
+                        subtitle: _shortText(item.descripcion),
+                        date: _formatDate(item.fecha),
+                        severity: item.severidad,
+                        status: item.estado,
+                        responsible: item.responsableNombre,
+                        onTap: () => _showObservationDetail(context, item),
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _AlertsTab extends StatelessWidget {
+  const _AlertsTab({
+    required this.future,
+    required this.filters,
+    required this.onRetry,
+    required this.onFiltersChanged,
+    required this.onPickDate,
+  });
+
+  final Future<ObservatoryAlertResponse> future;
+  final ObservatoryFilters filters;
+  final VoidCallback onRetry;
+  final void Function(ObservatoryFilters filters, {bool reload})
+      onFiltersChanged;
+  final Future<DateTime?> Function(DateTime? current, DateTime? minimum)
+      onPickDate;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<ObservatoryAlertResponse>(
+      future: future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const _ObservatoryLoading();
+        }
+        if (snapshot.hasError) {
+          return _ErrorPanel(
+            message: _cleanErrorMessage(snapshot.error),
+            onRetry: onRetry,
+          );
+        }
+
+        final data = snapshot.data ??
+            const ObservatoryAlertResponse(
+              metrics: ObservatoryMetrics(
+                total: 0,
+                abiertas: 0,
+                cerradas: 0,
+                alta: 0,
+                media: 0,
+                baja: 0,
+              ),
+              items: [],
+              message: 'No tienes alertas por el momento',
+            );
+
+        return _ScrollableTabBody(
+          children: [
+            _MetricsGrid(
+              title: 'Metricas de alertas',
+              totalLabel: 'Total de alertas',
+              metrics: data.metrics,
+            ),
+            const SizedBox(height: 14),
+            _FiltersCard(
+              filters: filters,
+              onFiltersChanged: onFiltersChanged,
+              onPickDate: onPickDate,
+            ),
+            const SizedBox(height: 14),
+            _SectionCard(
+              title: 'Alertas registradas',
+              subtitle: 'Mostrando ${data.items.length} alertas',
+              emptyMessage: 'No tienes alertas por el momento.',
+              isEmpty: data.items.isEmpty,
+              child: Column(
+                children: data.items
+                    .map(
+                      (item) => _RecordTile(
+                        icon: Icons.warning_amber_rounded,
+                        title: item.tipo,
+                        subtitle: _shortText(item.descripcion),
+                        date: _formatDate(item.fechaAlerta),
+                        severity: item.severidad,
+                        status: item.estado,
+                        responsible: item.responsableNombre,
+                        onTap: () => _showAlertDetail(context, item),
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ScrollableTabBody extends StatelessWidget {
+  const _ScrollableTabBody({required this.children});
+
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
     final isWide = MediaQuery.sizeOf(context).width >= _wideBreakpoint;
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(isWide ? 32 : 20, 6, isWide ? 32 : 20, 128),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
+    );
+  }
+}
 
+class _TabSurface extends StatelessWidget {
+  const _TabSurface({required this.controller, required this.tabs});
+
+  final TabController controller;
+  final List<Widget> tabs;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: TabBar(
+        controller: controller,
+        tabs: tabs,
+        indicatorColor: _ObservatoryColors.green,
+        labelColor: _ObservatoryColors.green,
+        unselectedLabelColor: _ObservatoryColors.muted,
+        labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+}
+
+class _MetricsGrid extends StatelessWidget {
+  const _MetricsGrid({
+    required this.title,
+    required this.totalLabel,
+    required this.metrics,
+  });
+
+  final String title;
+  final String totalLabel;
+  final ObservatoryMetrics metrics;
+
+  @override
+  Widget build(BuildContext context) {
     return _SurfaceCard(
-      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Observaciones registradas',
-                  style: TextStyle(
-                    color: _ObservationColors.navy,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  'Mostrando ${observations.length} de $total observaciones',
-                  style: const TextStyle(
-                    color: _ObservationColors.muted,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: _ObservationColors.line),
-          if (observations.isEmpty)
-            const _EmptyObservationList()
-          else if (isWide)
-            _ObservationDataTable(
-              observations: observations,
-              onObservationTap: onObservationTap,
-              onActionPressed: onActionPressed,
-            )
-          else
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
-                  for (var index = 0; index < observations.length; index++)
-                    Padding(
-                      padding: EdgeInsets.only(
-                        bottom: index == observations.length - 1 ? 0 : 12,
-                      ),
-                      child: _ObservationCard(
-                        observation: observations[index],
-                        onTap: () => onObservationTap(observations[index]),
-                        onActionPressed: () =>
-                            onActionPressed(observations[index]),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ObservationDataTable extends StatelessWidget {
-  const _ObservationDataTable({
-    required this.observations,
-    required this.onObservationTap,
-    required this.onActionPressed,
-  });
-
-  final List<Observation> observations;
-  final ValueChanged<Observation> onObservationTap;
-  final ValueChanged<Observation> onActionPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        headingRowColor: WidgetStateProperty.all(_ObservationColors.tableHead),
-        columnSpacing: 28,
-        dataRowMinHeight: 64,
-        dataRowMaxHeight: 84,
-        columns: const [
-          DataColumn(label: Text('Tipo')),
-          DataColumn(label: Text('Severidad')),
-          DataColumn(label: Text('Estado')),
-          DataColumn(label: Text('Descripcion')),
-          DataColumn(label: Text('Fecha')),
-          DataColumn(label: Text('Autor')),
-          DataColumn(label: Text('Seguimiento')),
-        ],
-        rows: observations
-            .map((observation) {
-              return DataRow(
-                onSelectChanged: (_) => onObservationTap(observation),
-                cells: [
-                  DataCell(Text(observation.typeLabel)),
-                  DataCell(
-                    _StatusBadge(
-                      label: _severityLabel(observation.severity),
-                      color: _severityColor(observation.severity),
-                    ),
-                  ),
-                  DataCell(Text(observation.statusLabel)),
-                  DataCell(
-                    SizedBox(
-                      width: 260,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            observation.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: _ObservationColors.navy,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            observation.description,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  DataCell(Text(_formatDate(observation.date))),
-                  DataCell(Text(observation.authorName)),
-                  DataCell(
-                    TextButton.icon(
-                      onPressed: () => onActionPressed(observation),
-                      icon: Icon(_actionIcon(observation.actionType), size: 17),
-                      label: Text(observation.actionLabel),
-                    ),
-                  ),
-                ],
-              );
-            })
-            .toList(growable: false),
-      ),
-    );
-  }
-}
-
-class _ObservationCard extends StatelessWidget {
-  const _ObservationCard({
-    required this.observation,
-    required this.onTap,
-    required this.onActionPressed,
-  });
-
-  final Observation observation;
-  final VoidCallback onTap;
-  final VoidCallback onActionPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final severityColor = _severityColor(observation.severity);
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: _ObservationColors.line),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          _SectionTitle(icon: Icons.insights_rounded, title: title),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 9,
+            runSpacing: 9,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _ObservationIcon(
-                    icon: _severityIcon(observation.severity),
-                    color: severityColor,
-                  ),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          observation.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: _ObservationColors.navy,
-                            fontSize: 15,
-                            height: 1.15,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          observation.typeLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: _ObservationColors.green,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 11),
-              Text(
-                observation.description,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: _ObservationColors.muted,
-                  fontSize: 12.5,
-                  height: 1.35,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _StatusBadge(
-                    label: _severityLabel(observation.severity),
-                    color: severityColor,
-                  ),
-                  _MutedBadge(
-                    icon: Icons.flag_outlined,
-                    label: observation.statusLabel,
-                  ),
-                  _MutedBadge(
-                    icon: Icons.calendar_today_outlined,
-                    label: _formatDate(observation.date),
-                  ),
-                  _MutedBadge(
-                    icon: Icons.person_outline_rounded,
-                    label: observation.authorName,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: onActionPressed,
-                  icon: Icon(_actionIcon(observation.actionType), size: 17),
-                  label: Text(observation.actionLabel),
-                  style: TextButton.styleFrom(
-                    foregroundColor: _ObservationColors.navy,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    minimumSize: const Size(0, 34),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                ),
-              ),
+              _MetricPill(label: totalLabel, value: metrics.total),
+              _MetricPill(label: 'Abiertas', value: metrics.abiertas),
+              _MetricPill(label: 'Cerradas', value: metrics.cerradas),
+              _MetricPill(label: 'Alta', value: metrics.alta),
+              _MetricPill(label: 'Media', value: metrics.media),
+              _MetricPill(label: 'Baja', value: metrics.baja),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricPill extends StatelessWidget {
+  const _MetricPill({required this.label, required this.value});
+
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _ObservatoryColors.green.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: _ObservatoryColors.green.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        child: Text(
+          '$label: $value',
+          style: const TextStyle(
+            color: _ObservatoryColors.navy,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
           ),
         ),
       ),
@@ -832,8 +459,258 @@ class _ObservationCard extends StatelessWidget {
   }
 }
 
-class _DropdownFilterField extends StatelessWidget {
-  const _DropdownFilterField({
+class _FiltersCard extends StatefulWidget {
+  const _FiltersCard({
+    required this.filters,
+    required this.onFiltersChanged,
+    required this.onPickDate,
+  });
+
+  final ObservatoryFilters filters;
+  final void Function(ObservatoryFilters filters, {bool reload})
+      onFiltersChanged;
+  final Future<DateTime?> Function(DateTime? current, DateTime? minimum)
+      onPickDate;
+
+  @override
+  State<_FiltersCard> createState() => _FiltersCardState();
+}
+
+class _FiltersCardState extends State<_FiltersCard> {
+  late final TextEditingController _typeController;
+
+  @override
+  void initState() {
+    super.initState();
+    _typeController = TextEditingController(text: widget.filters.tipo ?? '');
+  }
+
+  @override
+  void didUpdateWidget(covariant _FiltersCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final value = widget.filters.tipo ?? '';
+    if (_typeController.text != value) {
+      _typeController.text = value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _typeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SectionTitle(icon: Icons.tune_rounded, title: 'Filtros'),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _FilterChipButton(
+                label: 'Desde',
+                value: widget.filters.fechaDesde == null
+                    ? 'Todos'
+                    : _formatDate(widget.filters.fechaDesde!),
+                onTap: () async {
+                  final date = await widget.onPickDate(
+                    widget.filters.fechaDesde,
+                    null,
+                  );
+                  if (date != null) {
+                    widget.onFiltersChanged(
+                      widget.filters.copyWith(fechaDesde: date),
+                    );
+                  }
+                },
+              ),
+              _FilterChipButton(
+                label: 'Hasta',
+                value: widget.filters.fechaHasta == null
+                    ? 'Todos'
+                    : _formatDate(widget.filters.fechaHasta!),
+                onTap: () async {
+                  final date = await widget.onPickDate(
+                    widget.filters.fechaHasta,
+                    widget.filters.fechaDesde,
+                  );
+                  if (date != null) {
+                    final from = widget.filters.fechaDesde;
+                    widget.onFiltersChanged(
+                      widget.filters.copyWith(
+                        fechaHasta:
+                            from != null && date.isBefore(from) ? from : date,
+                      ),
+                    );
+                  }
+                },
+              ),
+              _DropdownFilter(
+                label: 'Severidad',
+                value: widget.filters.severidad ?? _allOption,
+                options: const [
+                  _allOption,
+                  'LEVE',
+                  'MODERADA',
+                  'GRAVE',
+                  'CRITICA',
+                ],
+                onChanged: (value) {
+                  widget.onFiltersChanged(
+                    value == _allOption
+                        ? widget.filters.copyWith(clearSeveridad: true)
+                        : widget.filters.copyWith(severidad: value),
+                  );
+                },
+              ),
+              _DropdownFilter(
+                label: 'Estado',
+                value: widget.filters.estado ?? _allOption,
+                options: const [_allOption, 'ABIERTA', 'CERRADA'],
+                onChanged: (value) {
+                  widget.onFiltersChanged(
+                    value == _allOption
+                        ? widget.filters.copyWith(clearEstado: true)
+                        : widget.filters.copyWith(estado: value),
+                  );
+                },
+              ),
+              SizedBox(
+                width: 170,
+                child: TextField(
+                  controller: _typeController,
+                  decoration: _inputDecoration('Tipo'),
+                  onChanged: (value) {
+                    widget.onFiltersChanged(
+                      value.trim().isEmpty
+                          ? widget.filters.copyWith(clearTipo: true)
+                          : widget.filters.copyWith(tipo: value),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () => widget.onFiltersChanged(
+                    widget.filters.copyWith(tipo: _typeController.text),
+                    reload: true,
+                  ),
+                  icon: const Icon(Icons.search_rounded, size: 18),
+                  label: const Text('Buscar'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _ObservatoryColors.green,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(44),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    _typeController.clear();
+                    widget.onFiltersChanged(
+                      const ObservatoryFilters(),
+                      reload: true,
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _ObservatoryColors.navy,
+                    minimumSize: const Size.fromHeight(44),
+                    side: const BorderSide(color: _ObservatoryColors.line),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text('Limpiar'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilterChipButton extends StatelessWidget {
+  const _FilterChipButton({
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: Container(
+        width: 150,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          border: Border.all(color: _ObservatoryColors.line),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: _ObservatoryColors.navy,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _ObservatoryColors.muted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.calendar_month_outlined,
+              size: 17,
+              color: _ObservatoryColors.navy,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DropdownFilter extends StatelessWidget {
+  const _DropdownFilter({
     required this.label,
     required this.value,
     required this.options,
@@ -847,86 +724,282 @@ class _DropdownFilterField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButtonFormField<String>(
-      initialValue: value,
-      isExpanded: true,
-      isDense: true,
-      style: const TextStyle(
-        color: _ObservationColors.navy,
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
+    return SizedBox(
+      width: 150,
+      child: DropdownButtonFormField<String>(
+        value: options.contains(value) ? value : _allOption,
+        items: options
+            .map((option) => DropdownMenuItem(value: option, child: Text(option)))
+            .toList(growable: false),
+        onChanged: (value) {
+          if (value != null) {
+            onChanged(value);
+          }
+        },
+        decoration: _inputDecoration(label),
       ),
-      icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
-      decoration: _inputDecoration(label),
-      items: options
-          .map(
-            (option) => DropdownMenuItem<String>(
-              value: option,
-              child: Text(option, overflow: TextOverflow.ellipsis),
-            ),
-          )
-          .toList(growable: false),
-      onChanged: (value) {
-        if (value != null) {
-          onChanged(value);
-        }
-      },
     );
   }
 }
 
-class _DateFilterField extends StatelessWidget {
-  const _DateFilterField({
-    required this.label,
-    required this.value,
-    required this.onTap,
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({
+    required this.title,
+    required this.subtitle,
+    required this.emptyMessage,
+    required this.isEmpty,
+    required this.child,
   });
 
-  final String label;
-  final DateTime? value;
-  final VoidCallback onTap;
+  final String title;
+  final String subtitle;
+  final String emptyMessage;
+  final bool isEmpty;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onTap: onTap,
-      child: InputDecorator(
-        decoration: _inputDecoration(label),
-        child: Row(
-          children: [
-            Expanded(
+    return _SurfaceCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: _ObservatoryColors.navy,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: _ObservatoryColors.muted,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: _ObservatoryColors.line),
+          if (isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(18),
               child: Text(
-                value == null ? 'dd/mm/aaaa' : _formatNumericDate(value!),
-                style: TextStyle(
-                  color: value == null
-                      ? _ObservationColors.muted
-                      : _ObservationColors.navy,
+                emptyMessage,
+                style: const TextStyle(
+                  color: _ObservatoryColors.muted,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                 ),
               ),
+            )
+          else
+            Padding(padding: const EdgeInsets.all(12), child: child),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecordTile extends StatelessWidget {
+  const _RecordTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.date,
+    required this.severity,
+    required this.status,
+    required this.responsible,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String date;
+  final String severity;
+  final String status;
+  final String responsible;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _severityColor(severity);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _ObservatoryColors.line),
             ),
-            const Icon(
-              Icons.calendar_month_outlined,
-              color: _ObservationColors.navy,
-              size: 16,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: _ObservatoryColors.navy,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          _Badge(label: status, color: _statusColor(status)),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: _ObservatoryColors.muted,
+                          fontSize: 12,
+                          height: 1.25,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          _MutedBadge(icon: Icons.calendar_today, label: date),
+                          _Badge(label: severity, color: color),
+                          _MutedBadge(
+                            icon: Icons.person_outline,
+                            label: responsible,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _ObservationDetailSheet extends StatelessWidget {
-  const _ObservationDetailSheet({
-    required this.observation,
-    required this.onActionPressed,
+void _showObservationDetail(
+  BuildContext context,
+  ObservatoryObservation item,
+) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    backgroundColor: Colors.white,
+    builder: (_) => _DetailSheet(
+      title: item.tipo,
+      subtitle: 'Observacion',
+      rows: [
+        _DetailRow('Fecha', _formatDate(item.fecha)),
+        _DetailRow('Tipo', item.tipo),
+        _DetailRow('Severidad', item.severidad),
+        _DetailRow('Estado', item.estado),
+        _DetailRow('Responsable', item.responsableNombre),
+        _DetailRow('Rol responsable', item.responsableRol),
+        _DetailRow('Descripcion', item.descripcion),
+      ],
+    ),
+  );
+}
+
+void _showAlertDetail(BuildContext context, ObservatoryAlert item) {
+  final rows = [
+    _DetailRow('Fecha de alerta', _formatDate(item.fechaAlerta)),
+    _DetailRow('Tipo', item.tipo),
+    _DetailRow('Severidad', item.severidad),
+    _DetailRow('Estado', item.estado),
+    _DetailRow('Origen', item.origen),
+    _DetailRow('Regla de disparo', item.reglaDisparo),
+    _DetailRow('Responsable creador', item.responsableNombre),
+    _DetailRow('Rol responsable', item.responsableRol),
+    _DetailRow('Descripcion', item.descripcion),
+  ];
+
+  if (item.fechaCierre != null || item.justificacionCierre.isNotEmpty) {
+    rows.add(_DetailRow('Fecha de cierre', _formatOptionalDate(item.fechaCierre)));
+    rows.add(_DetailRow('Justificacion de cierre', item.justificacionCierre));
+    rows.add(_DetailRow('Responsable cierre', item.responsableCierreNombre));
+    rows.add(_DetailRow('Rol cierre', item.responsableCierreRol));
+  }
+
+  if (item.fechaReapertura != null || item.justificacionReapertura.isNotEmpty) {
+    rows.add(
+      _DetailRow('Fecha de reapertura', _formatOptionalDate(item.fechaReapertura)),
+    );
+    rows.add(
+      _DetailRow('Justificacion de reapertura', item.justificacionReapertura),
+    );
+    rows.add(
+      _DetailRow('Responsable reapertura', item.responsableReaperturaNombre),
+    );
+    rows.add(_DetailRow('Rol reapertura', item.responsableReaperturaRol));
+  }
+
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    backgroundColor: Colors.white,
+    builder: (_) => _DetailSheet(
+      title: item.tipo,
+      subtitle: 'Alerta',
+      rows: rows,
+    ),
+  );
+}
+
+class _DetailSheet extends StatelessWidget {
+  const _DetailSheet({
+    required this.title,
+    required this.subtitle,
+    required this.rows,
   });
 
-  final Observation observation;
-  final VoidCallback onActionPressed;
+  final String title;
+  final String subtitle;
+  final List<_DetailRow> rows;
 
   @override
   Widget build(BuildContext context) {
@@ -935,7 +1008,7 @@ class _ObservationDetailSheet extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.fromLTRB(
           22,
-          2,
+          0,
           22,
           MediaQuery.viewInsetsOf(context).bottom + 22,
         ),
@@ -948,109 +1021,57 @@ class _ObservationDetailSheet extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _ObservationIcon(
-                    icon: _severityIcon(observation.severity),
-                    color: _severityColor(observation.severity),
-                  ),
-                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          observation.title,
+                          title,
                           style: const TextStyle(
-                            color: _ObservationColors.navy,
+                            color: _ObservatoryColors.navy,
                             fontSize: 18,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
-                        const SizedBox(height: 5),
+                        const SizedBox(height: 3),
                         Text(
-                          '${observation.typeLabel} - ${observation.area}',
+                          '$subtitle - Solo lectura',
                           style: const TextStyle(
-                            color: _ObservationColors.green,
-                            fontSize: 13,
+                            color: _ObservatoryColors.green,
+                            fontSize: 12,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                       ],
                     ),
                   ),
+                  IconButton(
+                    tooltip: 'Cerrar',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
                 ],
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 12),
               Flexible(
                 child: SingleChildScrollView(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        observation.description,
-                        style: const TextStyle(
-                          color: _ObservationColors.muted,
-                          fontSize: 14,
-                          height: 1.4,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          _StatusBadge(
-                            label: _severityLabel(observation.severity),
-                            color: _severityColor(observation.severity),
-                          ),
-                          _MutedBadge(
-                            icon: Icons.flag_outlined,
-                            label: observation.statusLabel,
-                          ),
-                          _MutedBadge(
-                            icon: Icons.calendar_today_outlined,
-                            label: _formatDate(observation.date),
-                          ),
-                          _MutedBadge(
-                            icon: Icons.person_outline_rounded,
-                            label: observation.authorName,
-                          ),
-                          if (observation.dueDate != null)
-                            _MutedBadge(
-                              icon: Icons.schedule_outlined,
-                              label:
-                                  'Vence ${_formatDate(observation.dueDate!)}',
+                    children: rows
+                        .where((row) => row.value.trim().isNotEmpty)
+                        .map(
+                          (row) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _ReadOnlyField(
+                              label: row.label,
+                              value: row.value,
                             ),
-                        ],
-                      ),
-                    ],
+                          ),
+                        )
+                        .toList(growable: false),
                   ),
                 ),
               ),
-              if (observation.actionType ==
-                      ObservationActionType.uploadSupport ||
-                  observation.actionType ==
-                      ObservationActionType.contactSupport) ...[
-                const SizedBox(height: 18),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: onActionPressed,
-                    icon: Icon(_actionIcon(observation.actionType), size: 18),
-                    label: Text(observation.actionLabel),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _ObservationColors.green,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size.fromHeight(44),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
             ],
           ),
         ),
@@ -1059,44 +1080,52 @@ class _ObservationDetailSheet extends StatelessWidget {
   }
 }
 
-class _CountPill extends StatelessWidget {
-  const _CountPill({
-    required this.label,
-    required this.value,
-    this.highlight = false,
-  });
+class _DetailRow {
+  const _DetailRow(this.label, this.value);
 
   final String label;
   final String value;
-  final bool highlight;
+}
+
+class _ReadOnlyField extends StatelessWidget {
+  const _ReadOnlyField({required this.label, required this.value});
+
+  final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: highlight
-            ? _ObservationColors.green.withValues(alpha: 0.10)
-            : Colors.white,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: highlight
-              ? _ObservationColors.green.withValues(alpha: 0.12)
-              : _ObservationColors.line,
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-        child: Text(
-          '$label: $value',
-          style: TextStyle(
-            color: highlight
-                ? _ObservationColors.green
-                : _ObservationColors.navy,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: _ObservatoryColors.muted,
             fontSize: 12,
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.w800,
           ),
         ),
-      ),
+        const SizedBox(height: 5),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: _ObservatoryColors.background,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: _ObservatoryColors.line),
+          ),
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: _ObservatoryColors.navy,
+              fontSize: 13,
+              height: 1.35,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1104,7 +1133,7 @@ class _CountPill extends StatelessWidget {
 class _SurfaceCard extends StatelessWidget {
   const _SurfaceCard({
     required this.child,
-    this.padding = const EdgeInsets.all(18),
+    this.padding = const EdgeInsets.all(14),
   });
 
   final Widget child;
@@ -1118,7 +1147,7 @@ class _SurfaceCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _ObservationColors.line),
+        border: Border.all(color: _ObservatoryColors.line),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.035),
@@ -1133,16 +1162,16 @@ class _SurfaceCard extends StatelessWidget {
 }
 
 class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title, required this.icon});
+  const _SectionTitle({required this.icon, required this.title});
 
-  final String title;
   final IconData icon;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, color: _ObservationColors.navy, size: 19),
+        Icon(icon, color: _ObservatoryColors.navy, size: 19),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
@@ -1150,7 +1179,7 @@ class _SectionTitle extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              color: _ObservationColors.navy,
+              color: _ObservatoryColors.navy,
               fontSize: 15,
               fontWeight: FontWeight.w900,
             ),
@@ -1161,28 +1190,8 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-class _ObservationIcon extends StatelessWidget {
-  const _ObservationIcon({required this.icon, required this.color});
-
-  final IconData icon;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 38,
-      height: 38,
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Icon(icon, color: color, size: 20),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.label, required this.color});
+class _Badge extends StatelessWidget {
+  const _Badge({required this.label, required this.color});
 
   final String label;
   final Color color;
@@ -1195,12 +1204,12 @@ class _StatusBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Text(
           label,
           style: TextStyle(
             color: color,
-            fontSize: 11,
+            fontSize: 10,
             fontWeight: FontWeight.w900,
           ),
         ),
@@ -1219,22 +1228,22 @@ class _MutedBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: _ObservationColors.background,
+        color: _ObservatoryColors.background,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: _ObservationColors.line),
+        border: Border.all(color: _ObservatoryColors.line),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: _ObservationColors.muted, size: 14),
-            const SizedBox(width: 5),
+            Icon(icon, color: _ObservatoryColors.muted, size: 13),
+            const SizedBox(width: 4),
             Text(
               label,
               style: const TextStyle(
-                color: _ObservationColors.muted,
-                fontSize: 11,
+                color: _ObservatoryColors.muted,
+                fontSize: 10,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -1245,159 +1254,70 @@ class _MutedBadge extends StatelessWidget {
   }
 }
 
-class _HeaderBadge extends StatelessWidget {
-  const _HeaderBadge({required this.label});
-
-  final String label;
+class _ObservatoryLoading extends StatelessWidget {
+  const _ObservatoryLoading();
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: _ObservationColors.green.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: _ObservationColors.green,
-            fontSize: 11,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyObservationList extends StatelessWidget {
-  const _EmptyObservationList();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.all(18),
-      child: Text(
-        'No hay observaciones registradas para este filtro.',
-        style: TextStyle(
-          color: _ObservationColors.muted,
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
-class _ObservationLoading extends StatelessWidget {
-  const _ObservationLoading();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return const _ScrollableTabBody(
       children: [
-        _SkeletonBox(width: 230, height: 30),
-        SizedBox(height: 10),
-        _SkeletonBox(width: 300, height: 14),
-        SizedBox(height: 18),
-        _SkeletonBox(width: 190, height: 32),
-        SizedBox(height: 16),
-        _SurfaceCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _SkeletonBox(width: 170, height: 18),
-              SizedBox(height: 16),
-              _SkeletonBox(width: double.infinity, height: 48),
-              SizedBox(height: 12),
-              _SkeletonBox(width: double.infinity, height: 48),
-            ],
-          ),
-        ),
+        _SkeletonBox(width: 210, height: 26),
+        SizedBox(height: 12),
+        _SkeletonBox(width: double.infinity, height: 110),
+        SizedBox(height: 14),
+        _SkeletonBox(width: double.infinity, height: 150),
       ],
     );
   }
 }
 
-class _ObservationError extends StatelessWidget {
-  const _ObservationError({
-    required this.onRetry,
-    this.message = 'Revisa la conexion o intenta nuevamente.',
-    this.isAccessDenied = false,
-  });
+class _ErrorPanel extends StatelessWidget {
+  const _ErrorPanel({required this.message, required this.onRetry});
 
+  final String message;
   final VoidCallback onRetry;
-  final String message;
-  final bool isAccessDenied;
 
   @override
   Widget build(BuildContext context) {
-    return _StatePanel(
-      icon: isAccessDenied
-          ? Icons.lock_outline_rounded
-          : Icons.cloud_off_outlined,
-      title: isAccessDenied
-          ? 'Observaciones no disponibles'
-          : 'No se pudieron cargar tus observaciones',
-      message: message,
-      actionLabel: 'Reintentar',
-      onAction: onRetry,
-    );
-  }
-}
-
-class _StatePanel extends StatelessWidget {
-  const _StatePanel({
-    required this.icon,
-    required this.title,
-    required this.message,
-    required this.actionLabel,
-    required this.onAction,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-  final String actionLabel;
-  final VoidCallback onAction;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SurfaceCard(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: _ObservationColors.green, size: 32),
-          const SizedBox(height: 14),
-          Text(
-            title,
-            style: const TextStyle(
-              color: _ObservationColors.navy,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-            ),
+    return _ScrollableTabBody(
+      children: [
+        _SurfaceCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.cloud_off_outlined,
+                color: _ObservatoryColors.green,
+                size: 32,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'No se pudo cargar el observatorio',
+                style: TextStyle(
+                  color: _ObservatoryColors.navy,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                message,
+                style: const TextStyle(
+                  color: _ObservatoryColors.muted,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Reintentar'),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            message,
-            style: const TextStyle(
-              color: _ObservationColors.muted,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 18),
-          OutlinedButton.icon(
-            onPressed: onAction,
-            icon: const Icon(Icons.refresh_rounded),
-            label: Text(actionLabel),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -1414,7 +1334,7 @@ class _SkeletonBox extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: _ObservationColors.line,
+        color: _ObservatoryColors.line,
         borderRadius: BorderRadius.circular(8),
       ),
     );
@@ -1426,141 +1346,71 @@ InputDecoration _inputDecoration(String label) {
     labelText: label,
     isDense: true,
     labelStyle: const TextStyle(
-      color: _ObservationColors.navy,
+      color: _ObservatoryColors.navy,
       fontSize: 11,
       fontWeight: FontWeight.w800,
     ),
-    floatingLabelStyle: const TextStyle(
-      color: _ObservationColors.navy,
-      fontSize: 11,
-      fontWeight: FontWeight.w900,
-    ),
     contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-    constraints: const BoxConstraints(minHeight: 42),
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
-      borderSide: const BorderSide(color: _ObservationColors.line),
+      borderSide: const BorderSide(color: _ObservatoryColors.line),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
-      borderSide: const BorderSide(color: _ObservationColors.green, width: 1.4),
+      borderSide: const BorderSide(color: _ObservatoryColors.green, width: 1.4),
     ),
   );
 }
 
-List<String> _optionList(Iterable<String> values) {
-  final options =
-      values
-          .map((value) => value.trim())
-          .where((value) => value.isNotEmpty)
-          .toSet()
-          .toList()
-        ..sort();
-
-  return [_allOption, ...options];
-}
-
-String _safeSelected(String selected, List<String> options) {
-  return options.contains(selected) ? selected : _allOption;
-}
-
-bool _isOpenObservation(Observation observation) {
-  return observation.severity != ObservationSeverity.closed;
-}
-
-Color _severityColor(ObservationSeverity severity) {
-  return switch (severity) {
-    ObservationSeverity.actionRequired => _ObservationColors.danger,
-    ObservationSeverity.inProgress => _ObservationColors.amber,
-    ObservationSeverity.informative => _ObservationColors.green,
-    ObservationSeverity.closed => _ObservationColors.muted,
+Color _severityColor(String severity) {
+  return switch (severity.toUpperCase()) {
+    'CRITICA' || 'GRAVE' => _ObservatoryColors.danger,
+    'MODERADA' => _ObservatoryColors.amber,
+    'LEVE' => _ObservatoryColors.green,
+    _ => _ObservatoryColors.muted,
   };
 }
 
-IconData _severityIcon(ObservationSeverity severity) {
-  return switch (severity) {
-    ObservationSeverity.actionRequired => Icons.event_busy_outlined,
-    ObservationSeverity.inProgress => Icons.assignment_outlined,
-    ObservationSeverity.informative => Icons.health_and_safety_outlined,
-    ObservationSeverity.closed => Icons.task_alt_rounded,
-  };
+Color _statusColor(String status) {
+  return status.toUpperCase() == 'CERRADA'
+      ? _ObservatoryColors.muted
+      : _ObservatoryColors.green;
 }
 
-String _severityLabel(ObservationSeverity severity) {
-  return switch (severity) {
-    ObservationSeverity.actionRequired => 'Alta',
-    ObservationSeverity.inProgress => 'Media',
-    ObservationSeverity.informative => 'Baja',
-    ObservationSeverity.closed => 'Cerrada',
-  };
-}
-
-IconData _actionIcon(ObservationActionType actionType) {
-  return switch (actionType) {
-    ObservationActionType.uploadSupport => Icons.upload_file_rounded,
-    ObservationActionType.viewDetail => Icons.visibility_outlined,
-    ObservationActionType.contactSupport => Icons.support_agent_rounded,
-    ObservationActionType.none => Icons.arrow_forward_rounded,
-  };
+String _shortText(String value) {
+  final text = value.trim();
+  if (text.isEmpty) {
+    return 'Sin descripcion registrada';
+  }
+  return text;
 }
 
 String _formatDate(DateTime date) {
-  const months = [
-    'enero',
-    'febrero',
-    'marzo',
-    'abril',
-    'mayo',
-    'junio',
-    'julio',
-    'agosto',
-    'septiembre',
-    'octubre',
-    'noviembre',
-    'diciembre',
-  ];
-
-  return '${date.day} ${months[date.month - 1]} ${date.year}';
-}
-
-String _formatNumericDate(DateTime date) {
   final day = date.day.toString().padLeft(2, '0');
   final month = date.month.toString().padLeft(2, '0');
-
   return '$day/$month/${date.year}';
+}
+
+String _formatOptionalDate(DateTime? date) {
+  return date == null ? '' : _formatDate(date);
 }
 
 String _cleanErrorMessage(Object? error) {
   if (error == null) {
     return 'Revisa la conexion o intenta nuevamente.';
   }
-
-  final rawMessage = error.toString();
-  final message = rawMessage.startsWith('Exception: ')
-      ? rawMessage.replaceFirst('Exception: ', '')
-      : rawMessage;
-
+  final raw = error.toString();
+  final message = raw.startsWith('Exception: ')
+      ? raw.replaceFirst('Exception: ', '')
+      : raw;
   return message.trim().isEmpty
       ? 'Revisa la conexion o intenta nuevamente.'
       : message;
 }
 
-bool _isAccessDeniedMessage(String message) {
-  final normalized = message.toLowerCase();
-  return normalized.contains('acceso denegado') ||
-      normalized.contains('no tienes permisos') ||
-      normalized.contains('no autorizado') ||
-      normalized.contains('forbidden');
-}
-
-DateTime _dateOnly(DateTime date) {
-  return DateTime(date.year, date.month, date.day);
-}
-
-abstract final class _ObservationColors {
+abstract final class _ObservatoryColors {
   static const background = Color(0xFFF6F8FB);
-  static const tableHead = Color(0xFFF3F6FA);
   static const navy = Color(0xFF062E4F);
   static const green = Color(0xFF39A900);
   static const muted = Color(0xFF6F7C8E);

@@ -831,10 +831,6 @@ class _PersonalInformationFormState extends State<_PersonalInformationForm> {
     });
 
     final updated = widget.profile.copyWith(
-      firstName: _firstNameController.text.trim(),
-      lastName: _lastNameController.text.trim(),
-      documentType: _documentTypeController.text.trim(),
-      documentNumber: _documentNumberController.text.trim(),
       email: _emailController.text.trim(),
       phone: _phoneController.text.trim(),
     );
@@ -874,18 +870,21 @@ class _PersonalInformationFormState extends State<_PersonalInformationForm> {
               controller: _firstNameController,
               label: 'Nombres',
               validator: _requiredValidator,
+              readOnly: true,
             ),
             const SizedBox(height: 12),
             _ProfileTextField(
               controller: _lastNameController,
               label: 'Apellidos',
               validator: _requiredValidator,
+              readOnly: true,
             ),
             const SizedBox(height: 12),
             _ProfileTextField(
               controller: _documentTypeController,
               label: 'Tipo de documento',
               validator: _requiredValidator,
+              readOnly: true,
             ),
             const SizedBox(height: 12),
             _ProfileTextField(
@@ -893,6 +892,7 @@ class _PersonalInformationFormState extends State<_PersonalInformationForm> {
               label: 'Numero de documento',
               validator: _requiredValidator,
               keyboardType: TextInputType.number,
+              readOnly: true,
             ),
             const SizedBox(height: 12),
             _ProfileTextField(
@@ -1263,6 +1263,7 @@ class _ProfileTextField extends StatelessWidget {
     this.validator,
     this.keyboardType,
     this.obscureText = false,
+    this.readOnly = false,
   });
 
   final TextEditingController controller;
@@ -1270,6 +1271,7 @@ class _ProfileTextField extends StatelessWidget {
   final FormFieldValidator<String>? validator;
   final TextInputType? keyboardType;
   final bool obscureText;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -1278,8 +1280,11 @@ class _ProfileTextField extends StatelessWidget {
       validator: validator,
       keyboardType: keyboardType,
       obscureText: obscureText,
+      readOnly: readOnly,
       decoration: InputDecoration(
         labelText: label,
+        filled: readOnly,
+        fillColor: readOnly ? _ProfileColors.background : null,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
