@@ -214,30 +214,37 @@ class _AttendancePageState extends State<AttendancePage>
                 },
               ),
               ListTile(
-                title: const Text('Presente'),
+                title: const Text('PENDIENTE'),
                 onTap: () {
-                  setState(() => _selectedFilter = 'Presente');
+                  setState(() => _selectedFilter = 'PENDIENTE');
                   Navigator.pop(context);
                 },
               ),
               ListTile(
-                title: const Text('Ausente'),
+                title: const Text('PRESENTE'),
                 onTap: () {
-                  setState(() => _selectedFilter = 'Ausente');
+                  setState(() => _selectedFilter = 'PRESENTE');
                   Navigator.pop(context);
                 },
               ),
               ListTile(
-                title: const Text('Justificada'),
+                title: const Text('INASISTENTE'),
                 onTap: () {
-                  setState(() => _selectedFilter = 'Justificada');
+                  setState(() => _selectedFilter = 'INASISTENTE');
                   Navigator.pop(context);
                 },
               ),
               ListTile(
-                title: const Text('Tardanza'),
+                title: const Text('TARDE'),
                 onTap: () {
-                  setState(() => _selectedFilter = 'Tardanza');
+                  setState(() => _selectedFilter = 'TARDE');
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                title: const Text('JUSTIFICADA'),
+                onTap: () {
+                  setState(() => _selectedFilter = 'JUSTIFICADA');
                   Navigator.pop(context);
                 },
               ),
@@ -249,13 +256,15 @@ class _AttendancePageState extends State<AttendancePage>
   }
 
   Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'presente':
+    switch (status.toUpperCase()) {
+      case 'PENDIENTE':
+        return Colors.grey.shade500;
+      case 'PRESENTE':
         return const Color(0xFF39A900);
-      case 'ausente':
+      case 'INASISTENTE':
         return const Color(0xFFE53935);
-      case 'tardanza':
-      case 'justificada':
+      case 'TARDE':
+      case 'JUSTIFICADA':
         return const Color(0xFFF6A900);
       default:
         return Colors.grey;
@@ -625,13 +634,7 @@ class _AttendancePageState extends State<AttendancePage>
     );
   }
 
-  void _showDetailBottomSheet(String category, String status, Color color) {
-    String apiEstado = '';
-    if (category == 'presente') apiEstado = 'PRESENTE';
-    else if (category == 'ausente') apiEstado = 'INASISTENCIA';
-    else if (category == 'retardado') apiEstado = 'TARDE';
-    else if (category == 'justificado') apiEstado = 'JUSTIFICADO';
-
+  void _showDetailBottomSheet(String apiEstado, String status, Color color) {
     final data = (_calendarData ?? []).where((e) => e['estado_asistencia'] == apiEstado).toList();
     final int count = data.length;
     final String instructor = 'N/A';
@@ -707,7 +710,7 @@ class _AttendancePageState extends State<AttendancePage>
                           final sesion = item['sesion'] as Map<String, dynamic>? ?? {};
                           final fecha = sesion['fecha_clase'] as String? ?? 'Sin fecha';
                           final materia = sesion['competencia']?['nombre_competencia'] ?? 'Sin asignar';
-                          final diasFaltados = apiEstado == 'INASISTENCIA' ? 1 : 0;
+                          final diasFaltados = apiEstado == 'INASISTENTE' ? 1 : 0;
                           final observacion = item['observacion'] ?? 'Ninguna';
 
                           return Container(
@@ -879,6 +882,7 @@ class _AttendancePageState extends State<AttendancePage>
         ? (trimestreActivo?['numero_trimestre'] as int?)
         : null;
 
+    int pendiente = 0;
     int presente = 0;
     int ausente = 0;
     int retardado = 0;
@@ -890,10 +894,11 @@ class _AttendancePageState extends State<AttendancePage>
         final estado = estadoInfo['estado'];
         final cantidad = estadoInfo['cantidad'] as int;
 
-        if (estado == 'PRESENTE') presente = cantidad;
-        else if (estado == 'INASISTENCIA') ausente = cantidad;
+        if (estado == 'PENDIENTE') pendiente = cantidad;
+        else if (estado == 'PRESENTE') presente = cantidad;
+        else if (estado == 'INASISTENTE') ausente = cantidad;
         else if (estado == 'TARDE') retardado = cantidad;
-        else if (estado == 'JUSTIFICADO') justificado = cantidad;
+        else if (estado == 'JUSTIFICADA') justificado = cantidad;
       }
     }
 
@@ -995,10 +1000,11 @@ class _AttendancePageState extends State<AttendancePage>
                             if (adjustedAngle < 0) adjustedAngle += 2 * math.pi;
 
                             final segments = [
-                              {'cat': 'presente', 'label': 'Asistencias', 'value': presente, 'color': const Color(0xFF39A900)},
-                              {'cat': 'ausente', 'label': 'Faltas', 'value': ausente, 'color': const Color(0xFFE53935)},
-                              {'cat': 'retardado', 'label': 'Retardos', 'value': retardado, 'color': const Color(0xFFF6A900)},
-                              {'cat': 'justificado', 'label': 'Faltas justificadas', 'value': justificado, 'color': const Color(0xFF1565C0)},
+                              {'cat': 'PENDIENTE', 'label': 'PENDIENTE', 'value': pendiente, 'color': Colors.grey.shade400},
+                              {'cat': 'PRESENTE', 'label': 'PRESENTE', 'value': presente, 'color': const Color(0xFF39A900)},
+                              {'cat': 'TARDE', 'label': 'TARDE', 'value': retardado, 'color': const Color(0xFFF6A900)},
+                              {'cat': 'INASISTENTE', 'label': 'INASISTENTE', 'value': ausente, 'color': const Color(0xFFE53935)},
+                              {'cat': 'JUSTIFICADA', 'label': 'JUSTIFICADA', 'value': justificado, 'color': const Color(0xFF1565C0)},
                             ];
 
                             double currentAngle = 0;
@@ -1052,10 +1058,11 @@ class _AttendancePageState extends State<AttendancePage>
                               if (adjustedAngle < 0) adjustedAngle += 2 * math.pi;
 
                               final segments = [
-                                {'cat': 'presente', 'label': 'Asistencias', 'value': presente, 'color': const Color(0xFF39A900)},
-                                {'cat': 'ausente', 'label': 'Faltas', 'value': ausente, 'color': const Color(0xFFE53935)},
-                                {'cat': 'retardado', 'label': 'Retardos', 'value': retardado, 'color': const Color(0xFFF6A900)},
-                                {'cat': 'justificado', 'label': 'Faltas justificadas', 'value': justificado, 'color': const Color(0xFF1565C0)},
+                                {'cat': 'PENDIENTE', 'label': 'PENDIENTE', 'value': pendiente, 'color': Colors.grey.shade400},
+                                {'cat': 'PRESENTE', 'label': 'PRESENTE', 'value': presente, 'color': const Color(0xFF39A900)},
+                                {'cat': 'TARDE', 'label': 'TARDE', 'value': retardado, 'color': const Color(0xFFF6A900)},
+                                {'cat': 'INASISTENTE', 'label': 'INASISTENTE', 'value': ausente, 'color': const Color(0xFFE53935)},
+                                {'cat': 'JUSTIFICADA', 'label': 'JUSTIFICADA', 'value': justificado, 'color': const Color(0xFF1565C0)},
                               ];
 
                               double currentAngle = 0;
@@ -1076,6 +1083,7 @@ class _AttendancePageState extends State<AttendancePage>
                           },
                           child: CustomPaint(
                             painter: _DonutChartPainter(
+                              pendiente: pendiente,
                               presente: presente,
                               ausente: ausente,
                               retardado: retardado,
@@ -1095,7 +1103,7 @@ class _AttendancePageState extends State<AttendancePage>
                                     ),
                                   ),
                                   const Text(
-                                    'Asistencias',
+                                    'PRESENTE',
                                     style: TextStyle(
                                       color: Color(0xFF607086),
                                       fontSize: 13,
@@ -1160,13 +1168,15 @@ class _AttendancePageState extends State<AttendancePage>
             ),
             const SizedBox(height: 28),
             // Leyendas
-            _statRow('Asistencias', presente, total, const Color(0xFF39A900), 'presente'),
+            _statRow('PENDIENTE', pendiente, total, Colors.grey.shade400, 'PENDIENTE'),
             const SizedBox(height: 16),
-            _statRow('Faltas', ausente, total, const Color(0xFFE53935), 'ausente'),
+            _statRow('PRESENTE', presente, total, const Color(0xFF39A900), 'PRESENTE'),
             const SizedBox(height: 16),
-            _statRow('Retardos', retardado, total, const Color(0xFFF6A900), 'retardado'),
+            _statRow('TARDE', retardado, total, const Color(0xFFF6A900), 'TARDE'),
             const SizedBox(height: 16),
-            _statRow('Faltas justificadas', justificado, total, const Color(0xFF1565C0), 'justificado'),
+            _statRow('INASISTENTE', ausente, total, const Color(0xFFE53935), 'INASISTENTE'),
+            const SizedBox(height: 16),
+            _statRow('JUSTIFICADA', justificado, total, const Color(0xFF1565C0), 'JUSTIFICADA'),
           ],
         ),
       ),
@@ -1284,11 +1294,7 @@ class _AttendancePageState extends State<AttendancePage>
 
     final List<Map<String, dynamic>> mappedData = (_calendarData ?? []).map((registro) {
       final estadoRaw = registro['estado_asistencia'] as String? ?? '';
-      String status = 'Ausente';
-      if (estadoRaw == 'PRESENTE') status = 'Presente';
-      else if (estadoRaw == 'TARDE') status = 'Tardanza';
-      else if (estadoRaw == 'INASISTENCIA') status = 'Ausente';
-      else if (estadoRaw == 'JUSTIFICADO') status = 'Justificada';
+      String status = estadoRaw;
 
       final sesion = registro['sesion'] as Map<String, dynamic>? ?? {};
       final fechaClase = sesion['fecha_clase'] as String? ?? 'Sin fecha';
@@ -1445,9 +1451,9 @@ class _AttendancePageState extends State<AttendancePage>
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
-                        item['status'] == 'Presente'
+                        item['status'] == 'PRESENTE'
                             ? Icons.check_circle_outline
-                            : item['status'] == 'Ausente'
+                            : item['status'] == 'INASISTENTE'
                                 ? Icons.cancel_outlined
                                 : Icons.access_time,
                         color: statusColor,
@@ -1735,6 +1741,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
 // ─── Donut Chart Painter ────────────────────────────────────────────────────
 class _DonutChartPainter extends CustomPainter {
+  final int pendiente;
   final int presente;
   final int ausente;
   final int retardado;
@@ -1742,6 +1749,7 @@ class _DonutChartPainter extends CustomPainter {
   final int total;
 
   _DonutChartPainter({
+    required this.pendiente,
     required this.presente,
     required this.ausente,
     required this.retardado,
@@ -1758,9 +1766,10 @@ class _DonutChartPainter extends CustomPainter {
     );
 
     final List<Map<String, dynamic>> segments = [
+      {'value': pendiente, 'color': Colors.grey.shade400},
       {'value': presente, 'color': const Color(0xFF39A900)},
-      {'value': ausente, 'color': const Color(0xFFE53935)},
       {'value': retardado, 'color': const Color(0xFFF6A900)},
+      {'value': ausente, 'color': const Color(0xFFE53935)},
       {'value': justificado, 'color': const Color(0xFF1565C0)},
     ];
 
