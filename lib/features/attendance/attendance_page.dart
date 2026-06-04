@@ -335,7 +335,7 @@ class _AttendancePageState extends State<AttendancePage>
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withOpacity(0.08),
+                    color: Colors.grey.withValues(alpha: 0.08),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -451,7 +451,7 @@ class _AttendancePageState extends State<AttendancePage>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.08),
+            color: Colors.grey.withValues(alpha: 0.08),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -627,8 +627,9 @@ class _AttendancePageState extends State<AttendancePage>
 
   void _showDetailBottomSheet(String category, String status, Color color) {
     String apiEstado = '';
-    if (category == 'presente') apiEstado = 'PRESENTE';
-    else if (category == 'ausente') apiEstado = 'INASISTENCIA';
+    if (category == 'presente') {
+      apiEstado = 'PRESENTE';
+    } else if (category == 'ausente') apiEstado = 'INASISTENCIA';
     else if (category == 'retardado') apiEstado = 'TARDE';
     else if (category == 'justificado') apiEstado = 'JUSTIFICADO';
 
@@ -655,7 +656,7 @@ class _AttendancePageState extends State<AttendancePage>
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                 ),
                 child: Column(
@@ -719,7 +720,7 @@ class _AttendancePageState extends State<AttendancePage>
                               border: Border.all(color: Colors.grey.shade200),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.grey.withOpacity(0.05),
+                                  color: Colors.grey.withValues(alpha: 0.05),
                                   blurRadius: 4,
                                   offset: const Offset(0, 2),
                                 )
@@ -742,7 +743,7 @@ class _AttendancePageState extends State<AttendancePage>
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: color.withOpacity(0.1),
+                                        color: color.withValues(alpha: 0.1),
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Text(
@@ -825,7 +826,7 @@ class _AttendancePageState extends State<AttendancePage>
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: 12, color: Colors.black.withOpacity(0.6)),
+          style: TextStyle(fontSize: 12, color: Colors.black.withValues(alpha: 0.6)),
         ),
         const SizedBox(height: 2),
         Text(
@@ -890,8 +891,9 @@ class _AttendancePageState extends State<AttendancePage>
         final estado = estadoInfo['estado'];
         final cantidad = estadoInfo['cantidad'] as int;
 
-        if (estado == 'PRESENTE') presente = cantidad;
-        else if (estado == 'INASISTENCIA') ausente = cantidad;
+        if (estado == 'PRESENTE') {
+          presente = cantidad;
+        } else if (estado == 'INASISTENCIA') ausente = cantidad;
         else if (estado == 'TARDE') retardado = cantidad;
         else if (estado == 'JUSTIFICADO') justificado = cantidad;
       }
@@ -906,7 +908,7 @@ class _AttendancePageState extends State<AttendancePage>
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.08),
+              color: Colors.grey.withValues(alpha: 0.08),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -1121,7 +1123,7 @@ class _AttendancePageState extends State<AttendancePage>
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
-                                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))
+                                BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 5))
                               ],
                               border: Border.all(color: Colors.grey.shade200),
                             ),
@@ -1285,8 +1287,9 @@ class _AttendancePageState extends State<AttendancePage>
     final List<Map<String, dynamic>> mappedData = (_calendarData ?? []).map((registro) {
       final estadoRaw = registro['estado_asistencia'] as String? ?? '';
       String status = 'Ausente';
-      if (estadoRaw == 'PRESENTE') status = 'Presente';
-      else if (estadoRaw == 'TARDE') status = 'Tardanza';
+      if (estadoRaw == 'PRESENTE') {
+        status = 'Presente';
+      } else if (estadoRaw == 'TARDE') status = 'Tardanza';
       else if (estadoRaw == 'INASISTENCIA') status = 'Ausente';
       else if (estadoRaw == 'JUSTIFICADO') status = 'Justificada';
 
@@ -1388,7 +1391,7 @@ class _AttendancePageState extends State<AttendancePage>
                         ),
                         color: _selectedFilter == 'Todos'
                             ? Colors.transparent
-                            : const Color(0xFF39A900).withOpacity(0.1),
+                            : const Color(0xFF39A900).withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
@@ -1430,7 +1433,7 @@ class _AttendancePageState extends State<AttendancePage>
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.grey.withOpacity(0.05),
+                      color: Colors.grey.withValues(alpha: 0.05),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -1441,7 +1444,7 @@ class _AttendancePageState extends State<AttendancePage>
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
+                        color: statusColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
@@ -1482,7 +1485,7 @@ class _AttendancePageState extends State<AttendancePage>
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
+                        color: statusColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(

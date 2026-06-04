@@ -44,7 +44,6 @@ class ObservationDashboard {
       observations: observationsJson
           .whereType<Map<String, dynamic>>()
           .map(Observation.fromJson)
-          .where((observation) => observation.isActive)
           .toList(growable: false),
     );
   }
@@ -148,6 +147,7 @@ class Observation {
         json['dependencia'],
         json['fuente'],
         json['modulo'],
+        json['grupo'],
       ]),
       description: _firstString([
         json['description'],
@@ -183,6 +183,7 @@ class Observation {
         json['author'],
         json['autor'],
         json['registrado_por'],
+        json['instructor'],
         'Instructor',
       ]),
       statusLabel: statusLabel,
@@ -330,12 +331,22 @@ String _firstString(List<Object?> values) {
       continue;
     }
     if (value is Map<String, dynamic>) {
+      final firstName = value['nombres']?.toString().trim() ?? '';
+      final lastName = value['apellidos']?.toString().trim() ?? '';
+      final fullName = '$firstName $lastName'.trim();
+      if (fullName.isNotEmpty) {
+        return fullName;
+      }
+
       final nested = _firstString([
         value['nombre_completo'],
         value['nombre'],
         value['name'],
         value['label'],
         value['descripcion'],
+        value['numero_ficha'],
+        value['persona'],
+        value['usuario'],
       ]);
       if (nested.isNotEmpty) {
         return nested;

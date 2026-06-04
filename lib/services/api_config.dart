@@ -2,8 +2,8 @@
 ///
 /// IMPORTANTE: Cambia [baseUrl] según el entorno donde corres la app:
 ///
-///   Flutter Web / Chrome (localhost):
-///     const String baseUrl = 'http://localhost:3000/api';
+///   Flutter Web / Chrome:
+///     flutter run -d chrome --dart-define=SIMA_API_URL=http://localhost:3000/api
 ///
 ///   Emulador Android (el host de la máquina virtual):
 ///     const String baseUrl = 'http://10.0.2.2:3000/api';
@@ -14,7 +14,10 @@
 class ApiConfig {
   ApiConfig._(); // Clase no instanciable
 
-  static const String baseUrl = 'http://localhost:3000/api';
+  static const String baseUrl = String.fromEnvironment(
+    'SIMA_API_URL',
+    defaultValue: 'http://192.168.1.10:3000/api',
+  );
 
   // Endpoints de autenticación
   static const String login = '$baseUrl/auth/login';
