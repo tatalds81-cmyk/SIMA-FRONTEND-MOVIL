@@ -2,6 +2,9 @@ import 'dart:math' as math;
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
+import 'package:sima_movil_froned/features/observatory/data/observations_repository.dart';
+import 'package:sima_movil_froned/features/observatory/models/observation.dart';
+import 'package:sima_movil_froned/services/attendance_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,8 +18,12 @@ class _HomePageState extends State<HomePage> {
   static const int _initialPage = 1000;
 
   final PageController _controller = PageController(initialPage: _initialPage);
+  final ObservatoryRepository _observatoryRepository =
+      const BackendObservatoryRepository();
+  late Future<_DashboardData> _dashboardFuture;
   int _currentClass = 0;
 
+  // ignore: unused_field
   final List<ClassItem> _classes = const [
     ClassItem(
       day: 'Lunes',
@@ -116,6 +123,36 @@ class _HomePageState extends State<HomePage> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _dashboardFuture = _fetchDashboardData();
+  }
+
+  Future<_DashboardData> _fetchDashboardData() async {
+    final results = await Future.wait<dynamic>([
+      AttendanceService.getDashboard(),
+      _observatoryRepository.fetchObservations(const ObservatoryFilters()),
+      _observatoryRepository.fetchAlerts(const ObservatoryFilters()),
+    ]);
+
+    final dashboard = results[0] as Map<String, dynamic>? ?? {};
+    final observations = results[1] as ObservatoryObservationResponse;
+    final alerts = results[2] as ObservatoryAlertResponse;
+
+    return _DashboardData.fromBackend(
+      dashboard: dashboard,
+      observations: observations,
+      alerts: alerts,
+    );
+  }
+
+  void _reloadDashboard() {
+    setState(() {
+      _dashboardFuture = _fetchDashboardData();
+    });
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     super.dispose();
@@ -126,17 +163,31 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF2F5FB),
       body: SafeArea(
-        child: LayoutBuilder(
+        child: FutureBuilder<_DashboardData>(
+          future: _dashboardFuture,
           builder: (context, constraints) {
+            final isLoading =
+                constraints.connectionState == ConnectionState.waiting;
+            final data = constraints.data ?? _DashboardData.empty();
+            final errorMessage = constraints.hasError
+                ? _cleanError(constraints.error)
+                : null;
             final bodyContent = Column(
               children: [
-                const _HomeHeader(),
+                _HomeHeader(notificationCount: data.unreadNotifications),
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(24, 22, 24, 144),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        if (errorMessage != null) ...[
+                          _DashboardErrorBanner(
+                            message: errorMessage,
+                            onRetry: _reloadDashboard,
+                          ),
+                          const SizedBox(height: 14),
+                        ],
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(18),
@@ -200,16 +251,18 @@ class _HomePageState extends State<HomePage> {
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const _DailyDonutSummary(),
+                                _DailyDonutSummary(
+                                  metrics: data.metrics,
+                                  isLoading: isLoading,
+                                ),
                                 const SizedBox(height: 18),
-                                _buildScheduleCarousel(),
+                                _buildScheduleCarousel(
+                                  data.classes,
+                                  isLoading: isLoading,
+                                  emptyMessage: data.scheduleMessage,
+                                ),
                                 const SizedBox(height: 14),
                                 const _HistoryButton(),
-                                const SizedBox(height: 14),
-                                const Align(
-                                  alignment: Alignment.centerRight,
-                                  child: _QrScanButton(),
-                                ),
                               ],
                             );
                           },
@@ -228,7 +281,30 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildScheduleCarousel() {
+  static String _cleanError(Object? error) {
+    final raw = error.toString();
+    return raw.startsWith('Exception: ')
+        ? raw.replaceFirst('Exception: ', '')
+        : raw;
+  }
+
+  Widget _buildScheduleCarousel(
+    List<ClassItem> classes, {
+    required bool isLoading,
+    String? emptyMessage,
+  }) {
+    if (isLoading) {
+      return const _SchedulePlaceholder();
+    }
+
+    if (classes.isEmpty) {
+      return _EmptyScheduleCard(
+        message: emptyMessage ?? 'No tienes clases programadas esta semana',
+      );
+    }
+
+    final activeIndex = _currentClass % classes.length;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -247,11 +323,11 @@ class _HomePageState extends State<HomePage> {
               controller: _controller,
               onPageChanged: (index) {
                 setState(() {
-                  _currentClass = index % _classes.length;
+                  _currentClass = index % classes.length;
                 });
               },
               itemBuilder: (context, index) {
-                final item = _classes[index % _classes.length];
+                final item = classes[index % classes.length];
 
                 return _ClassCard(item: item);
               },
@@ -261,10 +337,10 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height: 14),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(_classes.length, (index) {
-            final isActive = index == _currentClass;
+          children: List.generate(classes.length, (index) {
+            final isActive = index == activeIndex;
             final dotColor = isActive
-                ? _classes[index].color
+                ? classes[index].color
                 : const Color(0xFFD4DCE7);
 
             return AnimatedContainer(
@@ -297,7 +373,9 @@ class _CarouselScrollBehavior extends MaterialScrollBehavior {
 }
 
 class _HomeHeader extends StatelessWidget {
-  const _HomeHeader();
+  const _HomeHeader({required this.notificationCount});
+
+  final int notificationCount;
 
   void _showPhotoOptions(BuildContext context) {
     showModalBottomSheet(
@@ -534,27 +612,28 @@ class _HomeHeader extends StatelessWidget {
                   ),
                 ),
               ),
-              Positioned(
-                top: -5,
-                right: -5,
-                child: Container(
-                  width: 20,
-                  height: 20,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFE74935),
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: const Text(
-                    '3',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
+              if (notificationCount > 0)
+                Positioned(
+                  top: -5,
+                  right: -5,
+                  child: Container(
+                    width: 20,
+                    height: 20,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE74935),
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      notificationCount > 9 ? '9+' : '$notificationCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ],
@@ -652,7 +731,10 @@ class _ReadOnlyFormField extends StatelessWidget {
 }
 
 class _DailyDonutSummary extends StatelessWidget {
-  const _DailyDonutSummary();
+  const _DailyDonutSummary({required this.metrics, required this.isLoading});
+
+  final _DashboardMetrics metrics;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -678,31 +760,33 @@ class _DailyDonutSummary extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Row(
-          children: const [
+          children: [
             Expanded(
               child: _DonutMetric(
                 label: 'Alertas del día',
-                value: '3',
-                percent: 0.7,
-                color: Color(0xFFE74935),
+                value: isLoading ? '...' : '${metrics.alertsTotal}',
+                percent: isLoading ? 0 : metrics.alertsPercent,
+                color: const Color(0xFFE74935),
               ),
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: 10),
             Expanded(
               child: _DonutMetric(
                 label: 'Observaciones',
-                value: '5',
-                percent: 0.5,
-                color: Color(0xFFF4A900),
+                value: isLoading ? '...' : '${metrics.observationsTotal}',
+                percent: isLoading ? 0 : metrics.observationsPercent,
+                color: const Color(0xFFF4A900),
               ),
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: 10),
             Expanded(
               child: _DonutMetric(
                 label: 'Asistencia',
-                value: '92%',
-                percent: 0.92,
-                color: Color(0xFF39A900),
+                value: isLoading
+                    ? '...'
+                    : '${metrics.attendancePercent.round()}%',
+                percent: isLoading ? 0 : metrics.attendancePercent / 100,
+                color: const Color(0xFF39A900),
               ),
             ),
           ],
@@ -804,7 +888,7 @@ class _DonutPainter extends CustomPainter {
 
     canvas.drawCircle(center, radius, backgroundPaint);
     final startAngle = -math.pi / 2;
-    final sweepAngle = 2 * math.pi * percent;
+    final sweepAngle = 2 * math.pi * percent.clamp(0, 1).toDouble();
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
       startAngle,
@@ -820,42 +904,102 @@ class _DonutPainter extends CustomPainter {
   }
 }
 
-class _QrScanButton extends StatelessWidget {
-  const _QrScanButton();
+class _DashboardErrorBanner extends StatelessWidget {
+  const _DashboardErrorBanner({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 72,
-          height: 72,
-          decoration: const BoxDecoration(
-            color: Color(0xFF39A900),
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Color(0x29000000),
-                blurRadius: 12,
-                offset: Offset(0, 6),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4F2),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFFD2CB)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Color(0xFFE74935), size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF8F2E22),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
               ),
-            ],
+            ),
           ),
-          child: const Center(
-            child: Icon(Icons.qr_code_2, color: Colors.white, size: 32),
+          TextButton(onPressed: onRetry, child: const Text('Reintentar')),
+        ],
+      ),
+    );
+  }
+}
+
+class _SchedulePlaceholder extends StatelessWidget {
+  const _SchedulePlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 320,
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE9EEF5)),
+      ),
+      child: const Center(
+        child: CircularProgressIndicator(color: Color(0xFF39A900)),
+      ),
+    );
+  }
+}
+
+class _EmptyScheduleCard extends StatelessWidget {
+  const _EmptyScheduleCard({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 190,
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE9EEF5)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.event_busy_rounded,
+            color: Color(0xFF607086),
+            size: 34,
           ),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Escanear QR',
-          style: TextStyle(
-            color: Color(0xFF39A900),
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
+          const SizedBox(height: 10),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF607086),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -1124,4 +1268,233 @@ class ClassBlock {
   final String time;
   final String place;
   final String instructor;
+}
+
+class _DashboardData {
+  const _DashboardData({
+    required this.metrics,
+    required this.classes,
+    required this.unreadNotifications,
+    this.scheduleMessage,
+  });
+
+  factory _DashboardData.empty() {
+    return const _DashboardData(
+      metrics: _DashboardMetrics.empty(),
+      classes: [],
+      unreadNotifications: 0,
+    );
+  }
+
+  factory _DashboardData.fromBackend({
+    required Map<String, dynamic> dashboard,
+    required ObservatoryObservationResponse observations,
+    required ObservatoryAlertResponse alerts,
+  }) {
+    final attendance = _firstMap([dashboard['asistencia_trimestre']]);
+    final schedule = _firstMap([dashboard['horario_semanal']]);
+    final news = _firstMap([dashboard['novedades']]);
+    final notifications = _firstList([news['notificaciones']]);
+    final sessions = _firstList([schedule['sesiones']]);
+    final scheduleMessage = _firstString([schedule['mensaje']]);
+
+    return _DashboardData(
+      metrics: _DashboardMetrics(
+        alertsTotal: alerts.metrics.total,
+        observationsTotal: observations.metrics.total,
+        attendancePercent: _attendancePercent(attendance),
+      ),
+      classes: sessions
+          .whereType<Map<String, dynamic>>()
+          .map(_classItemFromSession)
+          .toList(growable: false),
+      unreadNotifications: notifications
+          .whereType<Map<String, dynamic>>()
+          .where((item) => item['leida'] != true)
+          .length,
+      scheduleMessage: scheduleMessage.isEmpty ? null : scheduleMessage,
+    );
+  }
+
+  final _DashboardMetrics metrics;
+  final List<ClassItem> classes;
+  final int unreadNotifications;
+  final String? scheduleMessage;
+}
+
+class _DashboardMetrics {
+  const _DashboardMetrics({
+    required this.alertsTotal,
+    required this.observationsTotal,
+    required this.attendancePercent,
+  });
+
+  const _DashboardMetrics.empty()
+    : alertsTotal = 0,
+      observationsTotal = 0,
+      attendancePercent = 0;
+
+  final int alertsTotal;
+  final int observationsTotal;
+  final double attendancePercent;
+
+  double get alertsPercent => (alertsTotal / 10).clamp(0, 1).toDouble();
+
+  double get observationsPercent =>
+      (observationsTotal / 10).clamp(0, 1).toDouble();
+}
+
+ClassItem _classItemFromSession(Map<String, dynamic> session) {
+  final competency = _firstMap([session['competencia']]);
+  final instructor = _firstMap([session['instructor']]);
+  final environment = _firstMap([session['ambiente']]);
+  final block = _firstMap([session['bloque_jornada']]);
+  final status = _firstString([session['estado'], 'PROGRAMADA']);
+  final color = _sessionColor(status);
+
+  return ClassItem(
+    day: _formatDay(_firstString([session['fecha_clase']])),
+    status: _statusLabel(status),
+    color: color,
+    blocks: [
+      ClassBlock(
+        title: _firstString([
+          competency['nombre_competencia'],
+          'Clase programada',
+        ]),
+        time: _formatTimeRange(
+          _firstString([session['hora_inicio'], block['hora_inicio']]),
+          _firstString([session['hora_fin'], block['hora_fin']]),
+        ),
+        place: _formatPlace(environment),
+        instructor: _firstString([
+          instructor['nombre_completo'],
+          'Instructor por asignar',
+        ]),
+      ),
+    ],
+  );
+}
+
+double _attendancePercent(Map<String, dynamic> attendance) {
+  final total = _toInt(attendance['total']);
+  final states = _firstList([attendance['estados']]);
+  if (total <= 0 || states.isEmpty) return 0;
+
+  var absencePercent = 0.0;
+  var presentPercent = 0.0;
+  for (final state in states.whereType<Map<String, dynamic>>()) {
+    final name = _firstString([state['estado']]).toUpperCase();
+    final percent = _toDouble(state['porcentaje']);
+    if (name == 'INASISTENCIA') absencePercent = percent;
+    if (name == 'PRESENTE') presentPercent = percent;
+  }
+
+  if (absencePercent > 0) {
+    return (100 - absencePercent).clamp(0, 100).toDouble();
+  }
+  return presentPercent.clamp(0, 100).toDouble();
+}
+
+String _formatDay(String value) {
+  final date = DateTime.tryParse(value);
+  if (date == null) return 'Programada';
+  const days = [
+    'Lunes',
+    'Martes',
+    'Miercoles',
+    'Jueves',
+    'Viernes',
+    'Sabado',
+    'Domingo',
+  ];
+  return days[date.weekday - 1];
+}
+
+String _formatTimeRange(String start, String end) {
+  final startText = _formatTime(start);
+  final endText = _formatTime(end);
+  if (startText.isEmpty && endText.isEmpty) return 'Horario por definir';
+  if (endText.isEmpty) return startText;
+  return '$startText - $endText';
+}
+
+String _formatTime(String value) {
+  if (value.isEmpty) return '';
+  final parts = value.split(':');
+  final hour = int.tryParse(parts.first) ?? 0;
+  final minute = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
+  final suffix = hour >= 12 ? 'p. m.' : 'a. m.';
+  final displayHour = hour % 12 == 0 ? 12 : hour % 12;
+  return '$displayHour:${minute.toString().padLeft(2, '0')} $suffix';
+}
+
+String _formatPlace(Map<String, dynamic> environment) {
+  final name = _firstString([environment['nombre_ambiente']]);
+  final location = _firstString([environment['ubicacion']]);
+  if (name.isEmpty && location.isEmpty) return 'Ambiente por asignar';
+  if (location.isEmpty) return name;
+  if (name.isEmpty) return location;
+  return '$name - $location';
+}
+
+String _statusLabel(String value) {
+  switch (value.toUpperCase()) {
+    case 'ABIERTA':
+      return 'En curso';
+    case 'FINALIZADA':
+      return 'Finalizada';
+    case 'CANCELADA':
+      return 'Cancelada';
+    default:
+      return 'Proxima';
+  }
+}
+
+Color _sessionColor(String value) {
+  switch (value.toUpperCase()) {
+    case 'ABIERTA':
+      return const Color(0xFF39A900);
+    case 'FINALIZADA':
+      return const Color(0xFF607086);
+    case 'CANCELADA':
+      return const Color(0xFFE74935);
+    default:
+      return const Color(0xFF052D4F);
+  }
+}
+
+Map<String, dynamic> _firstMap(List<dynamic> values) {
+  for (final value in values) {
+    if (value is Map<String, dynamic>) return value;
+  }
+  return {};
+}
+
+List<dynamic> _firstList(List<dynamic> values) {
+  for (final value in values) {
+    if (value is List) return value;
+  }
+  return const [];
+}
+
+String _firstString(List<dynamic> values) {
+  for (final value in values) {
+    if (value == null) continue;
+    final text = value.toString().trim();
+    if (text.isNotEmpty) return text;
+  }
+  return '';
+}
+
+int _toInt(dynamic value) {
+  if (value is int) return value;
+  if (value is num) return value.round();
+  return int.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+double _toDouble(dynamic value) {
+  if (value is double) return value;
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '') ?? 0;
 }
