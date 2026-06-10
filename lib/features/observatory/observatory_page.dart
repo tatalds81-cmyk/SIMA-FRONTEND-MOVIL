@@ -31,8 +31,9 @@ class _ObservatoryPageState extends State<ObservatoryPage>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _observationsFuture =
-        widget.repository.fetchObservations(_observationFilters);
+    _observationsFuture = widget.repository.fetchObservations(
+      _observationFilters,
+    );
     _alertsFuture = widget.repository.fetchAlerts(_alertFilters);
   }
 
@@ -44,8 +45,9 @@ class _ObservatoryPageState extends State<ObservatoryPage>
 
   void _reloadObservations() {
     setState(() {
-      _observationsFuture =
-          widget.repository.fetchObservations(_observationFilters);
+      _observationsFuture = widget.repository.fetchObservations(
+        _observationFilters,
+      );
     });
   }
 
@@ -55,12 +57,16 @@ class _ObservatoryPageState extends State<ObservatoryPage>
     });
   }
 
-  void _setObservationFilters(ObservatoryFilters filters, {bool reload = false}) {
+  void _setObservationFilters(
+    ObservatoryFilters filters, {
+    bool reload = false,
+  }) {
     setState(() {
       _observationFilters = filters;
       if (reload) {
-        _observationsFuture =
-            widget.repository.fetchObservations(_observationFilters);
+        _observationsFuture = widget.repository.fetchObservations(
+          _observationFilters,
+        );
       }
     });
   }
@@ -145,9 +151,9 @@ class _ObservatoryHeader extends StatelessWidget {
         Text(
           'Observatorio',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: _ObservatoryColors.navy,
-                fontWeight: FontWeight.w900,
-              ),
+            color: _ObservatoryColors.navy,
+            fontWeight: FontWeight.w900,
+          ),
         ),
         const SizedBox(height: 6),
         const Text(
@@ -176,9 +182,9 @@ class _ObservationsTab extends StatelessWidget {
   final ObservatoryFilters filters;
   final VoidCallback onRetry;
   final void Function(ObservatoryFilters filters, {bool reload})
-      onFiltersChanged;
+  onFiltersChanged;
   final Future<DateTime?> Function(DateTime? current, DateTime? minimum)
-      onPickDate;
+  onPickDate;
 
   @override
   Widget build(BuildContext context) {
@@ -195,7 +201,8 @@ class _ObservationsTab extends StatelessWidget {
           );
         }
 
-        final data = snapshot.data ??
+        final data =
+            snapshot.data ??
             const ObservatoryObservationResponse(
               metrics: ObservatoryMetrics(
                 total: 0,
@@ -217,17 +224,14 @@ class _ObservationsTab extends StatelessWidget {
               metrics: data.metrics,
             ),
             const SizedBox(height: 14),
-            _FiltersCard(
-              filters: filters,
-              onFiltersChanged: onFiltersChanged,
-              onPickDate: onPickDate,
-            ),
-            const SizedBox(height: 14),
-            _SectionCard(
+            _FilterableSectionCard(
               title: 'Observaciones registradas',
               subtitle: 'Mostrando ${data.items.length} observaciones',
               emptyMessage: 'No tienes observaciones por el momento.',
               isEmpty: data.items.isEmpty,
+              filters: filters,
+              onFiltersChanged: onFiltersChanged,
+              onPickDate: onPickDate,
               child: Column(
                 children: data.items
                     .map(
@@ -265,9 +269,9 @@ class _AlertsTab extends StatelessWidget {
   final ObservatoryFilters filters;
   final VoidCallback onRetry;
   final void Function(ObservatoryFilters filters, {bool reload})
-      onFiltersChanged;
+  onFiltersChanged;
   final Future<DateTime?> Function(DateTime? current, DateTime? minimum)
-      onPickDate;
+  onPickDate;
 
   @override
   Widget build(BuildContext context) {
@@ -284,7 +288,8 @@ class _AlertsTab extends StatelessWidget {
           );
         }
 
-        final data = snapshot.data ??
+        final data =
+            snapshot.data ??
             const ObservatoryAlertResponse(
               metrics: ObservatoryMetrics(
                 total: 0,
@@ -306,17 +311,14 @@ class _AlertsTab extends StatelessWidget {
               metrics: data.metrics,
             ),
             const SizedBox(height: 14),
-            _FiltersCard(
-              filters: filters,
-              onFiltersChanged: onFiltersChanged,
-              onPickDate: onPickDate,
-            ),
-            const SizedBox(height: 14),
-            _SectionCard(
+            _FilterableSectionCard(
               title: 'Alertas registradas',
               subtitle: 'Mostrando ${data.items.length} alertas',
               emptyMessage: 'No tienes alertas por el momento.',
               isEmpty: data.items.isEmpty,
+              filters: filters,
+              onFiltersChanged: onFiltersChanged,
+              onPickDate: onPickDate,
               child: Column(
                 children: data.items
                     .map(
@@ -459,25 +461,37 @@ class _MetricPill extends StatelessWidget {
   }
 }
 
-class _FiltersCard extends StatefulWidget {
-  const _FiltersCard({
+class _FilterableSectionCard extends StatefulWidget {
+  const _FilterableSectionCard({
+    required this.title,
+    required this.subtitle,
+    required this.emptyMessage,
+    required this.isEmpty,
     required this.filters,
     required this.onFiltersChanged,
     required this.onPickDate,
+    required this.child,
   });
 
+  final String title;
+  final String subtitle;
+  final String emptyMessage;
+  final bool isEmpty;
   final ObservatoryFilters filters;
   final void Function(ObservatoryFilters filters, {bool reload})
-      onFiltersChanged;
+  onFiltersChanged;
   final Future<DateTime?> Function(DateTime? current, DateTime? minimum)
-      onPickDate;
+  onPickDate;
+  final Widget child;
 
   @override
-  State<_FiltersCard> createState() => _FiltersCardState();
+  State<_FilterableSectionCard> createState() => _FilterableSectionCardState();
 }
 
-class _FiltersCardState extends State<_FiltersCard> {
+class _FilterableSectionCardState extends State<_FilterableSectionCard> {
   late final TextEditingController _typeController;
+  bool _isExpanded = false;
+  _FilterSection _activeSection = _FilterSection.dates;
 
   @override
   void initState() {
@@ -486,7 +500,7 @@ class _FiltersCardState extends State<_FiltersCard> {
   }
 
   @override
-  void didUpdateWidget(covariant _FiltersCard oldWidget) {
+  void didUpdateWidget(covariant _FilterableSectionCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     final value = widget.filters.tipo ?? '';
     if (_typeController.text != value) {
@@ -502,146 +516,474 @@ class _FiltersCardState extends State<_FiltersCard> {
 
   @override
   Widget build(BuildContext context) {
+    final toggleButton = _FilterToggleButton(
+      activeCount: _activeFilterCount(widget.filters),
+      isExpanded: _isExpanded,
+      onPressed: () {
+        setState(() {
+          _isExpanded = !_isExpanded;
+        });
+      },
+    );
+
     return _SurfaceCard(
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _SectionTitle(icon: Icons.tune_rounded, title: 'Filtros'),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _FilterChipButton(
-                label: 'Desde',
-                value: widget.filters.fechaDesde == null
-                    ? 'Todos'
-                    : _formatDate(widget.filters.fechaDesde!),
-                onTap: () async {
-                  final date = await widget.onPickDate(
-                    widget.filters.fechaDesde,
-                    null,
-                  );
-                  if (date != null) {
-                    widget.onFiltersChanged(
-                      widget.filters.copyWith(fechaDesde: date),
-                    );
-                  }
-                },
-              ),
-              _FilterChipButton(
-                label: 'Hasta',
-                value: widget.filters.fechaHasta == null
-                    ? 'Todos'
-                    : _formatDate(widget.filters.fechaHasta!),
-                onTap: () async {
-                  final date = await widget.onPickDate(
-                    widget.filters.fechaHasta,
-                    widget.filters.fechaDesde,
-                  );
-                  if (date != null) {
-                    final from = widget.filters.fechaDesde;
-                    widget.onFiltersChanged(
-                      widget.filters.copyWith(
-                        fechaHasta:
-                            from != null && date.isBefore(from) ? from : date,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.title,
+                        style: const TextStyle(
+                          color: _ObservatoryColors.navy,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
-                    );
-                  }
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.subtitle,
+                        style: const TextStyle(
+                          color: _ObservatoryColors.muted,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                toggleButton,
+              ],
+            ),
+          ),
+          if (_isExpanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+              child: _buildFilterPanel(),
+            ),
+          const Divider(height: 1, color: _ObservatoryColors.line),
+          if (widget.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: Text(
+                widget.emptyMessage,
+                style: const TextStyle(
+                  color: _ObservatoryColors.muted,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            )
+          else
+            Padding(padding: const EdgeInsets.all(12), child: widget.child),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterPanel() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: _ObservatoryColors.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _ObservatoryColors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _FilterOptionButton(
+                icon: Icons.date_range_rounded,
+                label: 'Fecha',
+                value: _dateFilterLabel(widget.filters),
+                isSelected: _activeSection == _FilterSection.dates,
+                onTap: () {
+                  setState(() {
+                    _activeSection = _FilterSection.dates;
+                  });
                 },
               ),
-              _DropdownFilter(
+              _FilterOptionButton(
+                icon: Icons.priority_high_rounded,
                 label: 'Severidad',
                 value: widget.filters.severidad ?? _allOption,
-                options: const [
-                  _allOption,
-                  'LEVE',
-                  'MODERADA',
-                  'GRAVE',
-                  'CRITICA',
-                ],
-                onChanged: (value) {
-                  widget.onFiltersChanged(
-                    value == _allOption
-                        ? widget.filters.copyWith(clearSeveridad: true)
-                        : widget.filters.copyWith(severidad: value),
-                  );
+                isSelected: _activeSection == _FilterSection.severity,
+                onTap: () {
+                  setState(() {
+                    _activeSection = _FilterSection.severity;
+                  });
                 },
               ),
-              _DropdownFilter(
+              _FilterOptionButton(
+                icon: Icons.task_alt_rounded,
                 label: 'Estado',
                 value: widget.filters.estado ?? _allOption,
-                options: const [_allOption, 'ABIERTA', 'CERRADA'],
-                onChanged: (value) {
-                  widget.onFiltersChanged(
-                    value == _allOption
-                        ? widget.filters.copyWith(clearEstado: true)
-                        : widget.filters.copyWith(estado: value),
-                  );
+                isSelected: _activeSection == _FilterSection.status,
+                onTap: () {
+                  setState(() {
+                    _activeSection = _FilterSection.status;
+                  });
                 },
               ),
-              SizedBox(
-                width: 170,
-                child: TextField(
-                  controller: _typeController,
-                  decoration: _inputDecoration('Tipo'),
-                  onChanged: (value) {
-                    widget.onFiltersChanged(
-                      value.trim().isEmpty
-                          ? widget.filters.copyWith(clearTipo: true)
-                          : widget.filters.copyWith(tipo: value),
-                    );
-                  },
-                ),
+              _FilterOptionButton(
+                icon: Icons.category_outlined,
+                label: 'Tipo',
+                value: _hasFilterText(widget.filters.tipo)
+                    ? widget.filters.tipo!.trim()
+                    : _allOption,
+                isSelected: _activeSection == _FilterSection.type,
+                onTap: () {
+                  setState(() {
+                    _activeSection = _FilterSection.type;
+                  });
+                },
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: () => widget.onFiltersChanged(
-                    widget.filters.copyWith(tipo: _typeController.text),
-                    reload: true,
-                  ),
-                  icon: const Icon(Icons.search_rounded, size: 18),
-                  label: const Text('Buscar'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _ObservatoryColors.green,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(44),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    _typeController.clear();
-                    widget.onFiltersChanged(
-                      const ObservatoryFilters(),
-                      reload: true,
-                    );
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _ObservatoryColors.navy,
-                    minimumSize: const Size.fromHeight(44),
-                    side: const BorderSide(color: _ObservatoryColors.line),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text('Limpiar'),
-                ),
-              ),
-            ],
+          _buildActiveFilterControl(),
+          const SizedBox(height: 12),
+          _FilterActions(
+            onSearch: () => widget.onFiltersChanged(
+              _typeController.text.trim().isEmpty
+                  ? widget.filters.copyWith(clearTipo: true)
+                  : widget.filters.copyWith(tipo: _typeController.text),
+              reload: true,
+            ),
+            onClear: () {
+              _typeController.clear();
+              widget.onFiltersChanged(const ObservatoryFilters(), reload: true);
+            },
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildActiveFilterControl() {
+    return switch (_activeSection) {
+      _FilterSection.dates => Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          _FilterChipButton(
+            label: 'Desde',
+            value: widget.filters.fechaDesde == null
+                ? _allOption
+                : _formatDate(widget.filters.fechaDesde!),
+            onTap: () async {
+              final date = await widget.onPickDate(
+                widget.filters.fechaDesde,
+                null,
+              );
+              if (date != null) {
+                widget.onFiltersChanged(
+                  widget.filters.copyWith(fechaDesde: date),
+                );
+              }
+            },
+          ),
+          _FilterChipButton(
+            label: 'Hasta',
+            value: widget.filters.fechaHasta == null
+                ? _allOption
+                : _formatDate(widget.filters.fechaHasta!),
+            onTap: () async {
+              final date = await widget.onPickDate(
+                widget.filters.fechaHasta,
+                widget.filters.fechaDesde,
+              );
+              if (date != null) {
+                final from = widget.filters.fechaDesde;
+                widget.onFiltersChanged(
+                  widget.filters.copyWith(
+                    fechaHasta: from != null && date.isBefore(from)
+                        ? from
+                        : date,
+                  ),
+                );
+              }
+            },
+          ),
+        ],
+      ),
+      _FilterSection.severity => _DropdownFilter(
+        label: 'Severidad',
+        value: widget.filters.severidad ?? _allOption,
+        width: 220,
+        options: const [_allOption, 'LEVE', 'MODERADA', 'GRAVE', 'CRITICA'],
+        onChanged: (value) {
+          widget.onFiltersChanged(
+            value == _allOption
+                ? widget.filters.copyWith(clearSeveridad: true)
+                : widget.filters.copyWith(severidad: value),
+          );
+        },
+      ),
+      _FilterSection.status => _DropdownFilter(
+        label: 'Estado',
+        value: widget.filters.estado ?? _allOption,
+        width: 220,
+        options: const [_allOption, 'ABIERTA', 'CERRADA'],
+        onChanged: (value) {
+          widget.onFiltersChanged(
+            value == _allOption
+                ? widget.filters.copyWith(clearEstado: true)
+                : widget.filters.copyWith(estado: value),
+          );
+        },
+      ),
+      _FilterSection.type => ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320),
+        child: TextField(
+          controller: _typeController,
+          decoration: _inputDecoration('Tipo'),
+          onChanged: (value) {
+            widget.onFiltersChanged(
+              value.trim().isEmpty
+                  ? widget.filters.copyWith(clearTipo: true)
+                  : widget.filters.copyWith(tipo: value),
+            );
+          },
+        ),
+      ),
+    };
+  }
+}
+
+enum _FilterSection { dates, severity, status, type }
+
+class _FilterToggleButton extends StatelessWidget {
+  const _FilterToggleButton({
+    required this.activeCount,
+    required this.isExpanded,
+    required this.onPressed,
+  });
+
+  final int activeCount;
+  final bool isExpanded;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: isExpanded ? 'Ocultar filtros' : 'Mostrar filtros',
+      child: IconButton(
+        onPressed: onPressed,
+        style: IconButton.styleFrom(
+          backgroundColor: isExpanded
+              ? _ObservatoryColors.green.withValues(alpha: 0.11)
+              : _ObservatoryColors.background,
+          foregroundColor: isExpanded
+              ? _ObservatoryColors.green
+              : _ObservatoryColors.navy,
+          side: const BorderSide(color: _ObservatoryColors.line),
+          fixedSize: const Size.square(44),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        icon: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Icon(
+              isExpanded
+                  ? Icons.filter_alt_off_rounded
+                  : Icons.filter_alt_rounded,
+              size: 22,
+            ),
+            if (activeCount > 0)
+              Positioned(
+                right: -8,
+                top: -8,
+                child: _FilterCountBadge(count: activeCount),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterCountBadge extends StatelessWidget {
+  const _FilterCountBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: _ObservatoryColors.green,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white, width: 1.5),
+      ),
+      child: Text(
+        count.toString(),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterOptionButton extends StatelessWidget {
+  const _FilterOptionButton({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: Container(
+        width: 150,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? _ObservatoryColors.green.withValues(alpha: 0.09)
+              : Colors.white,
+          border: Border.all(
+            color: isSelected
+                ? _ObservatoryColors.green
+                : _ObservatoryColors.line,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              color: isSelected
+                  ? _ObservatoryColors.green
+                  : _ObservatoryColors.navy,
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _ObservatoryColors.navy,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isSelected
+                          ? _ObservatoryColors.green
+                          : _ObservatoryColors.muted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterActions extends StatelessWidget {
+  const _FilterActions({required this.onSearch, required this.onClear});
+
+  final VoidCallback onSearch;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 420;
+
+        if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildSearchButton(),
+              const SizedBox(height: 8),
+              _buildClearButton(),
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(child: _buildSearchButton()),
+            const SizedBox(width: 10),
+            Expanded(child: _buildClearButton()),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSearchButton() {
+    return FilledButton.icon(
+      onPressed: onSearch,
+      icon: const Icon(Icons.search_rounded, size: 18),
+      label: const Text('Buscar'),
+      style: FilledButton.styleFrom(
+        backgroundColor: _ObservatoryColors.green,
+        foregroundColor: Colors.white,
+        minimumSize: const Size.fromHeight(44),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  Widget _buildClearButton() {
+    return OutlinedButton(
+      onPressed: onClear,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: _ObservatoryColors.navy,
+        minimumSize: const Size.fromHeight(44),
+        side: const BorderSide(color: _ObservatoryColors.line),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      child: const Text('Limpiar'),
     );
   }
 }
@@ -715,21 +1057,25 @@ class _DropdownFilter extends StatelessWidget {
     required this.value,
     required this.options,
     required this.onChanged,
+    this.width = 150,
   });
 
   final String label;
   final String value;
   final List<String> options;
   final ValueChanged<String> onChanged;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 150,
+      width: width,
       child: DropdownButtonFormField<String>(
-        value: options.contains(value) ? value : _allOption,
+        initialValue: options.contains(value) ? value : _allOption,
         items: options
-            .map((option) => DropdownMenuItem(value: option, child: Text(option)))
+            .map(
+              (option) => DropdownMenuItem(value: option, child: Text(option)),
+            )
             .toList(growable: false),
         onChanged: (value) {
           if (value != null) {
@@ -737,74 +1083,6 @@ class _DropdownFilter extends StatelessWidget {
           }
         },
         decoration: _inputDecoration(label),
-      ),
-    );
-  }
-}
-
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.title,
-    required this.subtitle,
-    required this.emptyMessage,
-    required this.isEmpty,
-    required this.child,
-  });
-
-  final String title;
-  final String subtitle;
-  final String emptyMessage;
-  final bool isEmpty;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SurfaceCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: _ObservatoryColors.navy,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    color: _ObservatoryColors.muted,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: _ObservatoryColors.line),
-          if (isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(18),
-              child: Text(
-                emptyMessage,
-                style: const TextStyle(
-                  color: _ObservatoryColors.muted,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            )
-          else
-            Padding(padding: const EdgeInsets.all(12), child: child),
-        ],
       ),
     );
   }
@@ -919,10 +1197,7 @@ class _RecordTile extends StatelessWidget {
   }
 }
 
-void _showObservationDetail(
-  BuildContext context,
-  ObservatoryObservation item,
-) {
+void _showObservationDetail(BuildContext context, ObservatoryObservation item) {
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -958,7 +1233,9 @@ void _showAlertDetail(BuildContext context, ObservatoryAlert item) {
   ];
 
   if (item.fechaCierre != null || item.justificacionCierre.isNotEmpty) {
-    rows.add(_DetailRow('Fecha de cierre', _formatOptionalDate(item.fechaCierre)));
+    rows.add(
+      _DetailRow('Fecha de cierre', _formatOptionalDate(item.fechaCierre)),
+    );
     rows.add(_DetailRow('Justificacion de cierre', item.justificacionCierre));
     rows.add(_DetailRow('Responsable cierre', item.responsableCierreNombre));
     rows.add(_DetailRow('Rol cierre', item.responsableCierreRol));
@@ -966,7 +1243,10 @@ void _showAlertDetail(BuildContext context, ObservatoryAlert item) {
 
   if (item.fechaReapertura != null || item.justificacionReapertura.isNotEmpty) {
     rows.add(
-      _DetailRow('Fecha de reapertura', _formatOptionalDate(item.fechaReapertura)),
+      _DetailRow(
+        'Fecha de reapertura',
+        _formatOptionalDate(item.fechaReapertura),
+      ),
     );
     rows.add(
       _DetailRow('Justificacion de reapertura', item.justificacionReapertura),
@@ -982,11 +1262,8 @@ void _showAlertDetail(BuildContext context, ObservatoryAlert item) {
     isScrollControlled: true,
     showDragHandle: true,
     backgroundColor: Colors.white,
-    builder: (_) => _DetailSheet(
-      title: item.tipo,
-      subtitle: 'Alerta',
-      rows: rows,
-    ),
+    builder: (_) =>
+        _DetailSheet(title: item.tipo, subtitle: 'Alerta', rows: rows),
   );
 }
 
@@ -1394,6 +1671,36 @@ String _formatDate(DateTime date) {
 
 String _formatOptionalDate(DateTime? date) {
   return date == null ? '' : _formatDate(date);
+}
+
+int _activeFilterCount(ObservatoryFilters filters) {
+  var count = 0;
+  if (filters.fechaDesde != null) count++;
+  if (filters.fechaHasta != null) count++;
+  if (_hasFilterText(filters.severidad)) count++;
+  if (_hasFilterText(filters.estado)) count++;
+  if (_hasFilterText(filters.tipo)) count++;
+  return count;
+}
+
+bool _hasFilterText(String? value) {
+  return value != null && value.trim().isNotEmpty;
+}
+
+String _dateFilterLabel(ObservatoryFilters filters) {
+  final from = filters.fechaDesde;
+  final to = filters.fechaHasta;
+
+  if (from == null && to == null) {
+    return _allOption;
+  }
+  if (from != null && to != null) {
+    return '${_formatDate(from)} - ${_formatDate(to)}';
+  }
+  if (from != null) {
+    return 'Desde ${_formatDate(from)}';
+  }
+  return 'Hasta ${_formatDate(to!)}';
 }
 
 String _cleanErrorMessage(Object? error) {
