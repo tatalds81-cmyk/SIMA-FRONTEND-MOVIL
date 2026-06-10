@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sima_movil_froned/features/attendance/attendance_page.dart';
 import 'package:sima_movil_froned/features/attendance/qr_attendance_flow.dart';
+import 'package:sima_movil_froned/features/home/dashboard_qr_flow.dart';
 import 'package:sima_movil_froned/features/home/home_page.dart';
 import 'package:sima_movil_froned/features/observatory/observatory_page.dart';
 import 'package:sima_movil_froned/features/profile/profile_page.dart';
@@ -17,6 +18,8 @@ class _AccessPageState extends State<AccessPage> {
   int _currentIndex = 0;
   int _attendanceRefreshTick = 0;
   bool _isQrFlowRunning = false;
+  bool _hasActiveSession = false;
+  bool _hasVerifiedSession = false;
 
   Future<void> _startQrFlow() async {
     if (_isQrFlowRunning) {
@@ -25,24 +28,40 @@ class _AccessPageState extends State<AccessPage> {
 
     setState(() => _isQrFlowRunning = true);
 
-    final success = await startQrAttendanceFlow(context);
+    final isDashboardQr = _currentIndex == 0;
 
-    if (!mounted) {
-      return;
-    }
+    try {
+      final success = isDashboardQr
+          ? await startDashboardQrFlow(context)
+          : await startQrAttendanceFlow(context);
 
-    setState(() {
-      _isQrFlowRunning = false;
-      if (success) {
-        _attendanceRefreshTick++;
+      if (!mounted) {
+        return;
       }
-    });
+
+      setState(() {
+        if (success && isDashboardQr) {
+          _hasActiveSession = true;
+          _hasVerifiedSession = true;
+        }
+        if (success && !isDashboardQr) {
+          _attendanceRefreshTick++;
+        }
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isQrFlowRunning = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final pages = [
-      const HomePage(),
+      HomePage(
+        hasActiveSession: _hasActiveSession,
+        hasVerifiedSession: _hasVerifiedSession,
+      ),
       AttendancePage(key: ValueKey(_attendanceRefreshTick)),
       const ObservatoryPage(),
       const ProfilePage(),
