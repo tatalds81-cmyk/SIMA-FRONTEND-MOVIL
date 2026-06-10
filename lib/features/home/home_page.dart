@@ -7,8 +7,15 @@ import 'package:sima_movil_froned/features/observatory/models/observation.dart';
 import 'package:sima_movil_froned/services/attendance_service.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({
+    super.key,
+    required this.hasActiveSession,
+    required this.hasVerifiedSession,
+  });
   //hola//
+
+  final bool hasActiveSession;
+  final bool hasVerifiedSession;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -174,7 +181,10 @@ class _HomePageState extends State<HomePage> {
                 : null;
             final bodyContent = Column(
               children: [
-                _HomeHeader(notificationCount: data.unreadNotifications),
+                _HomeHeader(
+                  notificationCount: data.unreadNotifications,
+                  hasActiveSession: widget.hasActiveSession,
+                ),
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(24, 22, 24, 144),
@@ -188,63 +198,67 @@ class _HomePageState extends State<HomePage> {
                           ),
                           const SizedBox(height: 14),
                         ],
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(18),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.04),
-                                blurRadius: 18,
-                                offset: const Offset(0, 10),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 48,
-                                height: 48,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFE8F7EA),
-                                  borderRadius: BorderRadius.circular(16),
+                        if (!widget.hasVerifiedSession)
+                          const _NoScheduledSessionCard()
+                        else
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(18),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.04),
+                                  blurRadius: 18,
+                                  offset: const Offset(0, 10),
                                 ),
-                                child: const Icon(
-                                  Icons.school_rounded,
-                                  color: Color(0xFF39A900),
-                                  size: 28,
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFE8F7EA),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: const Icon(
+                                    Icons.school_rounded,
+                                    color: Color(0xFF39A900),
+                                    size: 28,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: const [
-                                    Text(
-                                      'Bienvenido Aprendiz',
-                                      style: TextStyle(
-                                        color: Color(0xFF092444),
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w800,
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: const [
+                                      Text(
+                                        'Bienvenido Aprendiz',
+                                        style: TextStyle(
+                                          color: Color(0xFF092444),
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w800,
+                                        ),
                                       ),
-                                    ),
-                                    SizedBox(height: 4),
-                                    Text(
-                                      'Consulta tus próximas clases y mantente al día con tus asistencias.',
-                                      style: TextStyle(
-                                        color: Color(0xFF607086),
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
+                                      SizedBox(height: 4),
+                                      Text(
+                                        'Consulta tus próximas clases y mantente al día con tus asistencias.',
+                                        style: TextStyle(
+                                          color: Color(0xFF607086),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
                         const SizedBox(height: 18),
                         LayoutBuilder(
                           builder: (context, constraints) {
@@ -257,7 +271,10 @@ class _HomePageState extends State<HomePage> {
                                 ),
                                 const SizedBox(height: 18),
                                 _buildScheduleCarousel(
-                                  data.classes,
+                                  widget.hasActiveSession &&
+                                          data.classes.isEmpty
+                                      ? _classes
+                                      : data.classes,
                                   isLoading: isLoading,
                                   emptyMessage: data.scheduleMessage,
                                 ),
@@ -299,7 +316,10 @@ class _HomePageState extends State<HomePage> {
 
     if (classes.isEmpty) {
       return _EmptyScheduleCard(
-        message: emptyMessage ?? 'No tienes clases programadas esta semana',
+        message:
+            emptyMessage ??
+            'No hay horario disponible para la ficha seleccionada',
+        helperText: 'Cuando tengas una sesión agendada, aparecerá aquí.',
       );
     }
 
@@ -373,9 +393,13 @@ class _CarouselScrollBehavior extends MaterialScrollBehavior {
 }
 
 class _HomeHeader extends StatelessWidget {
-  const _HomeHeader({required this.notificationCount});
+  const _HomeHeader({
+    required this.notificationCount,
+    required this.hasActiveSession,
+  });
 
   final int notificationCount;
+  final bool hasActiveSession;
 
   void _showPhotoOptions(BuildContext context) {
     showModalBottomSheet(
@@ -582,8 +606,8 @@ class _HomeHeader extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
-              children: const [
-                Text(
+              children: [
+                const Text(
                   'Hola Esteban',
                   style: TextStyle(
                     color: Colors.white,
@@ -591,8 +615,8 @@ class _HomeHeader extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                SizedBox(width: 8),
-                _ActiveDot(),
+                const SizedBox(width: 8),
+                _ActiveDot(isActive: hasActiveSession),
               ],
             ),
           ),
@@ -643,7 +667,9 @@ class _HomeHeader extends StatelessWidget {
 }
 
 class _ActiveDot extends StatefulWidget {
-  const _ActiveDot();
+  const _ActiveDot({required this.isActive});
+
+  final bool isActive;
 
   @override
   State<_ActiveDot> createState() => _ActiveDotState();
@@ -654,6 +680,10 @@ class _ActiveDotState extends State<_ActiveDot> {
 
   @override
   Widget build(BuildContext context) {
+    final dotColor = widget.isActive
+        ? const Color(0xFF39A900)
+        : const Color(0xFF9AA8B8);
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -669,13 +699,13 @@ class _ActiveDotState extends State<_ActiveDot> {
           width: _isHovered ? 16 : 12,
           height: _isHovered ? 16 : 12,
           decoration: BoxDecoration(
-            color: const Color(0xFF39A900),
+            color: dotColor,
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: _isHovered ? 3 : 2),
             boxShadow: _isHovered
                 ? [
                     BoxShadow(
-                      color: const Color(0xFF39A900).withValues(alpha: 0.4),
+                      color: dotColor.withValues(alpha: 0.4),
                       blurRadius: 8,
                       spreadRadius: 2,
                     ),
@@ -726,6 +756,87 @@ class _ReadOnlyFormField extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _NoScheduledSessionCard extends StatelessWidget {
+  const _NoScheduledSessionCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE7EDF6)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Próxima sesión',
+            style: TextStyle(
+              color: Color(0xFF092444),
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFEAF3FF),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.event_available_outlined,
+                    color: Color(0xFF1976D2),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'No tienes una sesión\nprogramada por ahora',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF092444),
+                    fontSize: 13,
+                    height: 1.16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Cuando tengas una sesión activa,\npodrás validar tu asistencia.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF607086),
+                    fontSize: 10,
+                    height: 1.25,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -965,9 +1076,10 @@ class _SchedulePlaceholder extends StatelessWidget {
 }
 
 class _EmptyScheduleCard extends StatelessWidget {
-  const _EmptyScheduleCard({required this.message});
+  const _EmptyScheduleCard({required this.message, this.helperText});
 
   final String message;
+  final String? helperText;
 
   @override
   Widget build(BuildContext context) {
@@ -998,6 +1110,19 @@ class _EmptyScheduleCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+          if (helperText != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              helperText!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFF607086),
+                fontSize: 11,
+                height: 1.25,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ],
       ),
     );
