@@ -3,7 +3,12 @@ import 'package:sima_movil_froned/services/attendance_service.dart';
 import 'dart:math' as math;
 
 class AttendancePage extends StatefulWidget {
-  const AttendancePage({super.key});
+  const AttendancePage({
+    super.key,
+    this.initialTabIndex = 0,
+  });
+
+  final int initialTabIndex;
 
   @override
   State<AttendancePage> createState() => _AttendancePageState();
@@ -32,7 +37,12 @@ class _AttendancePageState extends State<AttendancePage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    final initialIndex = widget.initialTabIndex.clamp(0, 3);
+    _tabController = TabController(
+      length: 4,
+      vsync: this,
+      initialIndex: initialIndex,
+    );
     _fetchDashboard();
     _fetchCalendar();
     _fetchSessions();

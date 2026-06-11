@@ -9,9 +9,11 @@ class ObservatoryPage extends StatefulWidget {
   const ObservatoryPage({
     super.key,
     this.repository = const BackendObservatoryRepository(),
+    this.initialTabIndex = 0,
   });
 
   final ObservatoryRepository repository;
+  final int initialTabIndex;
 
   @override
   State<ObservatoryPage> createState() => _ObservatoryPageState();
@@ -30,7 +32,12 @@ class _ObservatoryPageState extends State<ObservatoryPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    final initialIndex = widget.initialTabIndex.clamp(0, 1);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: initialIndex,
+    );
     _observationsFuture =
         widget.repository.fetchObservations(_observationFilters);
     _alertsFuture = widget.repository.fetchAlerts(_alertFilters);
@@ -85,7 +92,7 @@ class _ObservatoryPageState extends State<ObservatoryPage>
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
+    return Material(
       color: _ObservatoryColors.background,
       child: SafeArea(
         child: Column(

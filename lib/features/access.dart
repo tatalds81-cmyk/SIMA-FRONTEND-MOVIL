@@ -20,6 +20,8 @@ class _AccessPageState extends State<AccessPage> {
   bool _isQrFlowRunning = false;
   bool _hasActiveSession = false;
   bool _hasVerifiedSession = false;
+  int _attendanceTabIndex = 0;
+  int _observatoryTabIndex = 0;
 
   Future<void> _startQrFlow() async {
     if (_isQrFlowRunning) {
@@ -61,9 +63,27 @@ class _AccessPageState extends State<AccessPage> {
       HomePage(
         hasActiveSession: _hasActiveSession,
         hasVerifiedSession: _hasVerifiedSession,
+        onNavigateToAttendance: (tabIndex) {
+          setState(() {
+            _currentIndex = 1;
+            _attendanceTabIndex = tabIndex;
+          });
+        },
+        onNavigateToObservatory: (tabIndex) {
+          setState(() {
+            _currentIndex = 2;
+              _observatoryTabIndex = tabIndex;
+          });
+        },
       ),
-      AttendancePage(key: ValueKey(_attendanceRefreshTick)),
-      const ObservatoryPage(),
+      AttendancePage(
+        key: ValueKey('attendance_${_attendanceRefreshTick}_${_attendanceTabIndex}'),
+        initialTabIndex: _attendanceTabIndex,
+      ),
+      ObservatoryPage(
+        key: ValueKey('observatory_${_observatoryTabIndex}'),
+        initialTabIndex: _observatoryTabIndex,
+      ),
       const ProfilePage(),
     ];
 
