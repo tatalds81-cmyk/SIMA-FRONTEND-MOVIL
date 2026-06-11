@@ -330,37 +330,16 @@ class _ProfileHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 252,
+      height: 284,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           ClipPath(
             clipper: const _ProfileHeaderWaveClipper(),
-            child: Container(
-              height: 160,
-              decoration: const BoxDecoration(color: _ProfileColors.headerBlue),
-              child: Stack(
-                children: const [
-                  _HeaderGlow(
-                    width: 210,
-                    height: 92,
-                    left: -68,
-                    bottom: 0,
-                    opacity: 0.14,
-                  ),
-                  _HeaderGlow(
-                    width: 210,
-                    height: 120,
-                    right: -58,
-                    bottom: 6,
-                    opacity: 0.24,
-                  ),
-                ],
-              ),
-            ),
+            child: const _ProfileHeaderBackground(height: 256),
           ),
           Positioned(
-            top: 14,
+            top: 12,
             left: 14,
             right: 14,
             child: Row(
@@ -376,7 +355,7 @@ class _ProfileHero extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 14,
+                      fontSize: 16,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -390,19 +369,19 @@ class _ProfileHero extends StatelessWidget {
             ),
           ),
           Positioned(
-            top: 72,
+            top: 54,
             left: 0,
             right: 0,
             child: Center(
               child: _ProfileAvatar(
-                size: 86,
+                size: 94,
                 initials: profile.initials,
                 showPhoto: true,
               ),
             ),
           ),
           Positioned(
-            top: 166,
+            top: 162,
             left: 24,
             right: 24,
             child: Column(
@@ -413,8 +392,8 @@ class _ProfileHero extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    color: _ProfileColors.navy,
-                    fontSize: 18,
+                    color: Colors.white,
+                    fontSize: 21,
                     fontWeight: FontWeight.w900,
                     height: 1.1,
                   ),
@@ -426,12 +405,12 @@ class _ProfileHero extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: _ProfileColors.muted,
-                    fontSize: 12,
+                    color: Colors.white70,
+                    fontSize: 13,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 _HeaderBadge(label: profile.statusLabel),
               ],
             ),
@@ -442,38 +421,86 @@ class _ProfileHero extends StatelessWidget {
   }
 }
 
-class _HeaderGlow extends StatelessWidget {
-  const _HeaderGlow({
-    required this.width,
-    required this.height,
-    required this.opacity,
-    this.left,
-    this.right,
-    this.bottom,
-  });
+class _ProfileHeaderBackground extends StatelessWidget {
+  const _ProfileHeaderBackground({required this.height});
 
-  final double width;
   final double height;
-  final double opacity;
-  final double? left;
-  final double? right;
-  final double? bottom;
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      left: left,
-      right: right,
-      bottom: bottom,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: opacity),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: SizedBox(width: width, height: height),
-      ),
+    return SizedBox(
+      height: height,
+      width: double.infinity,
+      child: CustomPaint(painter: const _ProfileHeaderPainter()),
     );
   }
+}
+
+class _ProfileHeaderPainter extends CustomPainter {
+  const _ProfileHeaderPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final basePaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          _ProfileColors.headerDeep,
+          _ProfileColors.headerBlue,
+          _ProfileColors.headerAccent,
+        ],
+        stops: [0, 0.54, 1],
+      ).createShader(rect);
+    canvas.drawRect(rect, basePaint);
+
+    final rightShape = Path()
+      ..moveTo(size.width * 0.80, 0)
+      ..cubicTo(
+        size.width * 0.96,
+        size.height * 0.08,
+        size.width * 1.02,
+        size.height * 0.32,
+        size.width,
+        size.height * 0.56,
+      )
+      ..lineTo(size.width, size.height)
+      ..quadraticBezierTo(
+        size.width * 0.86,
+        size.height * 0.96,
+        size.width * 0.77,
+        size.height * 0.72,
+      )
+      ..cubicTo(
+        size.width * 0.66,
+        size.height * 0.43,
+        size.width * 0.67,
+        size.height * 0.13,
+        size.width * 0.80,
+        0,
+      )
+      ..close();
+    canvas.drawPath(
+      rightShape,
+      Paint()..color = _ProfileColors.headerAccent.withValues(alpha: 0.34),
+    );
+
+    final dotPaint = Paint()
+      ..color = _ProfileColors.headerDot.withValues(alpha: 0.24);
+    for (var row = 0; row < 6; row++) {
+      for (var column = 0; column < 7; column++) {
+        canvas.drawCircle(
+          Offset(30 + column * 16, 70 + row * 16),
+          1.8,
+          dotPaint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _HeaderIconButton extends StatelessWidget {
@@ -492,6 +519,12 @@ class _HeaderIconButton extends StatelessWidget {
     return IconButton(
       tooltip: tooltip,
       onPressed: onTap,
+      style: IconButton.styleFrom(
+        backgroundColor: Colors.white.withValues(alpha: 0.12),
+        foregroundColor: Colors.white,
+        fixedSize: const Size.square(38),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
       icon: Icon(icon, color: Colors.white, size: 20),
     );
   }
@@ -503,14 +536,14 @@ class _ProfileHeaderWaveClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     final path = Path()
-      ..lineTo(0, size.height - 34)
+      ..lineTo(0, size.height - 38)
       ..cubicTo(
         size.width * 0.24,
-        size.height - 6,
-        size.width * 0.58,
-        size.height - 68,
+        size.height - 4,
+        size.width * 0.62,
+        size.height + 4,
         size.width,
-        size.height - 26,
+        size.height - 36,
       )
       ..lineTo(size.width, 0)
       ..close();
@@ -529,35 +562,32 @@ class _ProfileQuickInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _SurfaceCard(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 14),
-      child: Row(
-        children: [
-          Expanded(
-            child: _QuickInfoItem(
-              icon: Icons.school_outlined,
-              label: 'Ficha',
-              value: profile.ficha,
-            ),
+    return Row(
+      children: [
+        Expanded(
+          child: _QuickInfoItem(
+            icon: Icons.school_outlined,
+            label: 'Ficha',
+            value: profile.ficha,
           ),
-          const _VerticalDivider(),
-          Expanded(
-            child: _QuickInfoItem(
-              icon: Icons.calendar_today_outlined,
-              label: 'Etapa',
-              value: profile.stage,
-            ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _QuickInfoItem(
+            icon: Icons.calendar_today_outlined,
+            label: 'Etapa',
+            value: profile.stage,
           ),
-          const _VerticalDivider(),
-          Expanded(
-            child: _QuickInfoItem(
-              icon: Icons.schedule_outlined,
-              label: 'Horario',
-              value: profile.schedule,
-            ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _QuickInfoItem(
+            icon: Icons.schedule_outlined,
+            label: 'Horario',
+            value: profile.schedule,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -575,51 +605,67 @@ class _QuickInfoItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 68,
-      child: Column(
+    return Container(
+      height: 54,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _ProfileColors.line),
+        boxShadow: [
+          BoxShadow(
+            color: _ProfileColors.navy.withValues(alpha: 0.045),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: _ProfileColors.green, size: 20),
-          const SizedBox(height: 5),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: _ProfileColors.navy,
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: _ProfileColors.greenSoft,
+              borderRadius: BorderRadius.circular(8),
             ),
+            child: Icon(icon, color: _ProfileColors.green, size: 18),
           ),
-          const SizedBox(height: 2),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text(
-              value,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: _ProfileColors.navy,
-                fontSize: 9,
-                height: 1.15,
-                fontWeight: FontWeight.w600,
-              ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _ProfileColors.navy,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _ProfileColors.muted,
+                    fontSize: 10,
+                    height: 1.1,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
-  }
-}
-
-class _VerticalDivider extends StatelessWidget {
-  const _VerticalDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(width: 1, height: 44, color: _ProfileColors.line);
   }
 }
 
@@ -645,11 +691,11 @@ class _ProfileAccessCard extends StatelessWidget {
           'Accesos del perfil',
           style: TextStyle(
             color: _ProfileColors.navy,
-            fontSize: 13,
+            fontSize: 14,
             fontWeight: FontWeight.w900,
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         _ProfileAccessTile(
           icon: Icons.person_outline_rounded,
           title: 'Datos personales',
@@ -710,14 +756,14 @@ class _ProfileAccessTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           onTap: onTap,
           child: _SurfaceCard(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               children: [
                 Container(
-                  width: 38,
-                  height: 38,
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
-                    color: _ProfileColors.green.withValues(alpha: 0.10),
+                    color: _ProfileColors.greenSoft,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(icon, color: _ProfileColors.green, size: 20),
@@ -734,7 +780,7 @@ class _ProfileAccessTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: _ProfileColors.navy,
-                          fontSize: 13,
+                          fontSize: 14,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -745,7 +791,7 @@ class _ProfileAccessTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: _ProfileColors.muted,
-                          fontSize: 10,
+                          fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -760,6 +806,13 @@ class _ProfileAccessTile extends StatelessWidget {
                     height: 40,
                   ),
                   padding: EdgeInsets.zero,
+                  style: IconButton.styleFrom(
+                    backgroundColor: _ProfileColors.surfaceTint,
+                    foregroundColor: _ProfileColors.muted,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
                   icon: Icon(
                     trailingIcon,
                     color: _ProfileColors.muted,
@@ -1319,9 +1372,9 @@ class _SurfaceCard extends StatelessWidget {
         border: Border.all(color: _ProfileColors.line),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.035),
-            blurRadius: 14,
-            offset: const Offset(0, 8),
+            color: _ProfileColors.navy.withValues(alpha: 0.055),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
@@ -1351,30 +1404,44 @@ class _ProfileAvatar extends StatelessWidget {
           height: size,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: _ProfileColors.green.withValues(alpha: 0.12),
-            border: Border.all(color: _ProfileColors.greenLight, width: 2),
+            color: _ProfileColors.greenSoft,
+            border: Border.all(color: Colors.white, width: 4),
+            boxShadow: [
+              BoxShadow(
+                color: _ProfileColors.navy.withValues(alpha: 0.16),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           alignment: Alignment.center,
           child: showPhoto
               ? ClipOval(
-                  child: Image.asset(
-                    'assets/images/aprendices_sena.png',
-                    width: size,
-                    height: size,
-                    fit: BoxFit.cover,
-                    alignment: Alignment.topCenter,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Center(
-                        child: Text(
-                          initials,
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                color: _ProfileColors.navy,
-                                fontWeight: FontWeight.w900,
-                              ),
-                        ),
-                      );
-                    },
+                  child: Transform.translate(
+                    offset: Offset(size * 0.11, 0),
+                    child: Transform.scale(
+                      scale: 2.52,
+                      alignment: Alignment.topCenter,
+                      child: Image.asset(
+                        'assets/images/aprendices_sena.png',
+                        width: size,
+                        height: size,
+                        fit: BoxFit.cover,
+                        alignment: Alignment.topCenter,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Center(
+                            child: Text(
+                              initials,
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(
+                                    color: _ProfileColors.navy,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
                   ),
                 )
               : Text(
@@ -1447,18 +1514,39 @@ class _HeaderBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: _ProfileColors.green.withValues(alpha: 0.10),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(999),
+        boxShadow: [
+          BoxShadow(
+            color: _ProfileColors.headerDeep.withValues(alpha: 0.16),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: _ProfileColors.green,
-            fontSize: 11,
-            fontWeight: FontWeight.w900,
-          ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: const BoxDecoration(
+                color: _ProfileColors.green,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                color: _ProfileColors.green,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1664,12 +1752,16 @@ String _cleanErrorMessage(Object? error) {
 }
 
 abstract final class _ProfileColors {
-  static const background = Color(0xFFF6F8FB);
-  static const navy = Color(0xFF062E4F);
-  static const headerBlue = Color(0xFF063450);
+  static const background = Color(0xFFF2F5FB);
+  static const navy = Color(0xFF092444);
+  static const headerDeep = Color(0xFF001B44);
+  static const headerBlue = Color(0xFF052D4F);
+  static const headerAccent = Color(0xFF073D83);
+  static const headerDot = Color(0xFF00A4E4);
   static const green = Color(0xFF39A900);
-  static const greenLight = Color(0xFFBDE9B2);
-  static const muted = Color(0xFF6F7C8E);
-  static const line = Color(0xFFE8EDF4);
+  static const greenSoft = Color(0xFFE7F3E3);
+  static const muted = Color(0xFF607086);
+  static const line = Color(0xFFE9EEF5);
+  static const surfaceTint = Color(0xFFF7FAFE);
   static const danger = Color(0xFFE04444);
 }

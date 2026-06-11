@@ -29,16 +29,29 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
 
-    expect(find.text('Mis observaciones'), findsOneWidget);
-    expect(find.text('Seguimiento registrado para Juan Perez'), findsOneWidget);
-    expect(find.text('Filtros de consulta'), findsOneWidget);
-    expect(find.text('Total: 3'), findsOneWidget);
-    expect(find.text('Abiertas: 3'), findsOneWidget);
-    expect(find.text('Requiere respuesta'), findsOneWidget);
+    expect(find.text('Observatorio'), findsOneWidget);
+    expect(
+      find.text('Consulta tus observaciones y alertas de seguimiento.'),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Mostrar filtros'), findsOneWidget);
+    expect(find.text('Buscar'), findsNothing);
+    expect(find.text('Total de observaciones: 3'), findsOneWidget);
+    expect(find.text('Abiertas: 2'), findsOneWidget);
     expect(find.text('Observaciones registradas'), findsOneWidget);
-    expect(find.text('Mostrando 3 de 3 observaciones'), findsOneWidget);
+    expect(find.text('Mostrando 3 observaciones'), findsOneWidget);
     expect(find.text('Asistencia por justificar'), findsOneWidget);
-    expect(find.text('Enviar soporte'), findsWidgets);
+
+    await tester.tap(find.byTooltip('Mostrar filtros'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Ocultar filtros'), findsOneWidget);
+    expect(find.text('Fecha'), findsOneWidget);
+    expect(find.text('Severidad'), findsOneWidget);
+    expect(find.text('Estado'), findsOneWidget);
+    expect(find.text('Tipo'), findsOneWidget);
+    expect(find.text('Buscar'), findsOneWidget);
+    expect(find.text('Limpiar'), findsOneWidget);
   });
 
   testWidgets('Perfil keeps details inside personal access', (
@@ -84,19 +97,15 @@ void main() {
     expect(find.text('Cerrar sesion'), findsNothing);
 
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Nombres'),
-      'Carlos',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Apellidos'),
-      'Lopez',
+      find.widgetWithText(TextFormField, 'Correo'),
+      'juan.actualizado@misena.edu.co',
     );
     await tester.tap(find.widgetWithText(FilledButton, 'Guardar cambios'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
 
-    expect(find.text('Carlos Lopez'), findsOneWidget);
+    expect(find.text('Datos personales actualizados.'), findsOneWidget);
   });
 
   testWidgets('Perfil opens personal form from access edit action', (
