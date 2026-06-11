@@ -638,7 +638,7 @@ class AttendancePageState extends State<AttendancePage>
     final String nombreInstructor = (instrSesionNombre != null && instrSesionNombre.isNotEmpty)
         ? instrSesionNombre
         : (instrLiderNombre != null && instrLiderNombre.isNotEmpty ? instrLiderNombre : '—');
-    final String grupo = '${nombrePrograma} - ${fichaData['numero_ficha']?.toString() ?? ''}';
+    final String grupo = '$nombrePrograma - ${fichaData['numero_ficha']?.toString() ?? ''}';
     final String ambiente = (sessionData['ambiente'] as Map<String, dynamic>?)?['nombre_ambiente']?.toString() ?? '—';
 
     final rawInicio = sessionData['hora_inicio']?.toString() ?? sessionData['hora_inicio_programada']?.toString() ?? '';
@@ -1144,10 +1144,15 @@ class AttendancePageState extends State<AttendancePage>
 
         if (estado == 'PENDIENTE') {
           pendiente = cantidad;
-        } else if (estado == 'PRESENTE') presente = cantidad;
-        else if (estado == 'INASISTENTE') ausente = cantidad;
-        else if (estado == 'TARDE') retardado = cantidad;
-        else if (estado == 'JUSTIFICADA') justificado = cantidad;
+        } else if (estado == 'PRESENTE') {
+          presente = cantidad;
+        } else if (estado == 'INASISTENTE') {
+          ausente = cantidad;
+        } else if (estado == 'TARDE') {
+          retardado = cantidad;
+        } else if (estado == 'JUSTIFICADA') {
+          justificado = cantidad;
+        }
       }
     }
 
@@ -1552,7 +1557,6 @@ class AttendancePageState extends State<AttendancePage>
       if (fechaClase.length >= 10) {
         final parts = fechaClase.substring(0, 10).split('-');
         if (parts.length == 3) {
-          final year = parts[0];
           final month = parts[1];
           final day = parts[2];
           
