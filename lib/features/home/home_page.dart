@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
+import 'package:sima_movil_froned/features/home/dashboard_qr_flow.dart';
 import 'package:sima_movil_froned/features/observatory/data/observations_repository.dart';
 import 'package:sima_movil_froned/features/observatory/models/observation.dart';
 import 'package:sima_movil_froned/services/attendance_service.dart';
@@ -207,153 +208,195 @@ class _HomePageState extends State<HomePage> {
       'Instructor por asignar',
     ]);
     final date = _formatDateLabel(_firstString([session['fecha_clase']]));
-    final time = _formatTimeRange(
+    final startTime = _formatTime(
       _firstString([session['hora_inicio'], block['hora_inicio']]),
+    );
+    final endTime = _formatTime(
       _firstString([session['hora_fin'], block['hora_fin']]),
     );
     final place = _formatPlace(environment);
+    final group = _firstString([
+      ficha['numero_ficha'],
+      'Grupo por asignar',
+    ]);
+    final programName = _firstString([
+      program['nombre_programa'],
+      program['sigla'],
+      'Programa por asignar',
+    ]);
+    final programShortName = _programShortName(programName);
 
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (context) {
-        return SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(22, 8, 22, 22),
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 22),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE8F7EA),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Icon(
-                        Icons.event_available_rounded,
-                        color: Color(0xFF39A900),
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Tienes una sesion activa',
-                            style: TextStyle(
-                              color: Color(0xFF092444),
-                              fontSize: 19,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Revisa los datos de la clase antes de validar tu asistencia.',
-                            style: TextStyle(
-                              color: Color(0xFF607086),
-                              fontSize: 13,
-                              height: 1.3,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD8DDE6),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Container(
+                  width: 68,
+                  height: 68,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF092444),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.person_rounded,
+                    color: Colors.white,
+                    size: 38,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Tienes una sesión activa',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF092444),
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: 18),
-                _ActiveSessionInfoRow(
-                  icon: Icons.confirmation_number_outlined,
-                  label: 'Ficha',
-                  value: _firstString([ficha['numero_ficha'], 'Sin ficha']),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF092444),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    children: [
+                      _ActiveSessionInfoRow(
+                        icon: Icons.description_outlined,
+                        label: 'Programa',
+                        value: programShortName,
+                      ),
+                      _ActiveSessionInfoRow(
+                        icon: Icons.adjust_rounded,
+                        label: 'Competencia',
+                        value: _firstString([
+                          competency['nombre_competencia'],
+                          'Clase programada',
+                        ]),
+                      ),
+                      _ActiveSessionInfoRow(
+                        icon: Icons.person_outline,
+                        label: 'Instructor',
+                        value: instructorName,
+                      ),
+                      _ActiveSessionInfoRow(
+                        icon: Icons.groups_outlined,
+                        label: 'Grupo',
+                        value: '$programShortName - $group',
+                      ),
+                      _ActiveSessionInfoRow(
+                        icon: Icons.science_outlined,
+                        label: 'Ambiente',
+                        value: place,
+                        showDivider: false,
+                      ),
+                      const SizedBox(height: 14),
+                      _ActiveSessionTimePanel(
+                        startTime: startTime.isEmpty ? 'Por definir' : startTime,
+                        endTime: endTime.isEmpty ? 'Por definir' : endTime,
+                        date: date,
+                      ),
+                    ],
+                  ),
                 ),
-                _ActiveSessionInfoRow(
-                  icon: Icons.school_outlined,
-                  label: 'Programa',
-                  value: _firstString([
-                    program['nombre_programa'],
-                    'Programa por asignar',
-                  ]),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton.icon(
+                    onPressed: () async {
+                      Navigator.of(context).pop();
+                      await startDashboardQrFlow(context);
+                    },
+                    icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
+                    label: const Text('Escanear QR de la sesión'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF28B000),
+                      foregroundColor: Colors.white,
+                      textStyle: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
                 ),
-                _ActiveSessionInfoRow(
-                  icon: Icons.menu_book_outlined,
-                  label: 'Competencia',
-                  value: _firstString([
-                    competency['nombre_competencia'],
-                    'Clase programada',
-                  ]),
-                ),
-                _ActiveSessionInfoRow(
-                  icon: Icons.calendar_today_outlined,
-                  label: 'Fecha',
-                  value: date,
-                ),
-                _ActiveSessionInfoRow(
-                  icon: Icons.schedule_outlined,
-                  label: 'Horario',
-                  value: time,
-                ),
-                _ActiveSessionInfoRow(
-                  icon: Icons.place_outlined,
-                  label: 'Ambiente',
-                  value: place,
-                ),
-                _ActiveSessionInfoRow(
-                  icon: Icons.person_outline,
-                  label: 'Instructor',
-                  value: instructorName,
-                ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 14),
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: null,
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF092444),
-                          minimumSize: const Size.fromHeight(48),
+                          minimumSize: const Size.fromHeight(38),
                           side: const BorderSide(color: Color(0xFFE1E7F0)),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: const Text('Cerrar'),
+                        child: const Text('Reconocimiento facial'),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: FilledButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          widget.onNavigateToAttendance?.call(0);
-                        },
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF39A900),
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size.fromHeight(48),
+                      child: OutlinedButton(
+                        onPressed: null,
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(38),
+                          side: const BorderSide(color: Color(0xFFE1E7F0)),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: const Text('Ir a asistencia'),
+                        child: const Text('Huella'),
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text(
+                    'Cancelar',
+                    style: TextStyle(
+                      color: Color(0xFF8B97A8),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
               ],
+            ),
             ),
           ),
         );
@@ -606,55 +649,171 @@ class _ActiveSessionInfoRow extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
+    this.showDivider = true,
   });
 
   final IconData icon;
   final String label;
   final String value;
+  final bool showDivider;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: const Color(0xFFB8C6D8), size: 20),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 74,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF9EADC1),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  value.isEmpty ? 'Sin información' : value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (showDivider)
+          Container(
+            height: 1,
+            color: const Color(0xFF244361),
+          ),
+      ],
+    );
+  }
+}
+
+class _ActiveSessionTimePanel extends StatelessWidget {
+  const _ActiveSessionTimePanel({
+    required this.startTime,
+    required this.endTime,
+    required this.date,
+  });
+
+  final String startTime;
+  final String endTime;
+  final String date;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF7FAFE),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE9EEF5)),
+        color: const Color(0xFF113A69),
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
         children: [
-          Icon(icon, color: const Color(0xFF39A900), size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          if (date.isNotEmpty) ...[
+            Text(
+              date,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFFB8C6D8),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          Row(
+            children: [
+              Expanded(
+                child: _ActiveSessionTimeValue(
+                  label: 'Hora inicio',
+                  value: startTime,
+                ),
+              ),
+              Container(
+                height: 42,
+                width: 1,
+                color: const Color(0xFF446083),
+              ),
+              Expanded(
+                child: _ActiveSessionTimeValue(
+                  label: 'Hora fin',
+                  value: endTime,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActiveSessionTimeValue extends StatelessWidget {
+  const _ActiveSessionTimeValue({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(
+          Icons.schedule_rounded,
+          color: Colors.white,
+          size: 18,
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   label,
                   style: const TextStyle(
-                    color: Color(0xFF607086),
-                    fontSize: 11,
+                    color: Color(0xFF2DCC35),
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 3),
                 Text(
-                  value.isEmpty ? 'Sin informacion' : value,
-                  maxLines: 2,
+                  value,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Color(0xFF092444),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
               ],
             ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -1932,6 +2091,27 @@ String _formatPlace(Map<String, dynamic> environment) {
   if (location.isEmpty) return name;
   if (name.isEmpty) return location;
   return '$name - $location';
+}
+
+String _programShortName(String value) {
+  final text = value.trim();
+  if (text.isEmpty) return 'Programa';
+
+  final upperWords = RegExp(r'\b[A-Z]{2,}\b')
+      .allMatches(text)
+      .map((match) => match.group(0)!)
+      .toList(growable: false);
+  if (upperWords.isNotEmpty) {
+    return upperWords.first;
+  }
+
+  final initials = text
+      .split(RegExp(r'\s+'))
+      .where((word) => word.length > 2)
+      .map((word) => word[0].toUpperCase())
+      .take(5)
+      .join();
+  return initials.isEmpty ? text : initials;
 }
 
 String _statusLabel(String value) {
