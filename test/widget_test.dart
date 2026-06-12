@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sima_movil_froned/features/observatory/data/observations_repository.dart';
+import 'package:sima_movil_froned/features/observatory/models/observation.dart';
 import 'package:sima_movil_froned/features/observatory/observatory_page.dart';
 import 'package:sima_movil_froned/features/profile/data/profile_repository.dart';
 import 'package:sima_movil_froned/features/profile/profile_page.dart';
@@ -45,13 +46,89 @@ void main() {
     await tester.tap(find.byTooltip('Mostrar filtros'));
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('Ocultar filtros'), findsOneWidget);
-    expect(find.text('Fecha'), findsOneWidget);
+    expect(find.byTooltip('Cerrar filtros'), findsOneWidget);
+    expect(find.text('Filtros'), findsOneWidget);
+    expect(find.text('Fecha'), findsWidgets);
     expect(find.text('Severidad'), findsOneWidget);
     expect(find.text('Estado'), findsOneWidget);
     expect(find.text('Tipo'), findsOneWidget);
-    expect(find.text('Buscar'), findsOneWidget);
-    expect(find.text('Limpiar'), findsOneWidget);
+    expect(find.text('Limpiar filtros'), findsOneWidget);
+    expect(find.text('Ver 3 resultados'), findsNothing);
+  });
+
+  testWidgets('Observatorio applies every selected filter and clears them', (
+    WidgetTester tester,
+  ) async {
+    useDesktopViewport(tester);
+    final repository = RecordingObservatoryRepository();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: ObservatoryPage(repository: repository)),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+
+    expect(repository.observationFilters.single.severidad, isNull);
+
+    await tester.tap(find.byTooltip('Mostrar filtros'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Desde: Todos'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hasta: Todos'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Severidad'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CRITICA'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Estado'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CERRADA').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Tipo'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Convivencia');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Cerrar filtros'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+
+    expect(repository.observationFilters.length, greaterThan(1));
+    final appliedFilters = repository.observationFilters.last;
+    expect(appliedFilters.fechaDesde, isNotNull);
+    expect(appliedFilters.fechaHasta, isNotNull);
+    expect(
+      appliedFilters.fechaHasta!.isBefore(appliedFilters.fechaDesde!),
+      isFalse,
+    );
+    expect(appliedFilters.severidad, 'CRITICA');
+    expect(appliedFilters.estado, 'CERRADA');
+    expect(appliedFilters.tipo, 'Convivencia');
+
+    await tester.tap(find.byTooltip('Mostrar filtros'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Limpiar filtros'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Cerrar filtros'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+
+    final clearedFilters = repository.observationFilters.last;
+    expect(clearedFilters.fechaDesde, isNull);
+    expect(clearedFilters.fechaHasta, isNull);
+    expect(clearedFilters.severidad, isNull);
+    expect(clearedFilters.estado, isNull);
+    expect(clearedFilters.tipo, isNull);
   });
 
   testWidgets('Perfil keeps details inside personal access', (
@@ -156,4 +233,23 @@ void main() {
     );
     expect(find.text('Cerrar sesion'), findsNWidgets(2));
   });
+}
+
+class RecordingObservatoryRepository extends MockObservationsRepository {
+  final observationFilters = <ObservatoryFilters>[];
+  final alertFilters = <ObservatoryFilters>[];
+
+  @override
+  Future<ObservatoryObservationResponse> fetchObservations(
+    ObservatoryFilters filters,
+  ) {
+    observationFilters.add(filters);
+    return super.fetchObservations(filters);
+  }
+
+  @override
+  Future<ObservatoryAlertResponse> fetchAlerts(ObservatoryFilters filters) {
+    alertFilters.add(filters);
+    return super.fetchAlerts(filters);
+  }
 }
