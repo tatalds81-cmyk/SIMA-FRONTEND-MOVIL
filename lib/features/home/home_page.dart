@@ -2,8 +2,10 @@ import 'dart:math' as math;
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
+import 'package:sima_movil_froned/features/attendance/attendance_page.dart';
 import 'package:sima_movil_froned/features/observatory/data/observations_repository.dart';
 import 'package:sima_movil_froned/features/observatory/models/observation.dart';
+import 'package:sima_movil_froned/features/observatory/observatory_page.dart';
 import 'package:sima_movil_froned/services/attendance_service.dart';
 
 class HomePage extends StatefulWidget {
@@ -11,11 +13,14 @@ class HomePage extends StatefulWidget {
     super.key,
     required this.hasActiveSession,
     required this.hasVerifiedSession,
+    this.onNavigateToAttendance,
+    this.onNavigateToObservatory,
   });
-  //hola//
 
   final bool hasActiveSession;
   final bool hasVerifiedSession;
+  final Function(int)? onNavigateToAttendance;
+  final Function(int)? onNavigateToObservatory;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -198,67 +203,75 @@ class _HomePageState extends State<HomePage> {
                           ),
                           const SizedBox(height: 14),
                         ],
-                        if (!widget.hasVerifiedSession)
-                          const _NoScheduledSessionCard()
-                        else
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(18),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.04),
-                                  blurRadius: 18,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 48,
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE8F7EA),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: const Icon(
-                                    Icons.school_rounded,
-                                    color: Color(0xFF39A900),
-                                    size: 28,
-                                  ),
-                                ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: const [
-                                      Text(
-                                        'Bienvenido Aprendiz',
-                                        style: TextStyle(
-                                          color: Color(0xFF092444),
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                      SizedBox(height: 4),
-                                      Text(
-                                        'Consulta tus próximas clases y mantente al día con tus asistencias.',
-                                        style: TextStyle(
-                                          color: Color(0xFF607086),
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.04),
+                                blurRadius: 18,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
                           ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE8F7EA),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Icon(
+                                  Icons.school_rounded,
+                                  color: Color(0xFF39A900),
+                                  size: 28,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: const [
+                                    Text(
+                                      'Bienvenido Aprendiz',
+                                      style: TextStyle(
+                                        color: Color(0xFF092444),
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      'Consulta tus próximas clases y mantente al día con tus asistencias.',
+                                      style: TextStyle(
+                                        color: Color(0xFF607086),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        _QuickAccessSection(
+                          onAttendanceTap: () {
+                            widget.onNavigateToAttendance?.call(1);
+                          },
+                          onJustifyTap: () {
+                            widget.onNavigateToAttendance?.call(2);
+                          },
+                          onObservationsTap: () {
+                            widget.onNavigateToObservatory?.call(0);
+                          },
+                        ),
                         const SizedBox(height: 18),
                         LayoutBuilder(
                           builder: (context, constraints) {
@@ -278,8 +291,7 @@ class _HomePageState extends State<HomePage> {
                                   isLoading: isLoading,
                                   emptyMessage: data.scheduleMessage,
                                 ),
-                                const SizedBox(height: 14),
-                                const _HistoryButton(),
+                                const SizedBox(height: 18),
                               ],
                             );
                           },
@@ -1129,41 +1141,124 @@ class _EmptyScheduleCard extends StatelessWidget {
   }
 }
 
-class _HistoryButton extends StatelessWidget {
-  const _HistoryButton();
+class _QuickAccessSection extends StatelessWidget {
+  const _QuickAccessSection({
+    required this.onAttendanceTap,
+    required this.onJustifyTap,
+    required this.onObservationsTap,
+  });
+
+  final VoidCallback onAttendanceTap;
+  final VoidCallback onJustifyTap;
+  final VoidCallback onObservationsTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Accesos rápidos',
+          style: TextStyle(
+            color: Color(0xFF092444),
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 10),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final itemWidth = (constraints.maxWidth - 20) / 3;
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                SizedBox(
+                  width: itemWidth.clamp(100, constraints.maxWidth),
+                  child: _QuickAccessCard(
+                    icon: Icons.calendar_today_rounded,
+                    label: 'Mis asistencias',
+                    color: const Color(0xFF39A900),
+                    onTap: onAttendanceTap,
+                  ),
+                ),
+                SizedBox(
+                  width: itemWidth.clamp(100, constraints.maxWidth),
+                  child: _QuickAccessCard(
+                    icon: Icons.description_rounded,
+                    label: 'Justificaciones',
+                    color: const Color(0xFF0F9D58),
+                    onTap: onJustifyTap,
+                  ),
+                ),
+                SizedBox(
+                  width: itemWidth.clamp(100, constraints.maxWidth),
+                  child: _QuickAccessCard(
+                    icon: Icons.notifications_active_rounded,
+                    label: 'Alertas y observaciones',
+                    color: const Color(0xFFF4A900),
+                    onTap: onObservationsTap,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _QuickAccessCard extends StatelessWidget {
+  const _QuickAccessCard({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(18),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: () {},
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
         child: Container(
-          height: 54,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          constraints: const BoxConstraints(minHeight: 100),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(color: const Color(0xFFE9EEF5)),
           ),
-          child: const Row(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.history_rounded, color: Color(0xFF092444), size: 20),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Ver historial de asistencias',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Color(0xFF092444),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                  ),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Color(0xFF092444),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              Icon(Icons.chevron_right_rounded, color: Color(0xFF092444)),
             ],
           ),
         ),
