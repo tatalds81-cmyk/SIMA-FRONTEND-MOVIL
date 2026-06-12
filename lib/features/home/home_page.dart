@@ -351,39 +351,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: null,
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(38),
-                          side: const BorderSide(color: Color(0xFFE1E7F0)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text('Reconocimiento facial'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: null,
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(38),
-                          side: const BorderSide(color: Color(0xFFE1E7F0)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text('Huella'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
+                // const SizedBox(height: 16), // Espacio removido junto con los botones
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
                   child: const Text(
