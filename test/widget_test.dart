@@ -35,25 +35,19 @@ void main() {
       find.text('Consulta tus observaciones y alertas de seguimiento.'),
       findsOneWidget,
     );
-    expect(find.byTooltip('Mostrar filtros'), findsOneWidget);
-    expect(find.text('Buscar'), findsNothing);
+    expect(find.text('Filtros'), findsOneWidget);
+    expect(find.text('Buscar'), findsOneWidget);
+    expect(find.text('Limpiar'), findsOneWidget);
     expect(find.text('Total de observaciones: 3'), findsOneWidget);
     expect(find.text('Abiertas: 2'), findsOneWidget);
     expect(find.text('Observaciones registradas'), findsOneWidget);
     expect(find.text('Mostrando 3 observaciones'), findsOneWidget);
     expect(find.text('Asistencia por justificar'), findsOneWidget);
-
-    await tester.tap(find.byTooltip('Mostrar filtros'));
-    await tester.pumpAndSettle();
-
-    expect(find.byTooltip('Cerrar filtros'), findsOneWidget);
-    expect(find.text('Filtros'), findsOneWidget);
-    expect(find.text('Fecha'), findsWidgets);
+    expect(find.text('Desde'), findsOneWidget);
+    expect(find.text('Hasta'), findsOneWidget);
     expect(find.text('Severidad'), findsOneWidget);
     expect(find.text('Estado'), findsOneWidget);
     expect(find.text('Tipo'), findsOneWidget);
-    expect(find.text('Limpiar filtros'), findsOneWidget);
-    expect(find.text('Ver 3 resultados'), findsNothing);
   });
 
   testWidgets('Observatorio applies every selected filter and clears them', (
@@ -72,14 +66,11 @@ void main() {
 
     expect(repository.observationFilters.single.severidad, isNull);
 
-    await tester.tap(find.byTooltip('Mostrar filtros'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Desde: Todos'));
+    await tester.tap(find.text('Desde'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('OK').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Hasta: Todos'));
+    await tester.tap(find.text('Hasta'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('OK').last);
     await tester.pumpAndSettle();
@@ -99,8 +90,7 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Convivencia');
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Cerrar filtros'));
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Buscar'));
     await tester.pumpAndSettle();
 
     expect(repository.observationFilters.length, greaterThan(1));
@@ -115,12 +105,7 @@ void main() {
     expect(appliedFilters.estado, 'CERRADA');
     expect(appliedFilters.tipo, 'Convivencia');
 
-    await tester.tap(find.byTooltip('Mostrar filtros'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Limpiar filtros'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Cerrar filtros'));
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Limpiar'));
     await tester.pumpAndSettle();
 
     final clearedFilters = repository.observationFilters.last;
