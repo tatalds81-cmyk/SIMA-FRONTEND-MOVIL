@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:sima_movil_froned/services/attendance_service.dart';
 import 'dart:math' as math;
 
@@ -37,9 +37,9 @@ class _AttendancePageState extends State<AttendancePage>
   @override
   void initState() {
     super.initState();
-    final initialIndex = widget.initialTabIndex.clamp(0, 3);
+    final initialIndex = widget.initialTabIndex.clamp(0, 2);
     _tabController = TabController(
-      length: 4,
+      length: 3,
       vsync: this,
       initialIndex: initialIndex,
     );
@@ -322,7 +322,7 @@ class _AttendancePageState extends State<AttendancePage>
                   Tab(text: 'Resumen'),
                   Tab(text: 'Historial'),
                   Tab(text: 'Justificar'),
-                  Tab(text: 'EstadÃ­sticas'),
+
                 ],
               ),
             ),
@@ -348,13 +348,7 @@ class _AttendancePageState extends State<AttendancePage>
                     ),
                   ),
 
-                  // â”€â”€ Tab 3: EstadÃ­sticas (vacÃ­o) â”€â”€
-                  const Center(
-                    child: Text(
-                      'EstadÃ­sticas prÃ³ximamente',
-                      style: TextStyle(color: Color(0xFF607086), fontSize: 15),
-                    ),
-                  ),
+
                 ],
               ),
             ),
@@ -527,7 +521,7 @@ class _AttendancePageState extends State<AttendancePage>
                         // Segunda fila: Fecha (solo si hay sesiÃ³n activa)
                         if (haySession) ...[
                           const SizedBox(height: 8),
-                          _bannerInlineText('Fecha de sesiÃ³n: ', fechaFormateada),
+                          _bannerInlineText('Fecha de sesión: ', fechaFormateada),
                         ] else ...[
                           const SizedBox(height: 8),
                           Text(
@@ -578,7 +572,7 @@ class _AttendancePageState extends State<AttendancePage>
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        isActive ? 'Activa' : 'Sin sesiÃ³n',
+        isActive ? 'Activa' : 'Sin sesión',
         style: const TextStyle(
           color: Colors.white,
           fontSize: 12,
