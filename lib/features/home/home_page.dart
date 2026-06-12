@@ -32,6 +32,7 @@ class _HomePageState extends State<HomePage> {
       const BackendObservatoryRepository();
   late Future<_DashboardData> _dashboardFuture;
   int _currentClass = 0;
+  bool _activeSessionPromptShown = false;
 
   // ignore: unused_field
   final List<ClassItem> _classes = const [
@@ -136,6 +137,7 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _dashboardFuture = _fetchDashboardData();
+    _showActiveSessionPrompt();
   }
 
   Future<_DashboardData> _fetchDashboardData() async {
@@ -160,6 +162,203 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _dashboardFuture = _fetchDashboardData();
     });
+  }
+
+  Future<void> _showActiveSessionPrompt() async {
+    try {
+      final data = await AttendanceService.getSessions();
+      if (!mounted || _activeSessionPromptShown) {
+        return;
+      }
+
+      final activeSession = data?['sesion_activa'] as Map<String, dynamic>?;
+      if (activeSession == null) {
+        return;
+      }
+
+      _activeSessionPromptShown = true;
+      final ficha = data?['ficha'] as Map<String, dynamic>? ?? {};
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _showActiveSessionBottomSheet(activeSession, ficha);
+      });
+    } catch (_) {
+      // The dashboard should still load normally if the active-session lookup fails.
+    }
+  }
+
+  void _showActiveSessionBottomSheet(
+    Map<String, dynamic> session,
+    Map<String, dynamic> ficha,
+  ) {
+    final program = ficha['programa'] as Map<String, dynamic>? ?? {};
+    final instructor = session['instructor'] as Map<String, dynamic>? ?? {};
+    final leader = ficha['instructor_lider'] as Map<String, dynamic>? ?? {};
+    final environment = session['ambiente'] as Map<String, dynamic>? ?? {};
+    final competency = session['competencia'] as Map<String, dynamic>? ?? {};
+    final block = session['bloque_jornada'] as Map<String, dynamic>? ?? {};
+
+    final instructorName = _firstString([
+      instructor['nombre_completo'],
+      leader['registrado'] == true ? leader['nombre_completo'] : null,
+      'Instructor por asignar',
+    ]);
+    final date = _formatDateLabel(_firstString([session['fecha_clase']]));
+    final time = _formatTimeRange(
+      _firstString([session['hora_inicio'], block['hora_inicio']]),
+      _firstString([session['hora_fin'], block['hora_fin']]),
+    );
+    final place = _formatPlace(environment);
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 8, 22, 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F7EA),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(
+                        Icons.event_available_rounded,
+                        color: Color(0xFF39A900),
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Tienes una sesion activa',
+                            style: TextStyle(
+                              color: Color(0xFF092444),
+                              fontSize: 19,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Revisa los datos de la clase antes de validar tu asistencia.',
+                            style: TextStyle(
+                              color: Color(0xFF607086),
+                              fontSize: 13,
+                              height: 1.3,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                _ActiveSessionInfoRow(
+                  icon: Icons.confirmation_number_outlined,
+                  label: 'Ficha',
+                  value: _firstString([ficha['numero_ficha'], 'Sin ficha']),
+                ),
+                _ActiveSessionInfoRow(
+                  icon: Icons.school_outlined,
+                  label: 'Programa',
+                  value: _firstString([
+                    program['nombre_programa'],
+                    'Programa por asignar',
+                  ]),
+                ),
+                _ActiveSessionInfoRow(
+                  icon: Icons.menu_book_outlined,
+                  label: 'Competencia',
+                  value: _firstString([
+                    competency['nombre_competencia'],
+                    'Clase programada',
+                  ]),
+                ),
+                _ActiveSessionInfoRow(
+                  icon: Icons.calendar_today_outlined,
+                  label: 'Fecha',
+                  value: date,
+                ),
+                _ActiveSessionInfoRow(
+                  icon: Icons.schedule_outlined,
+                  label: 'Horario',
+                  value: time,
+                ),
+                _ActiveSessionInfoRow(
+                  icon: Icons.place_outlined,
+                  label: 'Ambiente',
+                  value: place,
+                ),
+                _ActiveSessionInfoRow(
+                  icon: Icons.person_outline,
+                  label: 'Instructor',
+                  value: instructorName,
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF092444),
+                          minimumSize: const Size.fromHeight(48),
+                          side: const BorderSide(color: Color(0xFFE1E7F0)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('Cerrar'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          widget.onNavigateToAttendance?.call(0);
+                        },
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF39A900),
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size.fromHeight(48),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('Ir a asistencia'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -400,6 +599,64 @@ class _CarouselScrollBehavior extends MaterialScrollBehavior {
     PointerDeviceKind.stylus,
     PointerDeviceKind.unknown,
   };
+}
+
+class _ActiveSessionInfoRow extends StatelessWidget {
+  const _ActiveSessionInfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7FAFE),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE9EEF5)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: const Color(0xFF39A900), size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Color(0xFF607086),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  value.isEmpty ? 'Sin informacion' : value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF092444),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _HomeHeader extends StatelessWidget {
@@ -1628,6 +1885,26 @@ String _formatDay(String value) {
     'Domingo',
   ];
   return days[date.weekday - 1];
+}
+
+String _formatDateLabel(String value) {
+  final date = DateTime.tryParse(value);
+  if (date == null) return 'Fecha por definir';
+  const months = [
+    'ene',
+    'feb',
+    'mar',
+    'abr',
+    'may',
+    'jun',
+    'jul',
+    'ago',
+    'sep',
+    'oct',
+    'nov',
+    'dic',
+  ];
+  return '${date.day} ${months[date.month - 1]} ${date.year}';
 }
 
 String _formatTimeRange(String start, String end) {
