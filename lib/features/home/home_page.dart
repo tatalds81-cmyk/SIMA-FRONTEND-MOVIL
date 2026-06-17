@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
+import 'package:sima_movil_froned/features/home/dashboard_qr_flow.dart';
 import 'package:sima_movil_froned/features/observatory/data/observations_repository.dart';
 import 'package:sima_movil_froned/features/observatory/models/observation.dart';
 import 'package:sima_movil_froned/services/attendance_service.dart';
@@ -11,11 +12,14 @@ class HomePage extends StatefulWidget {
     super.key,
     required this.hasActiveSession,
     required this.hasVerifiedSession,
+    this.onNavigateToAttendance,
+    this.onNavigateToObservatory,
   });
-  //hola//
 
   final bool hasActiveSession;
   final bool hasVerifiedSession;
+  final Function(int)? onNavigateToAttendance;
+  final Function(int)? onNavigateToObservatory;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -29,6 +33,7 @@ class _HomePageState extends State<HomePage> {
       const BackendObservatoryRepository();
   late Future<_DashboardData> _dashboardFuture;
   int _currentClass = 0;
+  bool _activeSessionPromptShown = false;
 
   // ignore: unused_field
   final List<ClassItem> _classes = const [
@@ -133,6 +138,7 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _dashboardFuture = _fetchDashboardData();
+    _showActiveSessionPrompt();
   }
 
   Future<_DashboardData> _fetchDashboardData() async {
@@ -157,6 +163,213 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _dashboardFuture = _fetchDashboardData();
     });
+  }
+
+  Future<void> _showActiveSessionPrompt() async {
+    try {
+      final data = await AttendanceService.getSessions();
+      if (!mounted || _activeSessionPromptShown) {
+        return;
+      }
+
+      final activeSession = data?['sesion_activa'] as Map<String, dynamic>?;
+      if (activeSession == null) {
+        return;
+      }
+
+      _activeSessionPromptShown = true;
+      final ficha = data?['ficha'] as Map<String, dynamic>? ?? {};
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _showActiveSessionBottomSheet(activeSession, ficha);
+      });
+    } catch (_) {
+      // The dashboard should still load normally if the active-session lookup fails.
+    }
+  }
+
+  void _showActiveSessionBottomSheet(
+    Map<String, dynamic> session,
+    Map<String, dynamic> ficha,
+  ) {
+    final program = ficha['programa'] as Map<String, dynamic>? ?? {};
+    final instructor = session['instructor'] as Map<String, dynamic>? ?? {};
+    final leader = ficha['instructor_lider'] as Map<String, dynamic>? ?? {};
+    final environment = session['ambiente'] as Map<String, dynamic>? ?? {};
+    final competency = session['competencia'] as Map<String, dynamic>? ?? {};
+    final block = session['bloque_jornada'] as Map<String, dynamic>? ?? {};
+
+    final instructorName = _firstString([
+      instructor['nombre_completo'],
+      leader['registrado'] == true ? leader['nombre_completo'] : null,
+      'Instructor por asignar',
+    ]);
+    final date = _formatDateLabel(_firstString([session['fecha_clase']]));
+    final startTime = _formatTime(
+      _firstString([session['hora_inicio'], block['hora_inicio']]),
+    );
+    final endTime = _formatTime(
+      _firstString([session['hora_fin'], block['hora_fin']]),
+    );
+    final place = _formatPlace(environment);
+    final group = _firstString([
+      ficha['numero_ficha'],
+      'Grupo por asignar',
+    ]);
+    final programName = _firstString([
+      program['nombre_programa'],
+      program['sigla'],
+      'Programa por asignar',
+    ]);
+    final programShortName = _programShortName(programName);
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD8DDE6),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Container(
+                  width: 68,
+                  height: 68,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF092444),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.person_rounded,
+                    color: Colors.white,
+                    size: 38,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Tienes una sesión activa',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF092444),
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF092444),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    children: [
+                      _ActiveSessionInfoRow(
+                        icon: Icons.description_outlined,
+                        label: 'Programa',
+                        value: programShortName,
+                      ),
+                      _ActiveSessionInfoRow(
+                        icon: Icons.adjust_rounded,
+                        label: 'Competencia',
+                        value: _firstString([
+                          competency['nombre_competencia'],
+                          'Clase programada',
+                        ]),
+                      ),
+                      _ActiveSessionInfoRow(
+                        icon: Icons.person_outline,
+                        label: 'Instructor',
+                        value: instructorName,
+                      ),
+                      _ActiveSessionInfoRow(
+                        icon: Icons.groups_outlined,
+                        label: 'Grupo',
+                        value: '$programShortName - $group',
+                      ),
+                      _ActiveSessionInfoRow(
+                        icon: Icons.science_outlined,
+                        label: 'Ambiente',
+                        value: place,
+                        showDivider: false,
+                      ),
+                      const SizedBox(height: 14),
+                      _ActiveSessionTimePanel(
+                        startTime: startTime.isEmpty ? 'Por definir' : startTime,
+                        endTime: endTime.isEmpty ? 'Por definir' : endTime,
+                        date: date,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton.icon(
+                    onPressed: () async {
+                      Navigator.of(context).pop();
+                      await startDashboardQrFlow(context);
+                    },
+                    icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
+                    label: const Text('Escanear QR de la sesión'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF28B000),
+                      foregroundColor: Colors.white,
+                      textStyle: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+                // const SizedBox(height: 16), // Espacio removido junto con los botones
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text(
+                    'Cancelar',
+                    style: TextStyle(
+                      color: Color(0xFF8B97A8),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -198,67 +411,75 @@ class _HomePageState extends State<HomePage> {
                           ),
                           const SizedBox(height: 14),
                         ],
-                        if (!widget.hasVerifiedSession)
-                          const _NoScheduledSessionCard()
-                        else
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(18),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.04),
-                                  blurRadius: 18,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 48,
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE8F7EA),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: const Icon(
-                                    Icons.school_rounded,
-                                    color: Color(0xFF39A900),
-                                    size: 28,
-                                  ),
-                                ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: const [
-                                      Text(
-                                        'Bienvenido Aprendiz',
-                                        style: TextStyle(
-                                          color: Color(0xFF092444),
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                      SizedBox(height: 4),
-                                      Text(
-                                        'Consulta tus próximas clases y mantente al día con tus asistencias.',
-                                        style: TextStyle(
-                                          color: Color(0xFF607086),
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.04),
+                                blurRadius: 18,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
                           ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE8F7EA),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Icon(
+                                  Icons.school_rounded,
+                                  color: Color(0xFF39A900),
+                                  size: 28,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: const [
+                                    Text(
+                                      'Bienvenido Aprendiz',
+                                      style: TextStyle(
+                                        color: Color(0xFF092444),
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      'Consulta tus próximas clases y mantente al día con tus asistencias.',
+                                      style: TextStyle(
+                                        color: Color(0xFF607086),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        _QuickAccessSection(
+                          onAttendanceTap: () {
+                            widget.onNavigateToAttendance?.call(1);
+                          },
+                          onJustifyTap: () {
+                            widget.onNavigateToAttendance?.call(2);
+                          },
+                          onObservationsTap: () {
+                            widget.onNavigateToObservatory?.call(0);
+                          },
+                        ),
                         const SizedBox(height: 18),
                         LayoutBuilder(
                           builder: (context, constraints) {
@@ -278,8 +499,7 @@ class _HomePageState extends State<HomePage> {
                                   isLoading: isLoading,
                                   emptyMessage: data.scheduleMessage,
                                 ),
-                                const SizedBox(height: 14),
-                                const _HistoryButton(),
+                                const SizedBox(height: 18),
                               ],
                             );
                           },
@@ -390,6 +610,180 @@ class _CarouselScrollBehavior extends MaterialScrollBehavior {
     PointerDeviceKind.stylus,
     PointerDeviceKind.unknown,
   };
+}
+
+class _ActiveSessionInfoRow extends StatelessWidget {
+  const _ActiveSessionInfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.showDivider = true,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool showDivider;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: const Color(0xFFB8C6D8), size: 20),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 74,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF9EADC1),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  value.isEmpty ? 'Sin información' : value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (showDivider)
+          Container(
+            height: 1,
+            color: const Color(0xFF244361),
+          ),
+      ],
+    );
+  }
+}
+
+class _ActiveSessionTimePanel extends StatelessWidget {
+  const _ActiveSessionTimePanel({
+    required this.startTime,
+    required this.endTime,
+    required this.date,
+  });
+
+  final String startTime;
+  final String endTime;
+  final String date;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF113A69),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          if (date.isNotEmpty) ...[
+            Text(
+              date,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFFB8C6D8),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          Row(
+            children: [
+              Expanded(
+                child: _ActiveSessionTimeValue(
+                  label: 'Hora inicio',
+                  value: startTime,
+                ),
+              ),
+              Container(
+                height: 42,
+                width: 1,
+                color: const Color(0xFF446083),
+              ),
+              Expanded(
+                child: _ActiveSessionTimeValue(
+                  label: 'Hora fin',
+                  value: endTime,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActiveSessionTimeValue extends StatelessWidget {
+  const _ActiveSessionTimeValue({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(
+          Icons.schedule_rounded,
+          color: Colors.white,
+          size: 18,
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Color(0xFF2DCC35),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+        ),
+      ],
+    );
+  }
 }
 
 class _HomeHeader extends StatelessWidget {
@@ -760,6 +1154,7 @@ class _ReadOnlyFormField extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _NoScheduledSessionCard extends StatelessWidget {
   const _NoScheduledSessionCard();
 
@@ -1129,41 +1524,124 @@ class _EmptyScheduleCard extends StatelessWidget {
   }
 }
 
-class _HistoryButton extends StatelessWidget {
-  const _HistoryButton();
+class _QuickAccessSection extends StatelessWidget {
+  const _QuickAccessSection({
+    required this.onAttendanceTap,
+    required this.onJustifyTap,
+    required this.onObservationsTap,
+  });
+
+  final VoidCallback onAttendanceTap;
+  final VoidCallback onJustifyTap;
+  final VoidCallback onObservationsTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Accesos rápidos',
+          style: TextStyle(
+            color: Color(0xFF092444),
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 10),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final itemWidth = (constraints.maxWidth - 20) / 3;
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                SizedBox(
+                  width: itemWidth.clamp(100, constraints.maxWidth),
+                  child: _QuickAccessCard(
+                    icon: Icons.calendar_today_rounded,
+                    label: 'Mis asistencias',
+                    color: const Color(0xFF39A900),
+                    onTap: onAttendanceTap,
+                  ),
+                ),
+                SizedBox(
+                  width: itemWidth.clamp(100, constraints.maxWidth),
+                  child: _QuickAccessCard(
+                    icon: Icons.description_rounded,
+                    label: 'Justificaciones',
+                    color: const Color(0xFF0F9D58),
+                    onTap: onJustifyTap,
+                  ),
+                ),
+                SizedBox(
+                  width: itemWidth.clamp(100, constraints.maxWidth),
+                  child: _QuickAccessCard(
+                    icon: Icons.notifications_active_rounded,
+                    label: 'Alertas y observaciones',
+                    color: const Color(0xFFF4A900),
+                    onTap: onObservationsTap,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _QuickAccessCard extends StatelessWidget {
+  const _QuickAccessCard({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(18),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: () {},
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
         child: Container(
-          height: 54,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          constraints: const BoxConstraints(minHeight: 100),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(color: const Color(0xFFE9EEF5)),
           ),
-          child: const Row(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.history_rounded, color: Color(0xFF092444), size: 20),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Ver historial de asistencias',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Color(0xFF092444),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                  ),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Color(0xFF092444),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              Icon(Icons.chevron_right_rounded, color: Color(0xFF092444)),
             ],
           ),
         ),
@@ -1536,6 +2014,26 @@ String _formatDay(String value) {
   return days[date.weekday - 1];
 }
 
+String _formatDateLabel(String value) {
+  final date = DateTime.tryParse(value);
+  if (date == null) return 'Fecha por definir';
+  const months = [
+    'ene',
+    'feb',
+    'mar',
+    'abr',
+    'may',
+    'jun',
+    'jul',
+    'ago',
+    'sep',
+    'oct',
+    'nov',
+    'dic',
+  ];
+  return '${date.day} ${months[date.month - 1]} ${date.year}';
+}
+
 String _formatTimeRange(String start, String end) {
   final startText = _formatTime(start);
   final endText = _formatTime(end);
@@ -1561,6 +2059,27 @@ String _formatPlace(Map<String, dynamic> environment) {
   if (location.isEmpty) return name;
   if (name.isEmpty) return location;
   return '$name - $location';
+}
+
+String _programShortName(String value) {
+  final text = value.trim();
+  if (text.isEmpty) return 'Programa';
+
+  final upperWords = RegExp(r'\b[A-Z]{2,}\b')
+      .allMatches(text)
+      .map((match) => match.group(0)!)
+      .toList(growable: false);
+  if (upperWords.isNotEmpty) {
+    return upperWords.first;
+  }
+
+  final initials = text
+      .split(RegExp(r'\s+'))
+      .where((word) => word.length > 2)
+      .map((word) => word[0].toUpperCase())
+      .take(5)
+      .join();
+  return initials.isEmpty ? text : initials;
 }
 
 String _statusLabel(String value) {

@@ -234,193 +234,116 @@ class _QrAttendanceScannerScreenState extends State<QrAttendanceScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF092444), // Azul institucional
+      backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text(
-          'Escanear QR de la sesión',
-          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
-        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.help_outline),
-            onPressed: () {},
+            icon: ValueListenableBuilder(
+              valueListenable: controller,
+              builder: (context, state, child) {
+                switch (state.torchState) {
+                  case TorchState.off:
+                  case TorchState.unavailable:
+                    return const Icon(Icons.flash_off, color: Colors.grey);
+                  case TorchState.on:
+                  case TorchState.auto:
+                    return const Icon(Icons.flash_on, color: Colors.yellow);
+                }
+              },
+            ),
+            onPressed: () => controller.toggleTorch(),
+          ),
+          IconButton(
+            color: Colors.white,
+            icon: ValueListenableBuilder(
+              valueListenable: controller,
+              builder: (context, state, child) {
+                switch (state.cameraDirection) {
+                  case CameraFacing.front:
+                    return const Icon(Icons.camera_front);
+                  case CameraFacing.back:
+                  case CameraFacing.unknown:
+                  case CameraFacing.external:
+                    return const Icon(Icons.camera_rear);
+                }
+              },
+            ),
+            onPressed: () => controller.switchCamera(),
           ),
         ],
       ),
-      body: Column(
+      extendBodyBehindAppBar: true,
+      body: Stack(
         children: [
-          const SizedBox(height: 10),
-          // Stepper Header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildStepItem('1', 'Escanear QR', isActive: true),
-                _buildStepConnector(),
-                _buildStepItem('2', 'Verificar sesión', isActive: false),
-                _buildStepConnector(),
-                _buildStepItem('3', 'Confirmar\nasistencia', isActive: false),
-              ],
-            ),
+          MobileScanner(
+            controller: controller,
+            onDetect: (capture) async {
+              if (_isProcessing) {
+                return;
+              }
+
+              final barcodes = capture.barcodes;
+              if (barcodes.isEmpty) {
+                return;
+              }
+
+              final rawValue = barcodes.first.rawValue;
+              if (rawValue == null || rawValue.trim().isEmpty) {
+                return;
+              }
+
+              await _processQr(rawValue);
+            },
           ),
-          const SizedBox(height: 30),
-          
-          // Scanner Area
-          Expanded(
-            child: Stack(
-              alignment: Alignment.center,
+          SafeArea(
+            child: Column(
               children: [
-                // Scanner view
+                const SizedBox(height: 60),
                 Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 40),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: Colors.white12, width: 2),
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(30),
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(22),
-                    child: MobileScanner(
-                      controller: controller,
-                      onDetect: (capture) async {
-                        if (_isProcessing) return;
-                        final barcodes = capture.barcodes;
-                        if (barcodes.isEmpty) return;
-                        final rawValue = barcodes.first.rawValue;
-                        if (rawValue == null || rawValue.trim().isEmpty) return;
-                        await _processQr(rawValue);
-                      },
+                  child: const Text(
+                    'Busque un código',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-                
-                // Decorative Circle Lines overlay
-                IgnorePointer(
-                  child: Container(
-                    width: 320,
-                    height: 320,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFF39A900), width: 3),
-                    ),
-                  ),
-                ),
-                IgnorePointer(
+                const Spacer(),
+                Center(
                   child: Container(
                     width: 250,
                     height: 250,
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white12, width: 1),
+                      border: Border.all(
+                        color: const Color(0xFF39A900),
+                        width: 3,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
                     ),
+                  ),
+                ),
+                const Spacer(),
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 40),
+                  child: Text(
+                    'Alinee el código QR dentro del marco',
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
                   ),
                 ),
               ],
             ),
           ),
-          
-          const SizedBox(height: 40),
-          
-          // Botón "Verificar sesión"
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  // Placeholder: la detección automática del QR gatillará el proceso.
-                },
-                icon: const Icon(Icons.check_circle_outline, color: Colors.white),
-                label: const Text('Verificar sesión', style: TextStyle(color: Colors.white, fontSize: 16)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF39A900),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ),
-          ),
-          
-          const SizedBox(height: 30),
-          
-          // Flashlight / Linterna
-          ValueListenableBuilder(
-            valueListenable: controller,
-            builder: (context, state, child) {
-              final isFlashOn = state.torchState == TorchState.on || state.torchState == TorchState.auto;
-              return GestureDetector(
-                onTap: () => controller.toggleTorch(),
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: isFlashOn ? Colors.yellow : const Color(0xFF39A900), width: 2),
-                      ),
-                      child: Icon(
-                        isFlashOn ? Icons.highlight : Icons.highlight_outlined,
-                        color: Colors.white,
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text('Linterna', style: TextStyle(color: Colors.white, fontSize: 12)),
-                  ],
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 40),
         ],
-      ),
-    );
-  }
-
-  Widget _buildStepItem(String number, String title, {required bool isActive}) {
-    return Column(
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: isActive ? const Color(0xFF39A900) : Colors.white24, width: 2),
-            color: Colors.transparent,
-          ),
-          child: Center(
-            child: Text(
-              number,
-              style: TextStyle(
-                color: isActive ? const Color(0xFF39A900) : Colors.white54,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          title,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: isActive ? const Color(0xFF39A900) : Colors.white54,
-            fontSize: 10,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStepConnector() {
-    return Expanded(
-      child: Container(
-        margin: const EdgeInsets.only(top: 15),
-        height: 2,
-        color: Colors.white24,
       ),
     );
   }

@@ -1,16 +1,20 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:sima_movil_froned/services/attendance_service.dart';
-import 'package:sima_movil_froned/features/attendance/qr_attendance_flow.dart';
 import 'dart:math' as math;
 
 class AttendancePage extends StatefulWidget {
-  const AttendancePage({super.key});
+  const AttendancePage({
+    super.key,
+    this.initialTabIndex = 0,
+  });
+
+  final int initialTabIndex;
 
   @override
-  State<AttendancePage> createState() => AttendancePageState();
+  State<AttendancePage> createState() => _AttendancePageState();
 }
 
-class AttendancePageState extends State<AttendancePage>
+class _AttendancePageState extends State<AttendancePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   String _selectedMonth = 'Mayo 2024';
@@ -33,7 +37,12 @@ class AttendancePageState extends State<AttendancePage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    final initialIndex = widget.initialTabIndex.clamp(0, 3);
+    _tabController = TabController(
+      length: 4,
+      vsync: this,
+      initialIndex: initialIndex,
+    );
     _fetchDashboard();
     _fetchCalendar();
     _fetchSessions();
@@ -109,57 +118,6 @@ class AttendancePageState extends State<AttendancePage>
         });
       }
     }
-  }
-
-  // Método público para abrir el modal de sesión activa desde access.dart
-  void openSessionModal() {
-    if (!mounted) return;
-
-    // Estado: cargando sesiones
-    if (_isLoadingSessions) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cargando información de la sesión...'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
-
-    // Estado: error al cargar
-    if (_sessionsError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('No se pudo cargar la sesión. Intenta de nuevo.'),
-          action: SnackBarAction(
-            label: 'Reintentar',
-            onPressed: _fetchSessions,
-          ),
-          duration: const Duration(seconds: 4),
-        ),
-      );
-      return;
-    }
-
-    // Estado: sin sesión activa
-    final activeSession = _sessionsData?['sesion_activa'] as Map<String, dynamic>?;
-    if (activeSession == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _sessionsData?['mensaje_sesion_activa']?.toString() ??
-                'No tienes una sesión activa en este momento.',
-          ),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-
-    // Estado: hay sesión activa → mostrar modal con datos reales
-    final Map<String, dynamic> fichaData =
-        (_sessionsData?['ficha'] as Map<String, dynamic>?) ?? {};
-    _showActiveSessionModal(context, activeSession, fichaData);
   }
 
   @override
@@ -299,36 +257,6 @@ class AttendancePageState extends State<AttendancePage>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F8FB),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 78),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            FloatingActionButton(
-              heroTag: 'attendance_session_modal_button',
-              onPressed: openSessionModal,
-              backgroundColor: const Color(0xFF39A900),
-              elevation: 6,
-              shape: const CircleBorder(),
-              child: const Icon(
-                Icons.qr_code_scanner,
-                color: Colors.white,
-                size: 28,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Sesión Activa',
-              style: TextStyle(
-                color: Color(0xFF39A900),
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -359,7 +287,7 @@ class AttendancePageState extends State<AttendancePage>
               ),
             ),
 
-            // â”€â”€ Banner Control de Asistencia (visible en todas las pestañas) â”€â”€
+            // â”€â”€ Banner Control de Asistencia (visible en todas las pestaÃ±as) â”€â”€
             _buildSessionBanner(),
 
             // TabBar
@@ -394,7 +322,7 @@ class AttendancePageState extends State<AttendancePage>
                   Tab(text: 'Resumen'),
                   Tab(text: 'Historial'),
                   Tab(text: 'Justificar'),
-                  Tab(text: 'Estadísticas'),
+                  Tab(text: 'EstadÃ­sticas'),
                 ],
               ),
             ),
@@ -412,18 +340,18 @@ class AttendancePageState extends State<AttendancePage>
                   // â”€â”€ Tab 1: Historial â”€â”€
                   _buildHistorialTab(),
 
-                  // â”€â”€ Tab 2: Justificar (vacío) â”€â”€
+                  // â”€â”€ Tab 2: Justificar (vacÃ­o) â”€â”€
                   const Center(
                     child: Text(
-                      'Justificar próximamente',
+                      'Justificar prÃ³ximamente',
                       style: TextStyle(color: Color(0xFF607086), fontSize: 15),
                     ),
                   ),
 
-                  // â”€â”€ Tab 3: Estadísticas (vacío) â”€â”€
+                  // â”€â”€ Tab 3: EstadÃ­sticas (vacÃ­o) â”€â”€
                   const Center(
                     child: Text(
-                      'Estadísticas próximamente',
+                      'EstadÃ­sticas prÃ³ximamente',
                       style: TextStyle(color: Color(0xFF607086), fontSize: 15),
                     ),
                   ),
@@ -443,22 +371,22 @@ class AttendancePageState extends State<AttendancePage>
     final sesion    = _sessionsData?['sesion_activa'] as Map<String, dynamic>?;
 
     // Ficha / Programa
-    final String numeroFicha = ficha?['numero_ficha']?.toString() ?? '—';
+    final String numeroFicha = ficha?['numero_ficha']?.toString() ?? 'â€”';
     final programa = ficha?['programa'] as Map<String, dynamic>?;
-    final String nombrePrograma = programa?['nombre_programa']?.toString() ?? '—';
+    final String nombrePrograma = programa?['nombre_programa']?.toString() ?? 'â€”';
 
-    // Instructor líder (viene en ficha.instructor_lider)
+    // Instructor lÃ­der (viene en ficha.instructor_lider)
     final instructorLider = ficha?['instructor_lider'] as Map<String, dynamic>?;
     final bool instructorRegistrado = instructorLider?['registrado'] == true;
     final String nombreInstructor = instructorRegistrado
-        ? (instructorLider?['nombre_completo']?.toString() ?? '—')
-        : '—';
+        ? (instructorLider?['nombre_completo']?.toString() ?? 'â€”')
+        : 'â€”';
 
     // Jornada del grupo
-    final String jornada = ficha?['jornada']?.toString() ?? '—';
+    final String jornada = ficha?['jornada']?.toString() ?? 'â€”';
 
-    // Fecha de la sesión activa (formateada)
-    String fechaFormateada = '—';
+    // Fecha de la sesiÃ³n activa (formateada)
+    String fechaFormateada = 'â€”';
     if (sesion != null) {
       final fechaRaw = sesion['fecha_clase']?.toString() ?? '';
       if (fechaRaw.length >= 10) {
@@ -475,7 +403,7 @@ class AttendancePageState extends State<AttendancePage>
       }
     }
 
-    // Estado de sesión
+    // Estado de sesiÃ³n
     final bool haySession = sesion != null;
 
     return Container(
@@ -521,7 +449,7 @@ class AttendancePageState extends State<AttendancePage>
                   ),
                   SizedBox(width: 10),
                   Text(
-                    'Cargando sesión...',
+                    'Cargando sesiÃ³n...',
                     style: TextStyle(color: Color(0xFF607086), fontSize: 13),
                   ),
                 ],
@@ -537,7 +465,7 @@ class AttendancePageState extends State<AttendancePage>
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    'No se pudo cargar la sesión',
+                    'No se pudo cargar la sesiÃ³n',
                     style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -596,15 +524,15 @@ class AttendancePageState extends State<AttendancePage>
                             ),
                           ],
                         ),
-                        // Segunda fila: Fecha (solo si hay sesión activa)
+                        // Segunda fila: Fecha (solo si hay sesiÃ³n activa)
                         if (haySession) ...[
                           const SizedBox(height: 8),
-                          _bannerInlineText('Fecha de sesión: ', fechaFormateada),
+                          _bannerInlineText('Fecha de sesiÃ³n: ', fechaFormateada),
                         ] else ...[
                           const SizedBox(height: 8),
                           Text(
                             _sessionsData?['mensaje_sesion_activa']?.toString() ??
-                                'No hay sesión activa en este momento',
+                                'No hay sesiÃ³n activa en este momento',
                             style: TextStyle(
                               color: Colors.grey.shade500,
                               fontSize: 12,
@@ -620,228 +548,6 @@ class AttendancePageState extends State<AttendancePage>
             ),
         ],
       ),
-    );
-  }
-
-  void _showActiveSessionModal(BuildContext context, Map<String, dynamic> sessionData, Map<String, dynamic> fichaData) {
-    final String nombrePrograma = fichaData['programa']?['nombre_programa']?.toString() ?? '—';
-    // El backend devuelve el campo como 'competencia' (no 'clase_competencia')
-    final competenciaMap = sessionData['competencia'] as Map<String, dynamic>?;
-    final String competencia = competenciaMap?['nombre_competencia']?.toString() ?? '—';
-    // El instructor viene dentro de sesion_activa.instructor; como respaldo usa instructor_lider de la ficha
-    final instructorSesion = sessionData['instructor'] as Map<String, dynamic>?;
-    final instructorLider = fichaData['instructor_lider'] as Map<String, dynamic>?;
-    final String? instrSesionNombre = instructorSesion?['nombre_completo']?.toString();
-    final String? instrLiderNombre = (instructorLider != null && instructorLider['registrado'] == true)
-        ? instructorLider['nombre_completo']?.toString()
-        : null;
-    final String nombreInstructor = (instrSesionNombre != null && instrSesionNombre.isNotEmpty)
-        ? instrSesionNombre
-        : (instrLiderNombre != null && instrLiderNombre.isNotEmpty ? instrLiderNombre : '—');
-    final String grupo = '$nombrePrograma - ${fichaData['numero_ficha']?.toString() ?? ''}';
-    final String ambiente = (sessionData['ambiente'] as Map<String, dynamic>?)?['nombre_ambiente']?.toString() ?? '—';
-
-    final rawInicio = sessionData['hora_inicio']?.toString() ?? sessionData['hora_inicio_programada']?.toString() ?? '';
-    final rawFin = sessionData['hora_fin']?.toString() ?? sessionData['hora_fin_programada']?.toString() ?? '';
-    final String horaInicio = rawInicio.length >= 5 ? rawInicio.substring(0, 5) : (rawInicio.isNotEmpty ? rawInicio : '—');
-    final String horaFin = rawFin.length >= 5 ? rawFin.substring(0, 5) : (rawFin.isNotEmpty ? rawFin : '—');
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext context) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
-            ),
-          ),
-          padding: const EdgeInsets.only(top: 12, left: 24, right: 24, bottom: 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Línea superior decorativa
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 20),
-              
-              // Avatar
-              CircleAvatar(
-                radius: 35,
-                backgroundColor: const Color(0xFF092444),
-                child: const Icon(Icons.person, color: Colors.white, size: 36),
-              ),
-              const SizedBox(height: 16),
-              
-              // Título
-              const Text(
-                'Tienes una sesión activa',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF092444),
-                ),
-              ),
-              const SizedBox(height: 24),
-              
-              // Tarjeta de información
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF092444),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    _buildModalInfoRow(Icons.description_outlined, 'Programa', nombrePrograma),
-                    _buildModalDivider(),
-                    _buildModalInfoRow(Icons.my_location, 'Competencia', competencia),
-                    _buildModalDivider(),
-                    _buildModalInfoRow(Icons.person_outline, 'Instructor', nombreInstructor),
-                    _buildModalDivider(),
-                    _buildModalInfoRow(Icons.group_outlined, 'Grupo', grupo),
-                    _buildModalDivider(),
-                    _buildModalInfoRow(Icons.science_outlined, 'Ambiente', ambiente),
-                    
-                    const SizedBox(height: 16),
-                    // Horas
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0C2D56),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                      child: Row(
-                        children: [
-                          Expanded(child: _buildModalTimeCol('Hora inicio', horaInicio)),
-                          Container(width: 1, height: 30, color: Colors.white24),
-                          Expanded(child: _buildModalTimeCol('Hora fin', horaFin)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              
-              // Botón principal
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    startQrAttendanceFlow(context);
-                  },
-                  icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
-                  label: const Text('Escanear QR de la sesión', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF39A900),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              
-              // Botones adicionales (Próximamente)
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reconocimiento facial próximamente')));
-                      },
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        side: BorderSide(color: Colors.grey.shade300),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: const Text('Reconocimiento facial', style: TextStyle(color: Color(0xFF607086), fontSize: 12)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Huella próximamente')));
-                      },
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        side: BorderSide(color: Colors.grey.shade300),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: const Text('Huella', style: TextStyle(color: Color(0xFF607086), fontSize: 12)),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              
-              // Botón cancelar
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancelar', style: TextStyle(color: Color(0xFF607086), fontSize: 16)),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildModalInfoRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: Colors.white70, size: 20),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 80,
-            child: Text(
-              label,
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModalDivider() {
-    return Divider(color: Colors.white.withValues(alpha: 0.1), height: 12, thickness: 1);
-  }
-
-  Widget _buildModalTimeCol(String label, String time) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Icon(Icons.access_time, color: Colors.white, size: 18),
-        const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: const TextStyle(color: Color(0xFF39A900), fontSize: 11)),
-            Text(time, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
-          ],
-        ),
-      ],
     );
   }
 
@@ -872,7 +578,7 @@ class AttendancePageState extends State<AttendancePage>
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        isActive ? 'Activa' : 'Sin sesión',
+        isActive ? 'Activa' : 'Sin sesiÃ³n',
         style: const TextStyle(
           color: Colors.white,
           fontSize: 12,
@@ -936,7 +642,7 @@ class AttendancePageState extends State<AttendancePage>
                       children: [
                         _buildTooltipInfo('Cantidad', '$count'),
                         _buildTooltipInfo('Instructor', instructor),
-                        _buildTooltipInfo('Última act.', ultActualizacion.length > 10 ? ultActualizacion.substring(0, 10) : ultActualizacion),
+                        _buildTooltipInfo('Ãšltima act.', ultActualizacion.length > 10 ? ultActualizacion.substring(0, 10) : ultActualizacion),
                       ],
                     ),
                   ],
@@ -1025,7 +731,7 @@ class AttendancePageState extends State<AttendancePage>
                                     const SizedBox(width: 4),
                                     Expanded(
                                       child: Text(
-                                        'Competencia: $materia',
+                                        'Materia: $materia',
                                         style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                                         overflow: TextOverflow.ellipsis,
                                       ),
@@ -1038,7 +744,7 @@ class AttendancePageState extends State<AttendancePage>
                                     const Icon(Icons.date_range_outlined, size: 16, color: Colors.grey),
                                     const SizedBox(width: 4),
                                     Text(
-                                      'Días faltados: $diasFaltados',
+                                      'DÃ­as faltados: $diasFaltados',
                                       style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                                     ),
                                   ],
@@ -1051,7 +757,7 @@ class AttendancePageState extends State<AttendancePage>
                                     const SizedBox(width: 4),
                                     Expanded(
                                       child: Text(
-                                        'Observación: $observacion',
+                                        'ObservaciÃ³n: $observacion',
                                         style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                                       ),
                                     ),
@@ -1123,7 +829,7 @@ class AttendancePageState extends State<AttendancePage>
     final asistenciaTrimestre = _dashboardData?['asistencia_trimestre'];
     final int total = asistenciaTrimestre?['total'] ?? 0;
 
-    // Trimestre activo — leído directamente del dashboard, sin variables extra
+    // Trimestre activo â€” leÃ­do directamente del dashboard, sin variables extra
     final trimestreActivo = _dashboardData?['trimestre_activo'] as Map<String, dynamic>?;
     final bool trimestreRegistrado = trimestreActivo?['registrado'] == true;
     final int? numeroTrimestre = trimestreRegistrado
@@ -1185,7 +891,7 @@ class AttendancePageState extends State<AttendancePage>
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                // Chip de trimestre — solo visible cuando el backend confirma
+                // Chip de trimestre â€” solo visible cuando el backend confirma
                 // trimestre_activo.registrado == true
                 if (numeroTrimestre != null)
                   Container(
@@ -1408,7 +1114,7 @@ class AttendancePageState extends State<AttendancePage>
                                 ),
                                 const SizedBox(height: 8),
                                 const Text(
-                                  'Haz clic en el ícono del ojo para ver el detalle',
+                                  'Haz clic en el Ã­cono del ojo para ver el detalle',
                                   style: TextStyle(fontSize: 12, color: Colors.grey),
                                 ),
                               ],
