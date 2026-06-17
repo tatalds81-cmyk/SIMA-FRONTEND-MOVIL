@@ -191,6 +191,43 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _showActiveSessionFromButton() async {
+    try {
+      final data = await AttendanceService.getSessions();
+      if (!mounted) {
+        return;
+      }
+
+      final activeSession = data?['sesion_activa'] as Map<String, dynamic>?;
+      if (activeSession == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No hay sesión activa en este momento'),
+              backgroundColor: Color(0xFFF4A900),
+            ),
+          );
+        }
+        return;
+      }
+
+      final ficha = data?['ficha'] as Map<String, dynamic>? ?? {};
+
+      if (mounted) {
+        _showActiveSessionBottomSheet(activeSession, ficha);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar la sesión: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _showActiveSessionBottomSheet(
     Map<String, dynamic> session,
     Map<String, dynamic> ficha,
@@ -477,7 +514,7 @@ class _HomePageState extends State<HomePage> {
                             widget.onNavigateToAttendance?.call(2);
                           },
                           onObservationsTap: () {
-                            widget.onNavigateToObservatory?.call(0);
+                            _showActiveSessionFromButton();
                           },
                         ),
                         const SizedBox(height: 18),
@@ -1552,12 +1589,9 @@ class _QuickAccessSection extends StatelessWidget {
         LayoutBuilder(
           builder: (context, constraints) {
             final itemWidth = (constraints.maxWidth - 20) / 3;
-            return Wrap(
-              spacing: 10,
-              runSpacing: 10,
+            return Row(
               children: [
-                SizedBox(
-                  width: itemWidth.clamp(100, constraints.maxWidth),
+                Expanded(
                   child: _QuickAccessCard(
                     icon: Icons.calendar_today_rounded,
                     label: 'Mis asistencias',
@@ -1565,8 +1599,8 @@ class _QuickAccessSection extends StatelessWidget {
                     onTap: onAttendanceTap,
                   ),
                 ),
-                SizedBox(
-                  width: itemWidth.clamp(100, constraints.maxWidth),
+                const SizedBox(width: 10),
+                Expanded(
                   child: _QuickAccessCard(
                     icon: Icons.description_rounded,
                     label: 'Justificaciones',
@@ -1574,11 +1608,11 @@ class _QuickAccessSection extends StatelessWidget {
                     onTap: onJustifyTap,
                   ),
                 ),
-                SizedBox(
-                  width: itemWidth.clamp(100, constraints.maxWidth),
+                const SizedBox(width: 10),
+                Expanded(
                   child: _QuickAccessCard(
-                    icon: Icons.notifications_active_rounded,
-                    label: 'Alertas y observaciones',
+                    icon: Icons.assignment_turned_in_rounded,
+                    label: 'Registrar asistencia',
                     color: const Color(0xFFF4A900),
                     onTap: onObservationsTap,
                   ),
