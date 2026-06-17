@@ -52,14 +52,22 @@ class AttendanceService {
     }
   }
 
-  static Future<Map<String, dynamic>?> getMyCalendar() async {
+  static Future<Map<String, dynamic>?> getMyCalendar({
+   String? periodo,
+   String? fechaReferencia, 
+  }) async {
     final token = AuthService.currentToken;
     if (token == null || token.isEmpty) {
       throw Exception('No hay sesión activa. Por favor, inicia sesión nuevamente.');
     }
 
     try {
-      final uri = Uri.parse(ApiConfig.myCalendar);
+      final queryParams = <String, String>{};// elimine la linea: final uri = Uri.parse(ApiConfig.myCalendar);
+      if (periodo != null) queryParams['periodo'] = periodo;// se add esto
+      if (fechaReferencia != null) queryParams['fecha_referencia'] = fechaReferencia;// esto
+
+      final uri = Uri.parse(ApiConfig.myCalendar)//esto
+         .replace(queryParameters: queryParams.isNotEmpty ? queryParams : null); //esto
       final response = await http.get(
         uri,
         headers: {

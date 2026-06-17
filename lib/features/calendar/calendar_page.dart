@@ -1,577 +1,656 @@
 import 'package:flutter/material.dart';
 import 'package:sima_movil_froned/services/attendance_service.dart';
- 
-// ─────────────────────────────────────────────────────────────────────────────
-// CalendarPage — vista de calendario de asistencia
-// Consume: GET /api/attendances/my-calendar
-// Se integra como ítem independiente en la barra de navegación
-// ─────────────────────────────────────────────────────────────────────────────
+
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
- 
+
   @override
   State<CalendarPage> createState() => _CalendarPageState();
 }
- 
+
 class _CalendarPageState extends State<CalendarPage> {
-  // ── Estado ──────────────────────────────────────────────────────────────────
-  bool _isLoading = true;
+  int _selectedDay = DateTime.now().day;
+  int _monthIndex  = DateTime.now().month - 1;
+  int _year        = DateTime.now().year;
+
+  // Estado completo por día
+  Map<int, String>              _attendanceStatus = {};
+  Map<int, Map<String, String>> _dayDetails       = {};
+  // Campos extra del backend
+  Map<int, String>  _competencia    = {};   // nombre_competencia
+  Map<int, String>  _justEstado     = {};   // estado de la justificación si existe
+  Map<int, String>  _observacion    = {};   // observacion de la asistencia
+
+  bool    _loading = false;
   String? _error;
-  List<dynamic> _registros = [];
- 
-  // Mes y año actualmente visible
-  late DateTime _focusedMonth;
- 
-  // Día seleccionado (para mostrar detalle abajo)
-  DateTime? _selectedDay;
- 
-  // ── Constantes de color ──────────────────────────────────────────────────────
-  static const _colorPresente    = Color(0xFF39A900);
-  static const _colorAusente     = Color(0xFFE53935);
-  static const _colorJustificada = Color(0xFFF6A900);
-  static const _colorSinClase    = Color(0xFFB0BEC5);
- 
-  // ── Nombres de mes ───────────────────────────────────────────────────────────
-  static const _meses = [
-    '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+
+  static const List<String> _monthNames = [
+    "Enero","Febrero","Marzo","Abril","Mayo","Junio",
+    "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
   ];
- 
-  static const _diasSemana = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
- 
+
   @override
   void initState() {
     super.initState();
-    _focusedMonth = DateTime(DateTime.now().year, DateTime.now().month);
     _fetchCalendar();
   }
- 
-  // ── Carga de datos ───────────────────────────────────────────────────────────
-  Future<void> _fetchCalendar() async {
+
+  // ── Helpers de calendario ─────────────────────────────────────────────────
+  int get _firstWeekday =>
+      DateTime(_year, _monthIndex + 1, 1).weekday - 1;
+
+  int get _daysInMonth =>
+      DateTime(_year, _monthIndex + 2, 0).day;
+
+  void _prevMonth() {
     setState(() {
-      _isLoading = true;
-      _error = null;
+      _selectedDay = 1;
+      _monthIndex == 0
+          ? (_monthIndex = 11, _year--)
+          : _monthIndex--;
     });
+    _fetchCalendar();
+  }
+
+  void _nextMonth() {
+    setState(() {
+      _selectedDay = 1;
+      _monthIndex == 11
+          ? (_monthIndex = 0, _year++)
+          : _monthIndex++;
+    });
+    _fetchCalendar();
+  }
+
+  String _dayName(int day) {
+    const n = [
+      "Lunes","Martes","Miércoles",
+      "Jueves","Viernes","Sábado","Domingo",
+    ];
+    return n[DateTime(_year, _monthIndex + 1, day).weekday - 1];
+  }
+
+  // ── Llamada a la API ──────────────────────────────────────────────────────
+  Future<void> _fetchCalendar() async {
+    if (!mounted) return;
+    setState(() { _loading = true; _error = null; });
+
     try {
-      // Pide el mes completo actual usando el parámetro periodo=mes
+      final String fechaRef =
+          '$_year-${(_monthIndex + 1).toString().padLeft(2, '0')}-01';
+
       final data = await AttendanceService.getMyCalendar(
-        queryParams: {
-          'periodo': 'mes',
-          'fecha_referencia': _focusedMonth.toIso8601String().substring(0, 10),
-        },
+        periodo: 'mes',
+        fechaReferencia: fechaRef,
       );
-      if (mounted) {
-        setState(() {
-          _registros = data?['registros'] as List<dynamic>? ?? [];
-          _isLoading = false;
-          // Selecciona hoy si está en el mes enfocado
-          final hoy = DateTime.now();
-          if (hoy.year == _focusedMonth.year && hoy.month == _focusedMonth.month) {
-            _selectedDay = DateTime(hoy.year, hoy.month, hoy.day);
-          } else {
-            _selectedDay = null;
-          }
-        });
+
+      if (!mounted) return;
+
+      final List<dynamic> registros =
+          (data?['registros'] as List<dynamic>?) ?? [];
+
+      final Map<int, String>              statusMap     = {};
+      final Map<int, Map<String, String>> detailMap     = {};
+      final Map<int, String>              competMap     = {};
+      final Map<int, String>              justMap       = {};
+      final Map<int, String>              obsMap        = {};
+
+      for (final reg in registros) {
+        final String? fechaClase = reg['sesion']?['fecha_clase'];
+        if (fechaClase == null) continue;
+
+        final DateTime fecha = DateTime.parse(fechaClase);
+        if (fecha.month != _monthIndex + 1 || fecha.year != _year) continue;
+
+        final int    day  = fecha.day;
+        final String ep05 =
+            (reg['estado_ep05'] ?? '').toString().toUpperCase();
+
+        // ── Estado de asistencia ──────────────────────────────────────────
+        switch (ep05) {
+          case 'PRESENTE':
+          case 'TARDE':
+            statusMap[day] = 'presente';
+            break;
+          case 'INASISTENCIA':
+            statusMap[day] = 'ausente';
+            break;
+          case 'JUSTIFICADO':
+            statusMap[day] = 'justificada';
+            break;
+        }
+
+        // ── Horas ─────────────────────────────────────────────────────────
+        final String? hi = reg['sesion']?['hora_inicio_programada'];
+        final String? hf = reg['sesion']?['hora_fin_programada'];
+        if (hi != null && hf != null) {
+          detailMap[day] = {
+            'entrada': hi.length >= 5 ? hi.substring(0, 5) : hi,
+            'salida':  hf.length >= 5 ? hf.substring(0, 5) : hf,
+          };
+        }
+
+        // ── Competencia ───────────────────────────────────────────────────
+        final String? nombreComp =
+            reg['sesion']?['competencia']?['nombre_competencia'];
+        if (nombreComp != null && nombreComp.isNotEmpty) {
+          competMap[day] = nombreComp;
+        }
+
+        // ── Observación de la asistencia ──────────────────────────────────
+        final String? obs = reg['observacion'];
+        if (obs != null && obs.isNotEmpty) {
+          obsMap[day] = obs;
+        }
+
+        // ── Justificaciones — toma la más reciente ─────────────────────── 
+        final List<dynamic> justs =
+            (reg['justificaciones'] as List<dynamic>?) ?? [];
+        if (justs.isNotEmpty) {
+          // Ordena por fecha_envio descendente y toma el estado del primero
+          justs.sort((a, b) {
+            final da = DateTime.tryParse(a['fecha_envio'] ?? '') ??
+                DateTime(2000);
+            final db = DateTime.tryParse(b['fecha_envio'] ?? '') ??
+                DateTime(2000);
+            return db.compareTo(da);
+          });
+          final String justEstado =
+              (justs.first['estado'] ?? '').toString().toUpperCase();
+          justMap[day] = justEstado; // 'PENDIENTE' | 'APROBADA' | 'RECHAZADA'
+        }
       }
+
+      setState(() {
+        _attendanceStatus = statusMap;
+        _dayDetails       = detailMap;
+        _competencia      = competMap;
+        _justEstado       = justMap;
+        _observacion      = obsMap;
+        _loading          = false;
+      });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.toString();
-          _isLoading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _error   = e.toString().replaceAll('Exception: ', '');
+        _loading = false;
+      });
     }
   }
- 
-  // ── Helpers de datos ─────────────────────────────────────────────────────────
- 
-  /// Devuelve el registro de asistencia para una fecha dada (yyyy-MM-dd)
-  Map<String, dynamic>? _registroParaDia(DateTime day) {
-    final fechaStr =
-        '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-    for (final r in _registros) {
-      final sesion = r['sesion'] as Map<String, dynamic>?;
-      final fecha = sesion?['fecha_clase'] as String? ?? '';
-      if (fecha.startsWith(fechaStr)) return r as Map<String, dynamic>;
-    }
-    return null;
-  }
- 
-  /// Color del dot según estado_ep05 del backend
-  Color? _colorParaEstado(String? estado) {
-    switch (estado?.toUpperCase()) {
-      case 'PRESENTE':
-        return _colorPresente;
-      case 'INASISTENCIA':
-        return _colorAusente;
-      case 'JUSTIFICADO':
-        return _colorJustificada;
-      case 'TARDE':
-        return _colorJustificada;
-      default:
-        return null;
+
+  // ── Helpers de color/texto ────────────────────────────────────────────────
+  Color _statusColor(String? s) {
+    switch (s) {
+      case 'presente':    return const Color(0xFF44C21E);
+      case 'ausente':     return const Color(0xFFE53935);
+      case 'justificada': return const Color(0xFFF6A900);
+      default:            return const Color(0xFFBDBDBD);
     }
   }
- 
-  /// Etiqueta legible para el estado
-  String _etiquetaEstado(String? estado) {
-    switch (estado?.toUpperCase()) {
-      case 'PRESENTE':   return 'Presente';
-      case 'INASISTENCIA': return 'Ausente';
-      case 'JUSTIFICADO': return 'Justificada';
-      case 'TARDE':       return 'Tardanza';
+
+  String _statusLabel(String? s) {
+    switch (s) {
+      case 'presente':    return 'Presente';
+      case 'ausente':     return 'Ausente';
+      case 'justificada': return 'Justificada';
       default:            return 'Sin clase';
     }
   }
- 
-  /// Registros del día seleccionado
-  List<Map<String, dynamic>> get _registrosDelDiaSeleccionado {
-    if (_selectedDay == null) return [];
-    final fechaStr =
-        '${_selectedDay!.year}-${_selectedDay!.month.toString().padLeft(2, '0')}-${_selectedDay!.day.toString().padLeft(2, '0')}';
-    return _registros
-        .where((r) {
-          final sesion = r['sesion'] as Map<String, dynamic>?;
-          final fecha = sesion?['fecha_clase'] as String? ?? '';
-          return fecha.startsWith(fechaStr);
-        })
-        .map((r) => r as Map<String, dynamic>)
-        .toList();
+
+  // Color e ícono del estado de la justificación
+  Color _justColor(String estado) {
+    switch (estado) {
+      case 'APROBADA':   return const Color(0xFF44C21E);
+      case 'RECHAZADA':  return const Color(0xFFE53935);
+      case 'PENDIENTE':  return const Color(0xFFF6A900);
+      default:           return Colors.grey;
+    }
   }
- 
-  // ── Cambio de mes ────────────────────────────────────────────────────────────
-  void _prevMonth() {
-    setState(() {
-      _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month - 1);
-      _selectedDay = null;
-    });
-    _fetchCalendar();
+
+  String _justLabel(String estado) {
+    switch (estado) {
+      case 'APROBADA':  return 'Justificación aprobada';
+      case 'RECHAZADA': return 'Justificación rechazada';
+      case 'PENDIENTE': return 'Justificación pendiente de revisión';
+      default:          return '';
+    }
   }
- 
-  void _nextMonth() {
-    setState(() {
-      _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1);
-      _selectedDay = null;
-    });
-    _fetchCalendar();
+
+  IconData _justIcon(String estado) {
+    switch (estado) {
+      case 'APROBADA':  return Icons.check_circle_outline;
+      case 'RECHAZADA': return Icons.cancel_outlined;
+      case 'PENDIENTE': return Icons.hourglass_empty_rounded;
+      default:          return Icons.info_outline;
+    }
   }
- 
-  // ── Formato de hora ──────────────────────────────────────────────────────────
-  String _formatHora(String? hora) {
-    if (hora == null || hora.length < 5) return '';
-    final parts = hora.substring(0, 5).split(':');
-    if (parts.length < 2) return hora;
-    final h = int.tryParse(parts[0]) ?? 0;
-    final m = parts[1];
-    final periodo = h >= 12 ? 'p.m.' : 'a.m.';
-    final h12 = h > 12 ? h - 12 : (h == 0 ? 12 : h);
-    return '$h12:$m $periodo';
-  }
- 
-  /// Nombre del día de la semana en español
-  String _nombreDiaSemana(DateTime d) {
-    const nombres = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-    return nombres[d.weekday - 1];
-  }
- 
-  // ── Build principal ──────────────────────────────────────────────────────────
+
+  // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FB),
+      backgroundColor: const Color(0xFFF5F6FA),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildHeader(),
-            Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: Color(0xFF39A900)),
-                    )
-                  : _error != null
-                      ? _buildError()
-                      : _buildBody(),
+            // Header
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 20, 20, 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Calendario',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Historial de asistencia mensual',
+                    style: TextStyle(fontSize: 14, color: Color(0xFF607086)),
+                  ),
+                ],
+              ),
             ),
+            Expanded(child: _buildBody()),
           ],
         ),
       ),
     );
   }
- 
-  // ── Header ───────────────────────────────────────────────────────────────────
-  Widget _buildHeader() {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Asistencia',
-            style: TextStyle(
-              color: Color(0xFF092444),
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          SizedBox(height: 4),
-          Text(
-            'Registro y consulta de asistencia',
-            style: TextStyle(color: Color(0xFF607086), fontSize: 14),
-          ),
-        ],
-      ),
-    );
-  }
- 
-  // ── Error ────────────────────────────────────────────────────────────────────
-  Widget _buildError() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline_rounded,
-                color: Color(0xFFE53935), size: 48),
-            const SizedBox(height: 16),
-            const Text(
-              'No se pudo cargar el calendario',
-              style: TextStyle(
-                color: Color(0xFF092444),
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _error!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF607086), fontSize: 13),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: _fetchCalendar,
-              icon: const Icon(Icons.refresh_rounded, size: 18),
-              label: const Text('Reintentar'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF39A900),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
- 
-  // ── Cuerpo principal ─────────────────────────────────────────────────────────
+
   Widget _buildBody() {
-    return RefreshIndicator(
-      color: const Color(0xFF39A900),
-      onRefresh: _fetchCalendar,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-        child: Column(
-          children: [
-            _buildCalendarCard(),
-            const SizedBox(height: 16),
-            _buildDayDetail(),
-            const SizedBox(height: 16),
-            _buildLegend(),
-          ],
-        ),
-      ),
-    );
-  }
- 
-  // ── Tarjeta del calendario ───────────────────────────────────────────────────
-  Widget _buildCalendarCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          _buildMonthNav(),
-          const SizedBox(height: 12),
-          _buildDayHeaders(),
-          const SizedBox(height: 8),
-          _buildDayGrid(),
-        ],
-      ),
-    );
-  }
- 
-  // ── Navegación de mes ────────────────────────────────────────────────────────
-  Widget _buildMonthNav() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        IconButton(
-          onPressed: _prevMonth,
-          icon: const Icon(Icons.chevron_left_rounded),
-          color: const Color(0xFF092444),
-          iconSize: 24,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-        ),
-        Text(
-          '${_meses[_focusedMonth.month]} ${_focusedMonth.year}',
-          style: const TextStyle(
-            color: Color(0xFF092444),
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        IconButton(
-          onPressed: _nextMonth,
-          icon: const Icon(Icons.chevron_right_rounded),
-          color: const Color(0xFF092444),
-          iconSize: 24,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-        ),
-      ],
-    );
-  }
- 
-  // ── Cabecera días de semana ──────────────────────────────────────────────────
-  Widget _buildDayHeaders() {
-    return Row(
-      children: _diasSemana
-          .map(
-            (d) => Expanded(
-              child: Center(
-                child: Text(
-                  d,
-                  style: const TextStyle(
-                    color: Color(0xFF607086),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          )
-          .toList(),
-    );
-  }
- 
-  // ── Grid de días ─────────────────────────────────────────────────────────────
-  Widget _buildDayGrid() {
-    // Primer día del mes (weekday: 1=Lun … 7=Dom)
-    final primerDia = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
-    final offsetInicio = primerDia.weekday - 1; // cuántas celdas vacías al inicio
- 
-    final diasEnMes = DateUtils.getDaysInMonth(_focusedMonth.year, _focusedMonth.month);
-    final totalCeldas = offsetInicio + diasEnMes;
-    final filas = (totalCeldas / 7).ceil();
- 
-    final hoy = DateTime.now();
- 
-    return Column(
-      children: List.generate(filas, (fila) {
-        return Row(
-          children: List.generate(7, (col) {
-            final celda = fila * 7 + col;
-            final diaNum = celda - offsetInicio + 1;
- 
-            if (diaNum < 1 || diaNum > diasEnMes) {
-              return const Expanded(child: SizedBox(height: 44));
-            }
- 
-            final fecha = DateTime(_focusedMonth.year, _focusedMonth.month, diaNum);
-            final registro = _registroParaDia(fecha);
-            final estado = registro?['estado_ep05'] as String?;
-            final dotColor = _colorParaEstado(estado);
- 
-            final esHoy = fecha.year == hoy.year &&
-                fecha.month == hoy.month &&
-                fecha.day == hoy.day;
- 
-            final esSeleccionado = _selectedDay != null &&
-                fecha.year == _selectedDay!.year &&
-                fecha.month == _selectedDay!.month &&
-                fecha.day == _selectedDay!.day;
- 
-            return Expanded(
-              child: GestureDetector(
-                onTap: () => setState(() => _selectedDay = fecha),
-                child: Container(
-                  height: 44,
-                  margin: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    color: esSeleccionado
-                        ? const Color(0xFF39A900)
-                        : esHoy
-                            ? const Color(0xFF39A900).withOpacity(0.1)
-                            : Colors.transparent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '$diaNum',
-                        style: TextStyle(
-                          color: esSeleccionado
-                              ? Colors.white
-                              : esHoy
-                                  ? const Color(0xFF39A900)
-                                  : const Color(0xFF092444),
-                          fontSize: 14,
-                          fontWeight: esHoy || esSeleccionado
-                              ? FontWeight.w700
-                              : FontWeight.w400,
-                        ),
-                      ),
-                      // Dot de estado
-                      if (dotColor != null)
-                        Container(
-                          width: 5,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: esSeleccionado
-                                ? Colors.white.withOpacity(0.9)
-                                : dotColor,
-                            shape: BoxShape.circle,
-                          ),
-                        )
-                      else
-                        const SizedBox(height: 5),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }),
-        );
-      }),
-    );
-  }
- 
-  // ── Detalle del día seleccionado ─────────────────────────────────────────────
-  Widget _buildDayDetail() {
-    if (_selectedDay == null) return const SizedBox.shrink();
- 
-    final registros = _registrosDelDiaSeleccionado;
-    final diaNombre = _nombreDiaSemana(_selectedDay!);
-    final diaStr =
-        '$diaNombre, ${_selectedDay!.day} de ${_meses[_selectedDay!.month]}';
- 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF44C21E)),
+      );
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
+              const Icon(Icons.wifi_off_rounded,
+                  size: 52, color: Color(0xFF607086)),
+              const SizedBox(height: 14),
               Text(
-                diaStr,
+                _error!,
+                textAlign: TextAlign.center,
                 style: const TextStyle(
-                  color: Color(0xFF092444),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
+                    color: Color(0xFF607086), fontSize: 14),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: _fetchCalendar,
+                icon: const Icon(Icons.refresh, color: Colors.white),
+                label: const Text('Reintentar',
+                    style: TextStyle(color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF44C21E),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
               ),
-              if (registros.isNotEmpty)
-                _estadoChip(registros.first['estado_ep05'] as String?),
             ],
           ),
-          if (registros.isEmpty) ...[
-            const SizedBox(height: 12),
-            Text(
-              'Sin clase registrada',
-              style: TextStyle(
-                color: Colors.grey.shade500,
-                fontSize: 13,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ] else
-            ...registros.map((r) => _buildRegistroItem(r)).toList(),
-        ],
-      ),
-    );
-  }
- 
-  Widget _buildRegistroItem(Map<String, dynamic> registro) {
-    final sesion = registro['sesion'] as Map<String, dynamic>? ?? {};
-    final bloque = sesion['bloque_jornada'] as Map<String, dynamic>?;
-    final competencia = sesion['competencia'] as Map<String, dynamic>?;
- 
-    final horaInicio = _formatHora(
-      bloque?['hora_inicio'] as String? ?? sesion['hora_inicio_programada'] as String?,
-    );
-    final horaFin = _formatHora(
-      bloque?['hora_fin'] as String? ?? sesion['hora_fin_programada'] as String?,
-    );
-    final nombreCompetencia =
-        competencia?['nombre_competencia'] as String? ?? 'Sin asignar';
-    final estado = registro['estado_ep05'] as String?;
-    final color = _colorParaEstado(estado) ?? _colorSinClase;
- 
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Row(
+        ),
+      );
+    }
+
+    final int firstWeekday = _firstWeekday;
+    final int daysInMonth  = _daysInMonth;
+    final int gridCells =
+        (((firstWeekday + daysInMonth) / 7).ceil()) * 7;
+
+    final String?              selStatus = _attendanceStatus[_selectedDay];
+    final Map<String, String>? selDetail = _dayDetails[_selectedDay];
+    final String?              selComp   = _competencia[_selectedDay];
+    final String?              selJust   = _justEstado[_selectedDay];
+    final String?              selObs    = _observacion[_selectedDay];
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+      child: Column(
         children: [
-          // Barra de color
-          Container(
-            width: 4,
-            height: 48,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(4),
+          // ── Card calendario ──────────────────────────────────────────────
+          _card(
+            child: Column(
+              children: [
+                // Navegación mes
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _navBtn(Icons.chevron_left, _prevMonth),
+                    Text(
+                      "${_monthNames[_monthIndex]} $_year",
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    _navBtn(Icons.chevron_right, _nextMonth),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Cabecera L M M J V S D
+                Row(
+                  children: ["L","M","M","J","V","S","D"]
+                      .map((d) => Expanded(
+                            child: Center(
+                              child: Text(
+                                d,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF94A3B8),
+                                ),
+                              ),
+                            ),
+                          ))
+                      .toList(),
+                ),
+                const SizedBox(height: 10),
+
+                // Grid de días
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: gridCells,
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 7,
+                    mainAxisSpacing: 2,
+                    crossAxisSpacing: 0,
+                    childAspectRatio: 0.82,
+                  ),
+                  itemBuilder: (context, index) {
+                    if (index < firstWeekday ||
+                        index >= firstWeekday + daysInMonth) {
+                      return const SizedBox.shrink();
+                    }
+
+                    final int     day        = index - firstWeekday + 1;
+                    final bool    isSelected = _selectedDay == day;
+                    final String? status     = _attendanceStatus[day];
+                    // Punto extra para justificación pendiente
+                    final String? justDay    = _justEstado[day];
+
+                    return GestureDetector(
+                      onTap: () => setState(() => _selectedDay = day),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 34, height: 34,
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? const Color(0xFF44C21E)
+                                  : Colors.transparent,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: Text(
+                                '$day',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : const Color(0xFF334155),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          // Si tiene justificación pendiente muestra doble punto
+                          if (justDay == 'PENDIENTE')
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _dot6(status != null
+                                    ? _statusColor(status)
+                                    : Colors.transparent),
+                                const SizedBox(width: 2),
+                                _dot6(const Color(0xFFF6A900)),
+                              ],
+                            )
+                          else
+                            _dot6(status != null
+                                ? _statusColor(status)
+                                : Colors.transparent),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
+
+          const SizedBox(height: 14),
+
+          // ── Card detalle del día ─────────────────────────────────────────
+          _card(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  nombreCompetencia,
-                  style: const TextStyle(
-                    color: Color(0xFF092444),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                // Fila principal: fecha + badge estado
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "${_dayName(_selectedDay)}, $_selectedDay de "
+                            "${_monthNames[_monthIndex].toLowerCase()}",
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1E293B),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          // Horas
+                          Row(
+                            children: [
+                              const Icon(Icons.access_time_rounded,
+                                  size: 14, color: Color(0xFF94A3B8)),
+                              const SizedBox(width: 4),
+                              Text(
+                                selDetail != null
+                                    ? "${selDetail['entrada']} - ${selDetail['salida']}"
+                                    : "Sin registro de horario",
+                                style: const TextStyle(
+                                    fontSize: 13, color: Color(0xFF607086)),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Badge estado
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _statusColor(selStatus).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        _statusLabel(selStatus),
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: _statusColor(selStatus),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // ── Competencia ──────────────────────────────────────────
+                if (selComp != null) ...[
+                  const SizedBox(height: 12),
+                  const Divider(height: 1, color: Color(0xFFEEF0F3)),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Icon(Icons.book_outlined,
+                          size: 16, color: Color(0xFF94A3B8)),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Competencia: ',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          selComp,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF1E293B),
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+
+                // ── Justificación ─────────────────────────────────────────
+                if (selJust != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: _justColor(selJust).withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _justColor(selJust).withOpacity(0.25),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(_justIcon(selJust),
+                            size: 16, color: _justColor(selJust)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _justLabel(selJust),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: _justColor(selJust),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                // ── Observación ───────────────────────────────────────────
+                if (selObs != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8F9FB),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.info_outline,
+                            size: 16, color: Color(0xFF94A3B8)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            selObs,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF607086),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                // ── Si el día no tiene ningún registro ───────────────────
+                if (selStatus == null) ...[
+                  const SizedBox(height: 10),
+                  const Center(
+                    child: Text(
+                      'Sin sesión registrada este día',
+                      style: TextStyle(
+                          fontSize: 13, color: Color(0xFFBDBDBD)),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // ── Leyenda ──────────────────────────────────────────────────────
+          _card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Referencias',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E293B),
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  horaInicio.isNotEmpty && horaFin.isNotEmpty
-                      ? '$horaInicio - $horaFin'
-                      : 'Hora no disponible',
-                  style: const TextStyle(
-                    color: Color(0xFF607086),
-                    fontSize: 12,
-                  ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _legendDot(const Color(0xFF44C21E), "Presente"),
+                    _legendDot(const Color(0xFFE53935), "Ausente"),
+                    _legendDot(const Color(0xFFF6A900), "Justificada"),
+                    _legendDot(const Color(0xFFBDBDBD), "Sin clase"),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                // Explicación del doble punto
+                Row(
+                  children: [
+                    _dot6(const Color(0xFFE53935)),
+                    const SizedBox(width: 2),
+                    _dot6(const Color(0xFFF6A900)),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Ausente con justificación pendiente',
+                      style: TextStyle(
+                          fontSize: 12, color: Color(0xFF607086)),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -580,68 +659,55 @@ class _CalendarPageState extends State<CalendarPage> {
       ),
     );
   }
- 
-  Widget _estadoChip(String? estado) {
-    final color = _colorParaEstado(estado) ?? _colorSinClase;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        _etiquetaEstado(estado),
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
+
+  // ── Widgets auxiliares ────────────────────────────────────────────────────
+  Widget _card({required Widget child}) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-      ),
-    );
-  }
- 
-  // ── Leyenda ──────────────────────────────────────────────────────────────────
-  Widget _buildLegend() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+        child: child,
+      );
+
+  Widget _navBtn(IconData icon, VoidCallback onTap) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 34, height: 34,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 20, color: const Color(0xFF6E7B8D)),
+        ),
+      );
+
+  Widget _dot6(Color color) => Container(
+        width: 6, height: 6,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      );
+
+  Widget _legendDot(Color color, String label) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _dot6(color),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF607086),
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _legendItem(_colorPresente, 'Presente'),
-          _legendItem(_colorAusente, 'Ausente'),
-          _legendItem(_colorJustificada, 'Justificada'),
-          _legendItem(_colorSinClase, 'Sin clase'),
-        ],
-      ),
-    );
-  }
- 
-  Widget _legendItem(Color color, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 5),
-        Text(
-          label,
-          style: const TextStyle(color: Color(0xFF607086), fontSize: 11),
-        ),
-      ],
-    );
-  }
+      );
 }
