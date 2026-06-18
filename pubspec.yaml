@@ -38,7 +38,7 @@ dependencies:
   http: ^1.2.0
   geolocator: ^14.0.2
   local_auth: ^3.0.1
-  file_picker: ^5.2.7
+  file_picker: ^11.0.2
   http_parser: ^4.1.0
 
 dev_dependencies:

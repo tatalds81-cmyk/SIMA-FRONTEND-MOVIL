@@ -484,7 +484,7 @@ class _CalendarPageState extends State<CalendarPage> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: _statusColor(selStatus).withOpacity(0.12),
+                        color: _statusColor(selStatus).withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
@@ -540,10 +540,10 @@ class _CalendarPageState extends State<CalendarPage> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
-                      color: _justColor(selJust).withOpacity(0.08),
+                      color: _justColor(selJust).withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: _justColor(selJust).withOpacity(0.25),
+                        color: _justColor(selJust).withValues(alpha: 0.25),
                       ),
                     ),
                     child: Row(
@@ -669,7 +669,7 @@ class _CalendarPageState extends State<CalendarPage> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),

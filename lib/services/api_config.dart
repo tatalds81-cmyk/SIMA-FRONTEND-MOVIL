@@ -14,9 +14,10 @@
 class ApiConfig {
   ApiConfig._(); // Clase no instanciable
 
+
   static const String baseUrl = String.fromEnvironment(
     'SIMA_API_URL',
-    defaultValue: 'http://10.3.44.149:3000/api',
+    defaultValue: 'http://10.187.113.166:3000/api',
   );
 
   // Endpoints de autenticación

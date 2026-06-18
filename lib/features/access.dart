@@ -18,9 +18,9 @@ class AccessPage extends StatefulWidget {
 
 class _AccessPageState extends State<AccessPage> {
   int _currentIndex = 0;
-  int _attendanceRefreshTick = 0;
-  bool _hasActiveSession = false;
-  bool _hasVerifiedSession = false;
+  final int _attendanceRefreshTick = 0;
+  final bool _hasActiveSession = false;
+  final bool _hasVerifiedSession = false;
   int _attendanceTabIndex = 0;
   int _observatoryTabIndex = 0;
 
