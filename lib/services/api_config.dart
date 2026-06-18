@@ -16,7 +16,7 @@ class ApiConfig {
 
   static const String baseUrl = String.fromEnvironment(
     'SIMA_API_URL',
-    defaultValue: 'http://10.3.44.249:3000/api',
+    defaultValue: 'http://10.3.44.149:3000/api',
   );
 
   // Endpoints de autenticación
@@ -29,6 +29,7 @@ class ApiConfig {
   static const String myCalendar = '$baseUrl/attendances/my-calendar';
   static const String sessions = '$baseUrl/apprentice-portal/sessions';
   static const String qrAttendance = '$baseUrl/attendances/qr';
+  static const String submitJustification = '$baseUrl/attendances/justifications';
   static const String currentApprentice = '$baseUrl/apprentices/me';
   static const String currentUser = '$baseUrl/users/me';
   static const String profileOverview = '$baseUrl/profile/overview';

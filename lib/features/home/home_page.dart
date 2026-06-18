@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:sima_movil_froned/features/home/dashboard_qr_flow.dart';
 import 'package:sima_movil_froned/features/observatory/data/observations_repository.dart';
 import 'package:sima_movil_froned/features/observatory/models/observation.dart';
+import 'package:sima_movil_froned/services/auth_service.dart';
 import 'package:sima_movil_froned/services/attendance_service.dart';
 
 class HomePage extends StatefulWidget {
@@ -390,7 +391,9 @@ class _HomePageState extends State<HomePage> {
                 ),
                 // const SizedBox(height: 16), // Espacio removido junto con los botones
                 TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
                   child: const Text(
                     'Cancelar',
                     style: TextStyle(
@@ -978,24 +981,30 @@ class _HomeHeader extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const _ReadOnlyFormField(
+                      _ReadOnlyFormField(
                         label: 'Nombres y apellidos',
-                        value: 'Esteban Felipe Benavides Paz',
+                        value: _getCurrentUserFullName(),
                       ),
                       const SizedBox(height: 12),
-                      const _ReadOnlyFormField(label: 'Rol', value: 'Aprendiz'),
+                      _ReadOnlyFormField(
+                        label: 'Rol',
+                        value: _getCurrentUserRole(),
+                      ),
                       const SizedBox(height: 12),
-                      const _ReadOnlyFormField(
+                      _ReadOnlyFormField(
                         label: 'Programa',
-                        value: 'Análisis y desarrollo de software',
+                        value: _getCurrentUserProgram(),
                       ),
                       const SizedBox(height: 12),
-                      const _ReadOnlyFormField(
+                      _ReadOnlyFormField(
                         label: 'Ficha',
-                        value: '3064975',
+                        value: _getCurrentUserFicha(),
                       ),
                       const SizedBox(height: 12),
-                      const _ReadOnlyFormField(label: 'Trimestre', value: '4'),
+                      _ReadOnlyFormField(
+                        label: 'Trimestre',
+                        value: _getCurrentUserTrimester(),
+                      ),
                       const SizedBox(height: 24),
                     ],
                   ),
@@ -1038,9 +1047,9 @@ class _HomeHeader extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const Text(
-                  'Hola Esteban',
-                  style: TextStyle(
+                Text(
+                  'Hola ${_getCurrentUserGreetingName()}',
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -1588,7 +1597,6 @@ class _QuickAccessSection extends StatelessWidget {
         const SizedBox(height: 10),
         LayoutBuilder(
           builder: (context, constraints) {
-            final itemWidth = (constraints.maxWidth - 20) / 3;
             return Row(
               children: [
                 Expanded(
@@ -1907,6 +1915,88 @@ class ClassBlock {
   final String instructor;
 }
 
+String _getCurrentUserFullName() {
+  final user = AuthService.currentUser ?? {};
+  final fullName = _firstString([
+    user['nombre_completo'],
+    user['full_name'],
+    user['name'],
+    user['nombre'],
+  ]);
+
+  if (fullName.isNotEmpty) {
+    return fullName;
+  }
+
+  final firstName = _firstString([
+    user['first_name'],
+    user['firstName'],
+    user['nombre'],
+  ]);
+  final lastName = _firstString([
+    user['last_name'],
+    user['lastName'],
+    user['apellido'],
+    user['apellido_paterno'],
+    user['apellido_materno'],
+  ]);
+
+  final combined = [firstName, lastName]
+      .where((part) => part.trim().isNotEmpty)
+      .join(' ');
+  return combined.isEmpty ? 'Aprendiz' : combined;
+}
+
+String _getCurrentUserGreetingName() {
+  final fullName = _getCurrentUserFullName();
+  if (fullName.isEmpty) {
+    return 'Aprendiz';
+  }
+  return fullName.split(' ').first;
+}
+
+String _getCurrentUserRole() {
+  final user = AuthService.currentUser ?? {};
+  return _firstString([
+    user['rol'],
+    user['role'],
+    user['perfil'],
+    'Aprendiz',
+  ]);
+}
+
+String _getCurrentUserProgram() {
+  final user = AuthService.currentUser ?? {};
+  return _firstString([
+    user['program'],
+    user['programa'],
+    user['nombre_programa'],
+    user['nombrePrograma'],
+    'No disponible',
+  ]);
+}
+
+String _getCurrentUserFicha() {
+  final user = AuthService.currentUser ?? {};
+  return _firstString([
+    user['ficha'],
+    user['numero_ficha'],
+    user['numeroFicha'],
+    user['codigo'],
+    'No disponible',
+  ]);
+}
+
+String _getCurrentUserTrimester() {
+  final user = AuthService.currentUser ?? {};
+  return _firstString([
+    user['trimestre'],
+    user['etapa'],
+    user['stage'],
+    'No disponible',
+  ]);
+}
+
 class _DashboardData {
   const _DashboardData({
     required this.metrics,
@@ -1941,10 +2031,9 @@ class _DashboardData {
         observationsTotal: observations.metrics.total,
         attendancePercent: _attendancePercent(attendance),
       ),
-      classes: sessions
-          .whereType<Map<String, dynamic>>()
-          .map(_classItemFromSession)
-          .toList(growable: false),
+      classes: _classItemsFromSessions(
+        sessions.whereType<Map<String, dynamic>>().toList(),
+      ),
       unreadNotifications: notifications
           .whereType<Map<String, dynamic>>()
           .where((item) => item['leida'] != true)
@@ -1981,36 +2070,73 @@ class _DashboardMetrics {
       (observationsTotal / 10).clamp(0, 1).toDouble();
 }
 
-ClassItem _classItemFromSession(Map<String, dynamic> session) {
+List<ClassItem> _classItemsFromSessions(List<Map<String, dynamic>> sessions) {
+  if (sessions.isEmpty) return const [];
+
+  final groupedByDate = <String, List<Map<String, dynamic>>>{};
+  for (final session in sessions) {
+    final fecha = _firstString([session['fecha_clase']]);
+    if (fecha.isEmpty) continue;
+    groupedByDate.putIfAbsent(fecha, () => []).add(session);
+  }
+
+  final sortedDates = groupedByDate.keys.toList()
+    ..sort((a, b) {
+      final dateA = DateTime.tryParse(a);
+      final dateB = DateTime.tryParse(b);
+      if (dateA == null || dateB == null) return a.compareTo(b);
+      return dateA.compareTo(dateB);
+    });
+
+  return sortedDates.map((fecha) {
+    final sessionsForDay = groupedByDate[fecha]!;
+    final status = _firstString([sessionsForDay.first['estado'], 'PROGRAMADA']);
+    final color = _sessionColor(status);
+    final blocks = sessionsForDay
+        .map(_classBlockFromSession)
+        .toList(growable: false)
+      ..sort((a, b) => _parseTimeForSort(a.time).compareTo(_parseTimeForSort(b.time)));
+
+    return ClassItem(
+      day: _formatDay(fecha),
+      status: _statusLabel(status),
+      color: color,
+      blocks: blocks,
+    );
+  }).toList(growable: false);
+}
+
+ClassBlock _classBlockFromSession(Map<String, dynamic> session) {
   final competency = _firstMap([session['competencia']]);
   final instructor = _firstMap([session['instructor']]);
   final environment = _firstMap([session['ambiente']]);
   final block = _firstMap([session['bloque_jornada']]);
-  final status = _firstString([session['estado'], 'PROGRAMADA']);
-  final color = _sessionColor(status);
 
-  return ClassItem(
-    day: _formatDay(_firstString([session['fecha_clase']])),
-    status: _statusLabel(status),
-    color: color,
-    blocks: [
-      ClassBlock(
-        title: _firstString([
-          competency['nombre_competencia'],
-          'Clase programada',
-        ]),
-        time: _formatTimeRange(
-          _firstString([session['hora_inicio'], block['hora_inicio']]),
-          _firstString([session['hora_fin'], block['hora_fin']]),
-        ),
-        place: _formatPlace(environment),
-        instructor: _firstString([
-          instructor['nombre_completo'],
-          'Instructor por asignar',
-        ]),
-      ),
-    ],
+  return ClassBlock(
+    title: _firstString([
+      competency['nombre_competencia'],
+      'Clase programada',
+    ]),
+    time: _formatTimeRange(
+      _firstString([session['hora_inicio'], block['hora_inicio']]),
+      _firstString([session['hora_fin'], block['hora_fin']]),
+    ),
+    place: _formatPlace(environment),
+    instructor: _firstString([
+      instructor['nombre_completo'],
+      'Instructor por asignar',
+    ]),
   );
+}
+
+int _parseTimeForSort(String timeRange) {
+  final parts = timeRange.split(' - ').first.split(' ');
+  if (parts.isEmpty) return 0;
+  final hm = parts.first.split(':');
+  if (hm.length < 2) return 0;
+  final hour = int.tryParse(hm[0]) ?? 0;
+  final minute = int.tryParse(hm[1]) ?? 0;
+  return hour * 100 + minute;
 }
 
 double _attendancePercent(Map<String, dynamic> attendance) {
