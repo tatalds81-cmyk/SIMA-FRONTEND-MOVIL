@@ -40,28 +40,28 @@ class _DashboardQrScannerScreenState extends State<_DashboardQrScannerScreen> {
         throw Exception('El código QR no coincide con tu sesión activa.');
       }
 
-      final faceSuccess = await Navigator.of(context).push<bool>(
+      final selectedMethod = await Navigator.of(context).push<_DashboardStepType?>(
         MaterialPageRoute(
-          builder: (_) =>
-              const _DashboardBiometricStep(type: _DashboardStepType.face),
+          builder: (_) => const _DashboardMethodChoiceStep(),
         ),
       );
-      if (faceSuccess != true) {
-        throw Exception('No se pudo validar tu rostro. Inténtalo nuevamente.');
+
+      if (selectedMethod == null) {
+        if (!mounted) return;
+        _controller.start();
+        return;
       }
 
-      if (!mounted) return;
-
-      final fingerprintSuccess = await Navigator.of(context).push<bool>(
+      final biometricSuccess = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
-          builder: (_) => const _DashboardBiometricStep(
-            type: _DashboardStepType.fingerprint,
-          ),
+          builder: (_) => _DashboardBiometricStep(type: selectedMethod),
         ),
       );
-      if (fingerprintSuccess != true) {
+      if (biometricSuccess != true) {
         throw Exception(
-          'No se pudo verificar tu huella. Inténtalo nuevamente.',
+          selectedMethod == _DashboardStepType.face
+              ? 'No se pudo validar tu rostro. Inténtalo nuevamente.'
+              : 'No se pudo verificar tu huella. Inténtalo nuevamente.',
         );
       }
 
@@ -168,6 +168,143 @@ class _DashboardQrScannerScreenState extends State<_DashboardQrScannerScreen> {
 }
 
 enum _DashboardStepType { face, fingerprint }
+
+class _DashboardMethodChoiceStep extends StatelessWidget {
+  const _DashboardMethodChoiceStep();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF052D4F),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF052D4F),
+        elevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).pop(),
+          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+        ),
+        title: const Text(
+          'Selecciona el método',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+          child: Column(
+            children: [
+              const _StepProgress(activeStep: 2, thirdLabel: 'Biométrico'),
+              const SizedBox(height: 22),
+              const Text(
+                'Elige si deseas validar tu sesión con reconocimiento facial o huella dactilar.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 28),
+              Expanded(
+                child: Column(
+                  children: [
+                    _MethodOptionCard(
+                      icon: Icons.face_retouching_natural_rounded,
+                      title: 'Reconocimiento facial',
+                      description: 'Usa tu rostro para validar tu asistencia.',
+                      onTap: () => Navigator.of(context).pop(_DashboardStepType.face),
+                    ),
+                    const SizedBox(height: 18),
+                    _MethodOptionCard(
+                      icon: Icons.fingerprint_rounded,
+                      title: 'Huella dactilar',
+                      description: 'Usa tu huella para validar tu asistencia.',
+                      onTap: () => Navigator.of(context).pop(_DashboardStepType.fingerprint),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MethodOptionCard extends StatelessWidget {
+  const _MethodOptionCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: const Color(0xFF07375F),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0A4D72),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(icon, color: const Color(0xFF7FDB64), size: 28),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _DashboardBiometricStep extends StatelessWidget {
   const _DashboardBiometricStep({required this.type});
@@ -384,16 +521,17 @@ class _ScannerRingPainter extends CustomPainter {
 }
 
 class _StepProgress extends StatelessWidget {
-  const _StepProgress({required this.activeStep});
+  const _StepProgress({required this.activeStep, this.thirdLabel = 'Biométrico'});
 
   final int activeStep;
+  final String thirdLabel;
 
   @override
   Widget build(BuildContext context) {
-    const labels = [
+    final labels = [
       'Escanear QR',
-      'Reconocimiento\nfacial',
-      'Huella\ndactilar',
+      'Elegir método',
+      thirdLabel,
     ];
 
     return Row(

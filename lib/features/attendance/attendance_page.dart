@@ -1462,12 +1462,16 @@ class _AttendancePageState extends State<AttendancePage>
           ElevatedButton.icon(
             onPressed: () => _pickJustificationFile(sessionId),
             icon: const Icon(Icons.attach_file_outlined),
-            label: const Text('Seleccionar archivo'),
+            label: const Text(
+              'Seleccionar archivo',
+              textAlign: TextAlign.center,
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF39A900),
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+              alignment: Alignment.center,
             ),
           ),
           if (selectedFile != null) ...[
@@ -1531,13 +1535,21 @@ class _AttendancePageState extends State<AttendancePage>
               onPressed: isSubmitting ? null : () => _submitJustification(sessionId),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF39A900),
+                foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                alignment: Alignment.center,
+                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
               child: isSubmitting
-                  ? const CircularProgressIndicator(color: Colors.white)
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                    )
                   : const Text(
-                      'Enviar justificación',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                      'Enviar',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white),
                     ),
             ),
           ),

@@ -27,9 +27,12 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  static const int _initialPage = 1000;
+  static const int _initialPage = 10000;
 
-  final PageController _controller = PageController(initialPage: _initialPage);
+  final PageController _controller = PageController(
+    initialPage: _initialPage,
+    viewportFraction: 0.92,
+  );
   final ObservatoryRepository _observatoryRepository =
       const BackendObservatoryRepository();
   late Future<_DashboardData> _dashboardFuture;
@@ -585,6 +588,9 @@ class _HomePageState extends State<HomePage> {
 
     final activeIndex = _currentClass % classes.length;
 
+    final screenHeight = MediaQuery.of(context).size.height;
+    final carouselHeight = screenHeight < 720 ? 360.0 : 400.0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -596,7 +602,7 @@ class _HomePageState extends State<HomePage> {
         ),
         const SizedBox(height: 14),
         SizedBox(
-          height: 320,
+          height: carouselHeight,
           child: ScrollConfiguration(
             behavior: const _CarouselScrollBehavior(),
             child: PageView.builder(
@@ -609,7 +615,10 @@ class _HomePageState extends State<HomePage> {
               itemBuilder: (context, index) {
                 final item = classes[index % classes.length];
 
-                return _ClassCard(item: item);
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: _ClassCard(item: item),
+                );
               },
             ),
           ),
@@ -1601,6 +1610,15 @@ class _QuickAccessSection extends StatelessWidget {
               children: [
                 Expanded(
                   child: _QuickAccessCard(
+                    icon: Icons.assignment_turned_in_rounded,
+                    label: 'Registrar asistencia',
+                    color: const Color(0xFFF4A900),
+                    onTap: onObservationsTap,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _QuickAccessCard(
                     icon: Icons.calendar_today_rounded,
                     label: 'Mis asistencias',
                     color: const Color(0xFF39A900),
@@ -1614,15 +1632,6 @@ class _QuickAccessSection extends StatelessWidget {
                     label: 'Justificaciones',
                     color: const Color(0xFF0F9D58),
                     onTap: onJustifyTap,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _QuickAccessCard(
-                    icon: Icons.assignment_turned_in_rounded,
-                    label: 'Registrar asistencia',
-                    color: const Color(0xFFF4A900),
-                    onTap: onObservationsTap,
                   ),
                 ),
               ],
@@ -1656,7 +1665,7 @@ class _QuickAccessCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: Container(
-          constraints: const BoxConstraints(minHeight: 100),
+          constraints: const BoxConstraints(minHeight: 110),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: Colors.white,
@@ -1699,9 +1708,14 @@ class _ClassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.of(context).size.width < 380;
+    final titleFontSize = isCompact ? 18.0 : 20.0;
+    final blockTitleFontSize = isCompact ? 14.0 : 15.0;
+    final cardPadding = isCompact ? 16.0 : 20.0;
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(cardPadding),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
@@ -1739,9 +1753,9 @@ class _ClassCard extends StatelessWidget {
                       'Jornada programada',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF092444),
-                        fontSize: 20,
+                      style: TextStyle(
+                        color: const Color(0xFF092444),
+                        fontSize: titleFontSize,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -1768,19 +1782,20 @@ class _ClassCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          Expanded(
-            child: ListView.separated(
-              physics: const NeverScrollableScrollPhysics(),
-              padding: EdgeInsets.zero,
-              itemCount: item.blocks.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 10),
-              itemBuilder: (context, index) {
-                final block = item.blocks[index];
-
-                return _ClassBlockTile(block: block, color: item.color);
-              },
-            ),
+          const SizedBox(height: 16),
+          Column(
+            children: List.generate(item.blocks.length, (index) {
+              return Column(
+                children: [
+                  _ClassBlockTile(
+                    block: item.blocks[index],
+                    color: item.color,
+                    titleFontSize: blockTitleFontSize,
+                  ),
+                  if (index < item.blocks.length - 1) const SizedBox(height: 10),
+                ],
+              );
+            }),
           ),
         ],
       ),
@@ -1789,10 +1804,11 @@ class _ClassCard extends StatelessWidget {
 }
 
 class _ClassBlockTile extends StatelessWidget {
-  const _ClassBlockTile({required this.block, required this.color});
+  const _ClassBlockTile({required this.block, required this.color, this.titleFontSize = 15});
 
   final ClassBlock block;
   final Color color;
+  final double titleFontSize;
 
   @override
   Widget build(BuildContext context) {
@@ -1826,9 +1842,9 @@ class _ClassBlockTile extends StatelessWidget {
                       block.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF092444),
-                        fontSize: 15,
+                      style: TextStyle(
+                        color: const Color(0xFF092444),
+                        fontSize: titleFontSize,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
