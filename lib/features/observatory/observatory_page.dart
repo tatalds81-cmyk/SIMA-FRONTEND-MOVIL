@@ -623,7 +623,6 @@ class _FilterSheet extends StatefulWidget {
 class _FilterSheetState extends State<_FilterSheet> {
   late ObservatoryFilters _filters;
   late final TextEditingController _typeController;
-  _FilterSection _activeSection = _FilterSection.dates;
 
   @override
   void initState() {
@@ -651,7 +650,6 @@ class _FilterSheetState extends State<_FilterSheet> {
     setState(() {
       _filters = const ObservatoryFilters();
       _typeController.clear();
-      _activeSection = _FilterSection.dates;
     });
   }
 
@@ -666,6 +664,12 @@ class _FilterSheetState extends State<_FilterSheet> {
     final mediaSize = MediaQuery.sizeOf(context);
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
     final availableHeight = mediaSize.height - bottomInset;
+    final isCompact = mediaSize.width < 520;
+    final sheetHeightFactor = availableHeight < 620
+        ? 0.88
+        : isCompact
+        ? 0.58
+        : 0.72;
 
     return AnimatedPadding(
       duration: const Duration(milliseconds: 180),
@@ -676,15 +680,15 @@ class _FilterSheetState extends State<_FilterSheet> {
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: 760,
-            maxHeight: availableHeight * 0.94,
+            maxHeight: availableHeight * sheetHeightFactor,
           ),
           child: SizedBox(
             width: double.infinity,
-            height: availableHeight * 0.94,
+            height: availableHeight * sheetHeightFactor,
             child: Material(
               color: Colors.white,
               borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(28),
+                top: Radius.circular(18),
               ),
               clipBehavior: Clip.antiAlias,
               child: Column(
@@ -704,7 +708,7 @@ class _FilterSheetState extends State<_FilterSheet> {
 
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 22, 22, 18),
+      padding: const EdgeInsets.fromLTRB(20, 14, 18, 10),
       child: Row(
         children: [
           const Expanded(
@@ -712,7 +716,7 @@ class _FilterSheetState extends State<_FilterSheet> {
               'Filtros',
               style: TextStyle(
                 color: _ObservatoryColors.navy,
-                fontSize: 30,
+                fontSize: 22,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -721,13 +725,13 @@ class _FilterSheetState extends State<_FilterSheet> {
             message: 'Cerrar filtros',
             child: IconButton(
               onPressed: _applyFilters,
-              icon: const Icon(Icons.close_rounded, size: 32),
+              icon: const Icon(Icons.close_rounded, size: 22),
               style: IconButton.styleFrom(
                 backgroundColor: _ObservatoryColors.background,
                 foregroundColor: _ObservatoryColors.navy,
-                fixedSize: const Size.square(58),
+                fixedSize: const Size.square(40),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),
@@ -738,161 +742,153 @@ class _FilterSheetState extends State<_FilterSheet> {
   }
 
   Widget _buildBody() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final menuWidth = constraints.maxWidth < 430 ? 132.0 : 170.0;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _FilterSectionBlock(title: 'Fecha', child: _buildDateFilter()),
+          const SizedBox(height: 12),
+          _FilterSectionBlock(
+            title: 'Severidad',
+            child: _buildSeverityFilter(),
+          ),
+          const SizedBox(height: 12),
+          _FilterSectionBlock(title: 'Estado', child: _buildStatusFilter()),
+          const SizedBox(height: 12),
+          _FilterSectionBlock(title: 'Tipo', child: _buildTypeFilter()),
+        ],
+      ),
+    );
+  }
 
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              width: menuWidth,
-              child: _FilterMenu(
-                activeSection: _activeSection,
-                filters: _filters,
-                onSectionSelected: (section) {
-                  setState(() {
-                    _activeSection = section;
-                  });
-                },
-              ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(22, 24, 20, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _filterSectionTitle(_activeSection),
-                      style: const TextStyle(
-                        color: _ObservatoryColors.navy,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 22),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: _buildActiveFilterControl(),
-                      ),
-                    ),
-                  ],
+  Widget _buildDateFilter() {
+    return _FilterChoiceStrip(
+      children: [
+        _FilterChoicePill(
+          icon: Icons.calendar_view_month_rounded,
+          label: 'Todas las fechas',
+          isSelected:
+              _filters.fechaDesde == null && _filters.fechaHasta == null,
+          onTap: () => _setFilters(
+            _filters.copyWith(clearFechaDesde: true, clearFechaHasta: true),
+          ),
+        ),
+        _FilterDatePill(
+          label: 'Desde',
+          value: _filters.fechaDesde == null
+              ? _allOption
+              : _formatDate(_filters.fechaDesde!),
+          onTap: () async {
+            final date = await widget.onPickDate(_filters.fechaDesde, null);
+            if (date != null && mounted) {
+              _setFilters(_filters.copyWith(fechaDesde: date));
+            }
+          },
+        ),
+        _FilterDatePill(
+          label: 'Hasta',
+          value: _filters.fechaHasta == null
+              ? _allOption
+              : _formatDate(_filters.fechaHasta!),
+          onTap: () async {
+            final date = await widget.onPickDate(
+              _filters.fechaHasta,
+              _filters.fechaDesde,
+            );
+            if (date != null && mounted) {
+              final from = _filters.fechaDesde;
+              _setFilters(
+                _filters.copyWith(
+                  fechaHasta: from != null && date.isBefore(from) ? from : date,
                 ),
-              ),
-            ),
-          ],
+              );
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSeverityFilter() {
+    return _FilterChoiceGroup(
+      options: const [_allOption, 'LEVE', 'MODERADA', 'GRAVE', 'CRITICA'],
+      selectedValue: _filters.severidad ?? _allOption,
+      icon: Icons.priority_high_rounded,
+      useSeverityMarkers: true,
+      onSelected: (value) {
+        _setFilters(
+          value == _allOption
+              ? _filters.copyWith(clearSeveridad: true)
+              : _filters.copyWith(severidad: value),
         );
       },
     );
   }
 
-  Widget _buildActiveFilterControl() {
-    return switch (_activeSection) {
-      _FilterSection.dates => Wrap(
-        spacing: 10,
-        runSpacing: 12,
-        children: [
-          _FilterChoicePill(
-            icon: Icons.calendar_view_month_rounded,
-            label: 'Todas las fechas',
-            isSelected:
-                _filters.fechaDesde == null && _filters.fechaHasta == null,
-            onTap: () => _setFilters(
-              _filters.copyWith(clearFechaDesde: true, clearFechaHasta: true),
-            ),
-          ),
-          _FilterDatePill(
-            label: 'Desde',
-            value: _filters.fechaDesde == null
-                ? _allOption
-                : _formatDate(_filters.fechaDesde!),
-            onTap: () async {
-              final date = await widget.onPickDate(_filters.fechaDesde, null);
-              if (date != null && mounted) {
-                _setFilters(_filters.copyWith(fechaDesde: date));
-              }
-            },
-          ),
-          _FilterDatePill(
-            label: 'Hasta',
-            value: _filters.fechaHasta == null
-                ? _allOption
-                : _formatDate(_filters.fechaHasta!),
-            onTap: () async {
-              final date = await widget.onPickDate(
-                _filters.fechaHasta,
-                _filters.fechaDesde,
-              );
-              if (date != null && mounted) {
-                final from = _filters.fechaDesde;
-                _setFilters(
-                  _filters.copyWith(
-                    fechaHasta: from != null && date.isBefore(from)
-                        ? from
-                        : date,
-                  ),
-                );
-              }
-            },
-          ),
-        ],
-      ),
-      _FilterSection.severity => _FilterChoiceGroup(
-        options: const [_allOption, 'LEVE', 'MODERADA', 'GRAVE', 'CRITICA'],
-        selectedValue: _filters.severidad ?? _allOption,
-        icon: Icons.priority_high_rounded,
-        onSelected: (value) {
-          _setFilters(
-            value == _allOption
-                ? _filters.copyWith(clearSeveridad: true)
-                : _filters.copyWith(severidad: value),
-          );
-        },
-      ),
-      _FilterSection.status => _FilterChoiceGroup(
-        options: const [_allOption, 'ABIERTA', 'CERRADA'],
-        selectedValue: _filters.estado ?? _allOption,
-        icon: Icons.task_alt_rounded,
-        onSelected: (value) {
-          _setFilters(
-            value == _allOption
-                ? _filters.copyWith(clearEstado: true)
-                : _filters.copyWith(estado: value),
-          );
-        },
-      ),
-      _FilterSection.type => ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 360),
-        child: TextField(
-          controller: _typeController,
-          textInputAction: TextInputAction.done,
-          decoration: _inputDecoration('Tipo').copyWith(
-            hintText: _allOption,
-            prefixIcon: const Icon(Icons.category_outlined, size: 20),
-          ),
-          onChanged: (value) {
-            _setFilters(
-              value.trim().isEmpty
-                  ? _filters.copyWith(clearTipo: true)
-                  : _filters.copyWith(tipo: value),
-            );
-          },
-          onSubmitted: (_) => _applyFilters(),
+  Widget _buildStatusFilter() {
+    return _FilterChoiceGroup(
+      options: const [_allOption, 'ABIERTA', 'CERRADA'],
+      selectedValue: _filters.estado ?? _allOption,
+      icon: Icons.task_alt_rounded,
+      onSelected: (value) {
+        _setFilters(
+          value == _allOption
+              ? _filters.copyWith(clearEstado: true)
+              : _filters.copyWith(estado: value),
+        );
+      },
+    );
+  }
+
+  Widget _buildTypeFilter() {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 360),
+      child: TextField(
+        controller: _typeController,
+        textInputAction: TextInputAction.done,
+        decoration: _inputDecoration('Buscar tipo').copyWith(
+          hintText: _allOption,
+          prefixIcon: const Icon(Icons.category_outlined, size: 20),
         ),
+        onChanged: (value) {
+          _setFilters(
+            value.trim().isEmpty
+                ? _filters.copyWith(clearTipo: true)
+                : _filters.copyWith(tipo: value),
+          );
+        },
+        onSubmitted: (_) => _applyFilters(),
       ),
-    };
+    );
   }
 }
 
-enum _FilterSection { dates, severity, status, type }
+class _FilterSectionBlock extends StatelessWidget {
+  const _FilterSectionBlock({required this.title, required this.child});
 
-const _filterSections = <_FilterSection>[
-  _FilterSection.dates,
-  _FilterSection.severity,
-  _FilterSection.status,
-  _FilterSection.type,
-];
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: _ObservatoryColors.navy,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 6),
+        child,
+      ],
+    );
+  }
+}
 
 class _FilterToggleButton extends StatelessWidget {
   const _FilterToggleButton({
@@ -967,172 +963,126 @@ class _FilterCountBadge extends StatelessWidget {
   }
 }
 
-class _FilterMenu extends StatelessWidget {
-  const _FilterMenu({
-    required this.activeSection,
-    required this.filters,
-    required this.onSectionSelected,
-  });
-
-  final _FilterSection activeSection;
-  final ObservatoryFilters filters;
-  final ValueChanged<_FilterSection> onSectionSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: _ObservatoryColors.background,
-        border: Border(right: BorderSide(color: _ObservatoryColors.line)),
-      ),
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: _filterSections
-            .map(
-              (section) => _FilterMenuTile(
-                label: _filterSectionTitle(section),
-                isSelected: section == activeSection,
-                hasValue: _filterSectionHasValue(section, filters),
-                onTap: () => onSectionSelected(section),
-              ),
-            )
-            .toList(growable: false),
-      ),
-    );
-  }
-}
-
-class _FilterMenuTile extends StatelessWidget {
-  const _FilterMenuTile({
-    required this.label,
-    required this.isSelected,
-    required this.hasValue,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool isSelected;
-  final bool hasValue;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: isSelected ? Colors.white : Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: isSelected
-                    ? _ObservatoryColors.green
-                    : _ObservatoryColors.line,
-                width: isSelected ? 3 : 1,
-              ),
-            ),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: isSelected
-                        ? _ObservatoryColors.green
-                        : _ObservatoryColors.navy,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              if (hasValue)
-                const Icon(
-                  Icons.check_rounded,
-                  color: _ObservatoryColors.navy,
-                  size: 19,
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _FilterChoiceGroup extends StatelessWidget {
   const _FilterChoiceGroup({
     required this.options,
     required this.selectedValue,
     required this.icon,
     required this.onSelected,
+    this.useSeverityMarkers = false,
   });
 
   final List<String> options;
   final String selectedValue;
   final IconData icon;
   final ValueChanged<String> onSelected;
+  final bool useSeverityMarkers;
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 12,
+    return _FilterChoiceStrip(
       children: options
-          .map(
-            (option) => _FilterChoicePill(
-              icon: option == _allOption ? Icons.all_inclusive_rounded : icon,
+          .map((option) {
+            final markerColor = useSeverityMarkers && option != _allOption
+                ? _severityColor(option)
+                : null;
+
+            return _FilterChoicePill(
+              icon: markerColor == null
+                  ? (option == _allOption ? Icons.all_inclusive_rounded : icon)
+                  : null,
+              markerColor: markerColor,
               label: option,
               isSelected: selectedValue == option,
+              selectedColor: markerColor ?? _ObservatoryColors.green,
               onTap: () => onSelected(option),
-            ),
-          )
+            );
+          })
           .toList(growable: false),
+    );
+  }
+}
+
+class _FilterChoiceStrip extends StatelessWidget {
+  const _FilterChoiceStrip({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        children: [
+          for (var index = 0; index < children.length; index++) ...[
+            if (index > 0) const SizedBox(width: 6),
+            children[index],
+          ],
+        ],
+      ),
     );
   }
 }
 
 class _FilterChoicePill extends StatelessWidget {
   const _FilterChoicePill({
-    required this.icon,
     required this.label,
     required this.isSelected,
     required this.onTap,
+    this.icon,
+    this.markerColor,
+    this.selectedColor = _ObservatoryColors.green,
   });
 
-  final IconData icon;
+  final IconData? icon;
+  final Color? markerColor;
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
+  final Color selectedColor;
 
   @override
   Widget build(BuildContext context) {
+    final hasLeading = icon != null || markerColor != null;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
         onTap: onTap,
         child: Container(
-          constraints: const BoxConstraints(minHeight: 52, maxWidth: 260),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          constraints: const BoxConstraints(minHeight: 32, maxWidth: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
           decoration: BoxDecoration(
             color: isSelected
-                ? _ObservatoryColors.green.withValues(alpha: 0.12)
-                : _ObservatoryColors.background,
+                ? selectedColor.withValues(alpha: 0.11)
+                : Colors.white,
             border: Border.all(
-              color: isSelected ? _ObservatoryColors.green : Colors.transparent,
+              color: isSelected ? selectedColor : _ObservatoryColors.line,
+              width: isSelected ? 1.2 : 1,
             ),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: _ObservatoryColors.navy, size: 21),
-              const SizedBox(width: 10),
+              if (markerColor != null)
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: markerColor,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                )
+              else if (icon != null)
+                Icon(
+                  icon,
+                  color: isSelected ? selectedColor : _ObservatoryColors.muted,
+                  size: 15,
+                ),
+              if (hasLeading) const SizedBox(width: 6),
               Flexible(
                 child: Text(
                   label,
@@ -1140,7 +1090,7 @@ class _FilterChoicePill extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: _ObservatoryColors.navy,
-                    fontSize: 16,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -1183,7 +1133,7 @@ class _FilterFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+      padding: const EdgeInsets.fromLTRB(18, 8, 18, 10),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(top: BorderSide(color: _ObservatoryColors.line)),
@@ -1198,9 +1148,10 @@ class _FilterFooter extends StatelessWidget {
                 onPressed: onClear,
                 style: TextButton.styleFrom(
                   foregroundColor: _ObservatoryColors.green,
-                  minimumSize: const Size.fromHeight(52),
+                  minimumSize: const Size.fromHeight(40),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
                   textStyle: const TextStyle(
-                    fontSize: 16,
+                    fontSize: 14,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -1754,7 +1705,8 @@ InputDecoration _inputDecoration(String label) {
       fontSize: 11,
       fontWeight: FontWeight.w800,
     ),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+    prefixIconConstraints: const BoxConstraints(minWidth: 34, minHeight: 34),
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
@@ -1812,28 +1764,6 @@ int _activeFilterCount(ObservatoryFilters filters) {
 
 bool _hasFilterText(String? value) {
   return value != null && value.trim().isNotEmpty;
-}
-
-String _filterSectionTitle(_FilterSection section) {
-  return switch (section) {
-    _FilterSection.dates => 'Fecha',
-    _FilterSection.severity => 'Severidad',
-    _FilterSection.status => 'Estado',
-    _FilterSection.type => 'Tipo',
-  };
-}
-
-bool _filterSectionHasValue(
-  _FilterSection section,
-  ObservatoryFilters filters,
-) {
-  return switch (section) {
-    _FilterSection.dates =>
-      filters.fechaDesde != null || filters.fechaHasta != null,
-    _FilterSection.severity => _hasFilterText(filters.severidad),
-    _FilterSection.status => _hasFilterText(filters.estado),
-    _FilterSection.type => _hasFilterText(filters.tipo),
-  };
 }
 
 String _cleanErrorMessage(Object? error) {
