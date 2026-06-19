@@ -7,6 +7,7 @@ import 'package:sima_movil_froned/features/home/home_page.dart';
 import 'package:sima_movil_froned/features/observatory/observatory_page.dart';
 import 'package:sima_movil_froned/features/profile/profile_page.dart';
 import 'package:sima_movil_froned/widgets/sima_bottom_nav_bar.dart';
+import 'package:sima_movil_froned/features/calendar/calendar_page.dart';
 
 class AccessPage extends StatefulWidget {
   const AccessPage({super.key});
@@ -17,9 +18,9 @@ class AccessPage extends StatefulWidget {
 
 class _AccessPageState extends State<AccessPage> {
   int _currentIndex = 0;
-  int _attendanceRefreshTick = 0;
-  bool _hasActiveSession = false;
-  bool _hasVerifiedSession = false;
+  final int _attendanceRefreshTick = 0;
+  final bool _hasActiveSession = false;
+  final bool _hasVerifiedSession = false;
   int _attendanceTabIndex = 0;
   int _observatoryTabIndex = 0;
 
@@ -51,6 +52,8 @@ class _AccessPageState extends State<AccessPage> {
         key: ValueKey('observatory_$_observatoryTabIndex'),
         initialTabIndex: _observatoryTabIndex,
       ),
+
+      const CalendarPage(),
       const ProfilePage(),
     ];
 

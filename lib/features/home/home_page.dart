@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:sima_movil_froned/features/home/dashboard_qr_flow.dart';
 import 'package:sima_movil_froned/features/observatory/data/observations_repository.dart';
 import 'package:sima_movil_froned/features/observatory/models/observation.dart';
+import 'package:sima_movil_froned/services/auth_service.dart';
 import 'package:sima_movil_froned/services/attendance_service.dart';
 
 class HomePage extends StatefulWidget {
@@ -26,9 +27,12 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  static const int _initialPage = 1000;
+  static const int _initialPage = 10000;
 
-  final PageController _controller = PageController(initialPage: _initialPage);
+  final PageController _controller = PageController(
+    initialPage: _initialPage,
+    viewportFraction: 0.92,
+  );
   final ObservatoryRepository _observatoryRepository =
       const BackendObservatoryRepository();
   late Future<_DashboardData> _dashboardFuture;
@@ -188,6 +192,43 @@ class _HomePageState extends State<HomePage> {
       });
     } catch (_) {
       // The dashboard should still load normally if the active-session lookup fails.
+    }
+  }
+
+  Future<void> _showActiveSessionFromButton() async {
+    try {
+      final data = await AttendanceService.getSessions();
+      if (!mounted) {
+        return;
+      }
+
+      final activeSession = data?['sesion_activa'] as Map<String, dynamic>?;
+      if (activeSession == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No hay sesión activa en este momento'),
+              backgroundColor: Color(0xFFF4A900),
+            ),
+          );
+        }
+        return;
+      }
+
+      final ficha = data?['ficha'] as Map<String, dynamic>? ?? {};
+
+      if (mounted) {
+        _showActiveSessionBottomSheet(activeSession, ficha);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar la sesión: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -353,7 +394,9 @@ class _HomePageState extends State<HomePage> {
                 ),
                 // const SizedBox(height: 16), // Espacio removido junto con los botones
                 TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
                   child: const Text(
                     'Cancelar',
                     style: TextStyle(
@@ -477,7 +520,7 @@ class _HomePageState extends State<HomePage> {
                             widget.onNavigateToAttendance?.call(2);
                           },
                           onObservationsTap: () {
-                            widget.onNavigateToObservatory?.call(0);
+                            _showActiveSessionFromButton();
                           },
                         ),
                         const SizedBox(height: 18),
@@ -545,6 +588,9 @@ class _HomePageState extends State<HomePage> {
 
     final activeIndex = _currentClass % classes.length;
 
+    final screenHeight = MediaQuery.of(context).size.height;
+    final carouselHeight = screenHeight < 720 ? 360.0 : 400.0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -556,7 +602,7 @@ class _HomePageState extends State<HomePage> {
         ),
         const SizedBox(height: 14),
         SizedBox(
-          height: 320,
+          height: carouselHeight,
           child: ScrollConfiguration(
             behavior: const _CarouselScrollBehavior(),
             child: PageView.builder(
@@ -569,7 +615,10 @@ class _HomePageState extends State<HomePage> {
               itemBuilder: (context, index) {
                 final item = classes[index % classes.length];
 
-                return _ClassCard(item: item);
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: _ClassCard(item: item),
+                );
               },
             ),
           ),
@@ -941,24 +990,30 @@ class _HomeHeader extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const _ReadOnlyFormField(
+                      _ReadOnlyFormField(
                         label: 'Nombres y apellidos',
-                        value: 'Esteban Felipe Benavides Paz',
+                        value: _getCurrentUserFullName(),
                       ),
                       const SizedBox(height: 12),
-                      const _ReadOnlyFormField(label: 'Rol', value: 'Aprendiz'),
+                      _ReadOnlyFormField(
+                        label: 'Rol',
+                        value: _getCurrentUserRole(),
+                      ),
                       const SizedBox(height: 12),
-                      const _ReadOnlyFormField(
+                      _ReadOnlyFormField(
                         label: 'Programa',
-                        value: 'Análisis y desarrollo de software',
+                        value: _getCurrentUserProgram(),
                       ),
                       const SizedBox(height: 12),
-                      const _ReadOnlyFormField(
+                      _ReadOnlyFormField(
                         label: 'Ficha',
-                        value: '3064975',
+                        value: _getCurrentUserFicha(),
                       ),
                       const SizedBox(height: 12),
-                      const _ReadOnlyFormField(label: 'Trimestre', value: '4'),
+                      _ReadOnlyFormField(
+                        label: 'Trimestre',
+                        value: _getCurrentUserTrimester(),
+                      ),
                       const SizedBox(height: 24),
                     ],
                   ),
@@ -1001,9 +1056,9 @@ class _HomeHeader extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const Text(
-                  'Hola Esteban',
-                  style: TextStyle(
+                Text(
+                  'Hola ${_getCurrentUserGreetingName()}',
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -1551,13 +1606,18 @@ class _QuickAccessSection extends StatelessWidget {
         const SizedBox(height: 10),
         LayoutBuilder(
           builder: (context, constraints) {
-            final itemWidth = (constraints.maxWidth - 20) / 3;
-            return Wrap(
-              spacing: 10,
-              runSpacing: 10,
+            return Row(
               children: [
-                SizedBox(
-                  width: itemWidth.clamp(100, constraints.maxWidth),
+                Expanded(
+                  child: _QuickAccessCard(
+                    icon: Icons.assignment_turned_in_rounded,
+                    label: 'Registrar asistencia',
+                    color: const Color(0xFFF4A900),
+                    onTap: onObservationsTap,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
                   child: _QuickAccessCard(
                     icon: Icons.calendar_today_rounded,
                     label: 'Mis asistencias',
@@ -1565,22 +1625,13 @@ class _QuickAccessSection extends StatelessWidget {
                     onTap: onAttendanceTap,
                   ),
                 ),
-                SizedBox(
-                  width: itemWidth.clamp(100, constraints.maxWidth),
+                const SizedBox(width: 10),
+                Expanded(
                   child: _QuickAccessCard(
                     icon: Icons.description_rounded,
                     label: 'Justificaciones',
                     color: const Color(0xFF0F9D58),
                     onTap: onJustifyTap,
-                  ),
-                ),
-                SizedBox(
-                  width: itemWidth.clamp(100, constraints.maxWidth),
-                  child: _QuickAccessCard(
-                    icon: Icons.notifications_active_rounded,
-                    label: 'Alertas y observaciones',
-                    color: const Color(0xFFF4A900),
-                    onTap: onObservationsTap,
                   ),
                 ),
               ],
@@ -1614,7 +1665,7 @@ class _QuickAccessCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: Container(
-          constraints: const BoxConstraints(minHeight: 100),
+          constraints: const BoxConstraints(minHeight: 110),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: Colors.white,
@@ -1657,9 +1708,14 @@ class _ClassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.of(context).size.width < 380;
+    final titleFontSize = isCompact ? 18.0 : 20.0;
+    final blockTitleFontSize = isCompact ? 14.0 : 15.0;
+    final cardPadding = isCompact ? 16.0 : 20.0;
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(cardPadding),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
@@ -1697,9 +1753,9 @@ class _ClassCard extends StatelessWidget {
                       'Jornada programada',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF092444),
-                        fontSize: 20,
+                      style: TextStyle(
+                        color: const Color(0xFF092444),
+                        fontSize: titleFontSize,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -1726,19 +1782,20 @@ class _ClassCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          Expanded(
-            child: ListView.separated(
-              physics: const NeverScrollableScrollPhysics(),
-              padding: EdgeInsets.zero,
-              itemCount: item.blocks.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 10),
-              itemBuilder: (context, index) {
-                final block = item.blocks[index];
-
-                return _ClassBlockTile(block: block, color: item.color);
-              },
-            ),
+          const SizedBox(height: 16),
+          Column(
+            children: List.generate(item.blocks.length, (index) {
+              return Column(
+                children: [
+                  _ClassBlockTile(
+                    block: item.blocks[index],
+                    color: item.color,
+                    titleFontSize: blockTitleFontSize,
+                  ),
+                  if (index < item.blocks.length - 1) const SizedBox(height: 10),
+                ],
+              );
+            }),
           ),
         ],
       ),
@@ -1747,10 +1804,11 @@ class _ClassCard extends StatelessWidget {
 }
 
 class _ClassBlockTile extends StatelessWidget {
-  const _ClassBlockTile({required this.block, required this.color});
+  const _ClassBlockTile({required this.block, required this.color, this.titleFontSize = 15});
 
   final ClassBlock block;
   final Color color;
+  final double titleFontSize;
 
   @override
   Widget build(BuildContext context) {
@@ -1784,9 +1842,9 @@ class _ClassBlockTile extends StatelessWidget {
                       block.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF092444),
-                        fontSize: 15,
+                      style: TextStyle(
+                        color: const Color(0xFF092444),
+                        fontSize: titleFontSize,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -1873,6 +1931,88 @@ class ClassBlock {
   final String instructor;
 }
 
+String _getCurrentUserFullName() {
+  final user = AuthService.currentUser ?? {};
+  final fullName = _firstString([
+    user['nombre_completo'],
+    user['full_name'],
+    user['name'],
+    user['nombre'],
+  ]);
+
+  if (fullName.isNotEmpty) {
+    return fullName;
+  }
+
+  final firstName = _firstString([
+    user['first_name'],
+    user['firstName'],
+    user['nombre'],
+  ]);
+  final lastName = _firstString([
+    user['last_name'],
+    user['lastName'],
+    user['apellido'],
+    user['apellido_paterno'],
+    user['apellido_materno'],
+  ]);
+
+  final combined = [firstName, lastName]
+      .where((part) => part.trim().isNotEmpty)
+      .join(' ');
+  return combined.isEmpty ? 'Aprendiz' : combined;
+}
+
+String _getCurrentUserGreetingName() {
+  final fullName = _getCurrentUserFullName();
+  if (fullName.isEmpty) {
+    return 'Aprendiz';
+  }
+  return fullName.split(' ').first;
+}
+
+String _getCurrentUserRole() {
+  final user = AuthService.currentUser ?? {};
+  return _firstString([
+    user['rol'],
+    user['role'],
+    user['perfil'],
+    'Aprendiz',
+  ]);
+}
+
+String _getCurrentUserProgram() {
+  final user = AuthService.currentUser ?? {};
+  return _firstString([
+    user['program'],
+    user['programa'],
+    user['nombre_programa'],
+    user['nombrePrograma'],
+    'No disponible',
+  ]);
+}
+
+String _getCurrentUserFicha() {
+  final user = AuthService.currentUser ?? {};
+  return _firstString([
+    user['ficha'],
+    user['numero_ficha'],
+    user['numeroFicha'],
+    user['codigo'],
+    'No disponible',
+  ]);
+}
+
+String _getCurrentUserTrimester() {
+  final user = AuthService.currentUser ?? {};
+  return _firstString([
+    user['trimestre'],
+    user['etapa'],
+    user['stage'],
+    'No disponible',
+  ]);
+}
+
 class _DashboardData {
   const _DashboardData({
     required this.metrics,
@@ -1907,10 +2047,9 @@ class _DashboardData {
         observationsTotal: observations.metrics.total,
         attendancePercent: _attendancePercent(attendance),
       ),
-      classes: sessions
-          .whereType<Map<String, dynamic>>()
-          .map(_classItemFromSession)
-          .toList(growable: false),
+      classes: _classItemsFromSessions(
+        sessions.whereType<Map<String, dynamic>>().toList(),
+      ),
       unreadNotifications: notifications
           .whereType<Map<String, dynamic>>()
           .where((item) => item['leida'] != true)
@@ -1947,36 +2086,73 @@ class _DashboardMetrics {
       (observationsTotal / 10).clamp(0, 1).toDouble();
 }
 
-ClassItem _classItemFromSession(Map<String, dynamic> session) {
+List<ClassItem> _classItemsFromSessions(List<Map<String, dynamic>> sessions) {
+  if (sessions.isEmpty) return const [];
+
+  final groupedByDate = <String, List<Map<String, dynamic>>>{};
+  for (final session in sessions) {
+    final fecha = _firstString([session['fecha_clase']]);
+    if (fecha.isEmpty) continue;
+    groupedByDate.putIfAbsent(fecha, () => []).add(session);
+  }
+
+  final sortedDates = groupedByDate.keys.toList()
+    ..sort((a, b) {
+      final dateA = DateTime.tryParse(a);
+      final dateB = DateTime.tryParse(b);
+      if (dateA == null || dateB == null) return a.compareTo(b);
+      return dateA.compareTo(dateB);
+    });
+
+  return sortedDates.map((fecha) {
+    final sessionsForDay = groupedByDate[fecha]!;
+    final status = _firstString([sessionsForDay.first['estado'], 'PROGRAMADA']);
+    final color = _sessionColor(status);
+    final blocks = sessionsForDay
+        .map(_classBlockFromSession)
+        .toList(growable: false)
+      ..sort((a, b) => _parseTimeForSort(a.time).compareTo(_parseTimeForSort(b.time)));
+
+    return ClassItem(
+      day: _formatDay(fecha),
+      status: _statusLabel(status),
+      color: color,
+      blocks: blocks,
+    );
+  }).toList(growable: false);
+}
+
+ClassBlock _classBlockFromSession(Map<String, dynamic> session) {
   final competency = _firstMap([session['competencia']]);
   final instructor = _firstMap([session['instructor']]);
   final environment = _firstMap([session['ambiente']]);
   final block = _firstMap([session['bloque_jornada']]);
-  final status = _firstString([session['estado'], 'PROGRAMADA']);
-  final color = _sessionColor(status);
 
-  return ClassItem(
-    day: _formatDay(_firstString([session['fecha_clase']])),
-    status: _statusLabel(status),
-    color: color,
-    blocks: [
-      ClassBlock(
-        title: _firstString([
-          competency['nombre_competencia'],
-          'Clase programada',
-        ]),
-        time: _formatTimeRange(
-          _firstString([session['hora_inicio'], block['hora_inicio']]),
-          _firstString([session['hora_fin'], block['hora_fin']]),
-        ),
-        place: _formatPlace(environment),
-        instructor: _firstString([
-          instructor['nombre_completo'],
-          'Instructor por asignar',
-        ]),
-      ),
-    ],
+  return ClassBlock(
+    title: _firstString([
+      competency['nombre_competencia'],
+      'Clase programada',
+    ]),
+    time: _formatTimeRange(
+      _firstString([session['hora_inicio'], block['hora_inicio']]),
+      _firstString([session['hora_fin'], block['hora_fin']]),
+    ),
+    place: _formatPlace(environment),
+    instructor: _firstString([
+      instructor['nombre_completo'],
+      'Instructor por asignar',
+    ]),
   );
+}
+
+int _parseTimeForSort(String timeRange) {
+  final parts = timeRange.split(' - ').first.split(' ');
+  if (parts.isEmpty) return 0;
+  final hm = parts.first.split(':');
+  if (hm.length < 2) return 0;
+  final hour = int.tryParse(hm[0]) ?? 0;
+  final minute = int.tryParse(hm[1]) ?? 0;
+  return hour * 100 + minute;
 }
 
 double _attendancePercent(Map<String, dynamic> attendance) {
