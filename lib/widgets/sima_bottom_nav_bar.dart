@@ -22,7 +22,6 @@ class SimaBottomNavBar extends StatelessWidget {
         label: 'Asistencia',
       ),
       _NavBarItem(icon: Icons.track_changes_rounded, label: 'Observaciones'),
-      _NavBarItem(icon: Icons.calendar_month_outlined, label: 'Calendario'),
       _NavBarItem(icon: Icons.person_outline_rounded, label: 'Perfil'),
     ];
 

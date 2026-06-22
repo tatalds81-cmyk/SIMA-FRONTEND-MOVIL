@@ -512,15 +512,23 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ),
                         const SizedBox(height: 18),
+                        _DailyDonutSummary(
+                          metrics: data.metrics,
+                          isLoading: isLoading,
+                        ),
+                        const SizedBox(height: 18),
                         _QuickAccessSection(
                           onAttendanceTap: () {
-                            widget.onNavigateToAttendance?.call(1);
+                            _showActiveSessionFromButton();
                           },
                           onJustifyTap: () {
-                            widget.onNavigateToAttendance?.call(2);
+                            widget.onNavigateToAttendance?.call(0);
                           },
                           onObservationsTap: () {
-                            _showActiveSessionFromButton();
+                            widget.onNavigateToAttendance?.call(2);
+                          },
+                          onAlertsTap: () {
+                            widget.onNavigateToObservatory?.call(0);
                           },
                         ),
                         const SizedBox(height: 18),
@@ -529,11 +537,6 @@ class _HomePageState extends State<HomePage> {
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _DailyDonutSummary(
-                                  metrics: data.metrics,
-                                  isLoading: isLoading,
-                                ),
-                                const SizedBox(height: 18),
                                 _buildScheduleCarousel(
                                   widget.hasActiveSession &&
                                           data.classes.isEmpty
@@ -1057,7 +1060,7 @@ class _HomeHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
-                  'Hola ${_getCurrentUserGreetingName()}',
+                  'Hola, ${_getCurrentUserGreetingName()}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -1065,7 +1068,17 @@ class _HomeHeader extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                _ActiveDot(isActive: hasActiveSession),
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: hasActiveSession
+                        ? const Color(0xFF39A900)
+                        : const Color(0xFF9AA8B8),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                ),
               ],
             ),
           ),
@@ -1584,11 +1597,13 @@ class _QuickAccessSection extends StatelessWidget {
     required this.onAttendanceTap,
     required this.onJustifyTap,
     required this.onObservationsTap,
+    required this.onAlertsTap,
   });
 
   final VoidCallback onAttendanceTap;
   final VoidCallback onJustifyTap;
   final VoidCallback onObservationsTap;
+  final VoidCallback onAlertsTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1606,32 +1621,46 @@ class _QuickAccessSection extends StatelessWidget {
         const SizedBox(height: 10),
         LayoutBuilder(
           builder: (context, constraints) {
-            return Row(
+            final spacing = 10.0;
+            final cardWidth = (constraints.maxWidth - spacing) / 2;
+            return Wrap(
+              runSpacing: spacing,
+              spacing: spacing,
               children: [
-                Expanded(
+                SizedBox(
+                  width: cardWidth,
                   child: _QuickAccessCard(
                     icon: Icons.assignment_turned_in_rounded,
                     label: 'Registrar asistencia',
                     color: const Color(0xFFF4A900),
-                    onTap: onObservationsTap,
+                    onTap: onAttendanceTap,
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
+                SizedBox(
+                  width: cardWidth,
                   child: _QuickAccessCard(
                     icon: Icons.calendar_today_rounded,
                     label: 'Mis asistencias',
                     color: const Color(0xFF39A900),
-                    onTap: onAttendanceTap,
+                    onTap: onJustifyTap,
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
+                SizedBox(
+                  width: cardWidth,
                   child: _QuickAccessCard(
                     icon: Icons.description_rounded,
                     label: 'Justificaciones',
                     color: const Color(0xFF0F9D58),
-                    onTap: onJustifyTap,
+                    onTap: onObservationsTap,
+                  ),
+                ),
+                SizedBox(
+                  width: cardWidth,
+                  child: _QuickAccessCard(
+                    icon: Icons.notifications_active_rounded,
+                    label: 'Alertas y Observaciones',
+                    color: const Color(0xFF0F9D58),
+                    onTap: onAlertsTap,
                   ),
                 ),
               ],
@@ -2087,25 +2116,44 @@ class _DashboardMetrics {
 }
 
 List<ClassItem> _classItemsFromSessions(List<Map<String, dynamic>> sessions) {
-  if (sessions.isEmpty) return const [];
+  final now = DateTime.now();
+  final monday = now.subtract(Duration(days: now.weekday - 1));
+  final weekDays = List.generate(
+    5,
+    (index) => DateTime(monday.year, monday.month, monday.day + index),
+    growable: false,
+  );
 
   final groupedByDate = <String, List<Map<String, dynamic>>>{};
   for (final session in sessions) {
     final fecha = _firstString([session['fecha_clase']]);
-    if (fecha.isEmpty) continue;
-    groupedByDate.putIfAbsent(fecha, () => []).add(session);
+    final date = DateTime.tryParse(fecha);
+    if (date == null) continue;
+
+    final dateKey = _dateKey(DateTime(date.year, date.month, date.day));
+    groupedByDate.putIfAbsent(dateKey, () => []).add(session);
   }
 
-  final sortedDates = groupedByDate.keys.toList()
-    ..sort((a, b) {
-      final dateA = DateTime.tryParse(a);
-      final dateB = DateTime.tryParse(b);
-      if (dateA == null || dateB == null) return a.compareTo(b);
-      return dateA.compareTo(dateB);
-    });
+  return weekDays.map((date) {
+    final dateKey = _dateKey(date);
+    final sessionsForDay = groupedByDate[dateKey];
 
-  return sortedDates.map((fecha) {
-    final sessionsForDay = groupedByDate[fecha]!;
+    if (sessionsForDay == null || sessionsForDay.isEmpty) {
+      return ClassItem(
+        day: _formatDay(date.toIso8601String()),
+        status: 'Cerrada',
+        color: const Color(0xFF607086),
+        blocks: const [
+          ClassBlock(
+            title: 'No hay jornada programada',
+            time: 'Horario por definir',
+            place: 'Jornada cerrada',
+            instructor: 'Sin instructor',
+          ),
+        ],
+      );
+    }
+
     final status = _firstString([sessionsForDay.first['estado'], 'PROGRAMADA']);
     final color = _sessionColor(status);
     final blocks = sessionsForDay
@@ -2114,12 +2162,19 @@ List<ClassItem> _classItemsFromSessions(List<Map<String, dynamic>> sessions) {
       ..sort((a, b) => _parseTimeForSort(a.time).compareTo(_parseTimeForSort(b.time)));
 
     return ClassItem(
-      day: _formatDay(fecha),
+      day: _formatDay(date.toIso8601String()),
       status: _statusLabel(status),
       color: color,
       blocks: blocks,
     );
   }).toList(growable: false);
+}
+
+String _dateKey(DateTime date) {
+  final year = date.year.toString().padLeft(4, '0');
+  final month = date.month.toString().padLeft(2, '0');
+  final day = date.day.toString().padLeft(2, '0');
+  return '$year-$month-$day';
 }
 
 ClassBlock _classBlockFromSession(Map<String, dynamic> session) {
