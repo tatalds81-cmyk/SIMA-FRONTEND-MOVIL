@@ -330,13 +330,19 @@ class _ProfileHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 284,
+      height: 282,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          ClipPath(
-            clipper: const _ProfileHeaderWaveClipper(),
-            child: const _ProfileHeaderBackground(height: 256),
+          Container(
+            height: 226,
+            decoration: const BoxDecoration(
+              color: _ProfileColors.headerBlue,
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(28),
+                bottomRight: Radius.circular(28),
+              ),
+            ),
           ),
           Positioned(
             top: 12,
@@ -369,19 +375,19 @@ class _ProfileHero extends StatelessWidget {
             ),
           ),
           Positioned(
-            top: 54,
+            top: 70,
             left: 0,
             right: 0,
             child: Center(
               child: _ProfileAvatar(
-                size: 94,
+                size: 86,
                 initials: profile.initials,
                 showPhoto: true,
               ),
             ),
           ),
           Positioned(
-            top: 162,
+            top: 168,
             left: 24,
             right: 24,
             child: Column(
@@ -393,7 +399,7 @@ class _ProfileHero extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 21,
+                    fontSize: 18,
                     fontWeight: FontWeight.w900,
                     height: 1.1,
                   ),
@@ -421,88 +427,6 @@ class _ProfileHero extends StatelessWidget {
   }
 }
 
-class _ProfileHeaderBackground extends StatelessWidget {
-  const _ProfileHeaderBackground({required this.height});
-
-  final double height;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: height,
-      width: double.infinity,
-      child: CustomPaint(painter: const _ProfileHeaderPainter()),
-    );
-  }
-}
-
-class _ProfileHeaderPainter extends CustomPainter {
-  const _ProfileHeaderPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    final basePaint = Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          _ProfileColors.headerDeep,
-          _ProfileColors.headerBlue,
-          _ProfileColors.headerAccent,
-        ],
-        stops: [0, 0.54, 1],
-      ).createShader(rect);
-    canvas.drawRect(rect, basePaint);
-
-    final rightShape = Path()
-      ..moveTo(size.width * 0.80, 0)
-      ..cubicTo(
-        size.width * 0.96,
-        size.height * 0.08,
-        size.width * 1.02,
-        size.height * 0.32,
-        size.width,
-        size.height * 0.56,
-      )
-      ..lineTo(size.width, size.height)
-      ..quadraticBezierTo(
-        size.width * 0.86,
-        size.height * 0.96,
-        size.width * 0.77,
-        size.height * 0.72,
-      )
-      ..cubicTo(
-        size.width * 0.66,
-        size.height * 0.43,
-        size.width * 0.67,
-        size.height * 0.13,
-        size.width * 0.80,
-        0,
-      )
-      ..close();
-    canvas.drawPath(
-      rightShape,
-      Paint()..color = _ProfileColors.headerAccent.withValues(alpha: 0.34),
-    );
-
-    final dotPaint = Paint()
-      ..color = _ProfileColors.headerDot.withValues(alpha: 0.24);
-    for (var row = 0; row < 6; row++) {
-      for (var column = 0; column < 7; column++) {
-        canvas.drawCircle(
-          Offset(30 + column * 16, 70 + row * 16),
-          1.8,
-          dotPaint,
-        );
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
 class _HeaderIconButton extends StatelessWidget {
   const _HeaderIconButton({
     required this.icon,
@@ -528,31 +452,6 @@ class _HeaderIconButton extends StatelessWidget {
       icon: Icon(icon, color: Colors.white, size: 20),
     );
   }
-}
-
-class _ProfileHeaderWaveClipper extends CustomClipper<Path> {
-  const _ProfileHeaderWaveClipper();
-
-  @override
-  Path getClip(Size size) {
-    final path = Path()
-      ..lineTo(0, size.height - 38)
-      ..cubicTo(
-        size.width * 0.24,
-        size.height - 4,
-        size.width * 0.62,
-        size.height + 4,
-        size.width,
-        size.height - 36,
-      )
-      ..lineTo(size.width, 0)
-      ..close();
-
-    return path;
-  }
-
-  @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
 
 class _ProfileQuickInfoCard extends StatelessWidget {
@@ -583,8 +482,16 @@ class _ProfileQuickInfoCard extends StatelessWidget {
         Expanded(
           child: _QuickInfoItem(
             icon: Icons.schedule_outlined,
-            label: 'Horario',
+            label: 'Jornada',
             value: profile.schedule,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _QuickInfoItem(
+            icon: Icons.verified_outlined,
+            label: 'Estado',
+            value: profile.statusLabel,
           ),
         ),
       ],
@@ -1756,8 +1663,6 @@ abstract final class _ProfileColors {
   static const navy = Color(0xFF092444);
   static const headerDeep = Color(0xFF001B44);
   static const headerBlue = Color(0xFF052D4F);
-  static const headerAccent = Color(0xFF073D83);
-  static const headerDot = Color(0xFF00A4E4);
   static const green = Color(0xFF39A900);
   static const greenSoft = Color(0xFFE7F3E3);
   static const muted = Color(0xFF607086);

@@ -98,46 +98,59 @@ class _ObservatoryPageState extends State<ObservatoryPage>
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: _ObservatoryColors.background,
-      child: SafeArea(
+    return Scaffold(
+      backgroundColor: _ObservatoryColors.navy,
+      body: SafeArea(
+        bottom: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Padding(
-              padding: EdgeInsets.fromLTRB(20, 22, 20, 12),
+              padding: EdgeInsets.fromLTRB(20, 18, 20, 18),
               child: _ObservatoryHeader(),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _TabSurface(
-                controller: _tabController,
-                tabs: const [
-                  Tab(text: 'Observaciones'),
-                  Tab(text: 'Alertas'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
             Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _ObservationsTab(
-                    future: _observationsFuture,
-                    filters: _observationFilters,
-                    onRetry: _reloadObservations,
-                    onFiltersChanged: _setObservationFilters,
-                    onPickDate: _pickDate,
-                  ),
-                  _AlertsTab(
-                    future: _alertsFuture,
-                    filters: _alertFilters,
-                    onRetry: _reloadAlerts,
-                    onFiltersChanged: _setAlertFilters,
-                    onPickDate: _pickDate,
-                  ),
-                ],
+              child: Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  color: _ObservatoryColors.background,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+                ),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                      child: _TabSurface(
+                        controller: _tabController,
+                        tabs: const [
+                          Tab(text: 'Observaciones'),
+                          Tab(text: 'Alertas'),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _ObservationsTab(
+                            future: _observationsFuture,
+                            filters: _observationFilters,
+                            onRetry: _reloadObservations,
+                            onFiltersChanged: _setObservationFilters,
+                            onPickDate: _pickDate,
+                          ),
+                          _AlertsTab(
+                            future: _alertsFuture,
+                            filters: _alertFilters,
+                            onRetry: _reloadAlerts,
+                            onFiltersChanged: _setAlertFilters,
+                            onPickDate: _pickDate,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -156,17 +169,18 @@ class _ObservatoryHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Observatorio',
+          'Observaciones',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            color: _ObservatoryColors.navy,
+            color: Colors.white,
             fontWeight: FontWeight.w900,
+            fontSize: 24,
           ),
         ),
         const SizedBox(height: 6),
         const Text(
           'Consulta tus observaciones y alertas de seguimiento.',
           style: TextStyle(
-            color: _ObservatoryColors.muted,
+            color: Colors.white70,
             fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
@@ -359,7 +373,7 @@ class _ScrollableTabBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final isWide = MediaQuery.sizeOf(context).width >= _wideBreakpoint;
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(isWide ? 32 : 20, 6, isWide ? 32 : 20, 128),
+      padding: EdgeInsets.fromLTRB(isWide ? 32 : 16, 0, isWide ? 32 : 16, 128),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: children,
@@ -379,14 +393,8 @@ class _TabSurface extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _ObservatoryColors.line),
       ),
       child: TabBar(
         controller: controller,
@@ -447,10 +455,10 @@ class _MetricPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: _ObservatoryColors.green.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(999),
+        color: _ObservatoryColors.navy.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: _ObservatoryColors.green.withValues(alpha: 0.12),
+          color: _ObservatoryColors.navy.withValues(alpha: 0.10),
         ),
       ),
       child: Padding(
@@ -1501,12 +1509,12 @@ class _SurfaceCard extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: _ObservatoryColors.line),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.035),
-            blurRadius: 14,
+            blurRadius: 12,
             offset: const Offset(0, 8),
           ),
         ],

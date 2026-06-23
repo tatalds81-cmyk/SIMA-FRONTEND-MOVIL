@@ -51,9 +51,7 @@ class _LoginPageState extends State<LoginPage> {
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(
-              builder: (context) => const AccessPage(),
-            ),
+            MaterialPageRoute(builder: (context) => const AccessPage()),
           );
         }
       });
@@ -80,7 +78,7 @@ class _LoginPageState extends State<LoginPage> {
 
     // --- Proportional values (same design, adaptive sizes) ---
     final double horizontalPad = (width * 0.06).clamp(16.0, 24.0);
-    
+
     // Card
     final double cardPadding = isSmallPhone || isNarrow ? 24.0 : 32.0;
 
@@ -97,7 +95,7 @@ class _LoginPageState extends State<LoginPage> {
     final double sectionSpacing = isSmallPhone ? 18.0 : 24.0;
 
     return Scaffold(
-      // Se mantiene movible para que el teclado no dañe la vista, 
+      // Se mantiene movible para que el teclado no dañe la vista,
       // pero el diseño luce estático visualmente.
       resizeToAvoidBottomInset: true,
       backgroundColor: const Color(0xFF092444), // Azul oscuro SENA (#092444)
@@ -141,7 +139,9 @@ class _LoginPageState extends State<LoginPage> {
                                     height: logoSize,
                                     width: logoSize,
                                     fit: BoxFit.contain,
-                                    color: const Color(0xFF39A900), // verde SENA
+                                    color: const Color(
+                                      0xFF39A900,
+                                    ), // verde SENA
                                     colorBlendMode: BlendMode.srcIn,
                                   ),
                                 ),
@@ -157,7 +157,7 @@ class _LoginPageState extends State<LoginPage> {
                                   ),
                                 ),
                                 const SizedBox(height: 6.0),
-                                
+
                                 // Title
                                 Text(
                                   'Sistema Integral\nde Monitoreo del\nAprendiz',
@@ -169,7 +169,7 @@ class _LoginPageState extends State<LoginPage> {
                                   ),
                                 ),
                                 const SizedBox(height: 10.0),
-                                
+
                                 // Subtitle
                                 Text(
                                   'Herramienta diseñada para el\nseguimiento académico de los\naprendices.',
@@ -184,24 +184,33 @@ class _LoginPageState extends State<LoginPage> {
                           ),
 
                           // ── Tarjeta blanca de Login ──
-                          Expanded(
+                          const Spacer(),
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              horizontalPad * 0.55,
+                              0,
+                              horizontalPad * 0.55,
+                              mq.padding.bottom + 18,
+                            ),
                             child: Container(
                               width: double.infinity,
                               // Padding interno ajustado (menos espacio vacío abajo)
                               padding: EdgeInsets.fromLTRB(
-                                horizontalPad, 
-                                cardPadding, 
-                                horizontalPad, 
-                                mq.padding.bottom + 12.0,
+                                horizontalPad,
+                                cardPadding * 0.82,
+                                horizontalPad,
+                                18.0,
                               ),
-                              decoration: const BoxDecoration(
+                              decoration: BoxDecoration(
                                 color: Colors.white,
-                                // Bordes superiores muy redondeados (40px)
-                                borderRadius: BorderRadius.only(
-                                  topLeft: Radius.circular(40),
-                                  topRight: Radius.circular(40),
-                                ),
-                                // Sin sombras exageradas, totalmente limpio
+                                borderRadius: BorderRadius.circular(28),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.16),
+                                    blurRadius: 28,
+                                    offset: const Offset(0, 16),
+                                  ),
+                                ],
                               ),
                               child: Form(
                                 key: _formKey,
@@ -213,7 +222,7 @@ class _LoginPageState extends State<LoginPage> {
                                       style: TextStyle(
                                         fontSize: titleFontSize * 0.9,
                                         fontWeight: FontWeight.w800,
-                                        color: const Color(0xFF092444), 
+                                        color: const Color(0xFF092444),
                                       ),
                                     ),
                                     const SizedBox(height: 6.0),
@@ -239,14 +248,16 @@ class _LoginPageState extends State<LoginPage> {
                                     // Documento field
                                     CustomInput(
                                       controller: _documentController,
-                                      hintText: 'Ingresa tu numero de documento',
+                                      hintText:
+                                          'Ingresa tu numero de documento',
                                       keyboardType: TextInputType.number,
                                       prefixIcon: const Icon(
                                         Icons.mail_outline,
                                         color: Color(0xFF566577),
                                       ),
                                       validator: (value) {
-                                        if (value == null || value.trim().isEmpty) {
+                                        if (value == null ||
+                                            value.trim().isEmpty) {
                                           return 'Por favor ingresa tu número de documento';
                                         }
                                         return null;
@@ -282,7 +293,8 @@ class _LoginPageState extends State<LoginPage> {
                                         ),
                                         onPressed: () {
                                           setState(() {
-                                            _obscurePassword = !_obscurePassword;
+                                            _obscurePassword =
+                                                !_obscurePassword;
                                           });
                                         },
                                       ),
@@ -303,15 +315,20 @@ class _LoginPageState extends State<LoginPage> {
                                         style: TextButton.styleFrom(
                                           padding: EdgeInsets.zero,
                                           minimumSize: Size.zero,
-                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                          foregroundColor: const Color(0xFF00A4E4), 
+                                          tapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
+                                          foregroundColor: const Color(
+                                            0xFF00A4E4,
+                                          ),
                                         ),
                                         child: Text(
                                           'Olvidaste tu contraseña?',
                                           style: TextStyle(
                                             fontSize: bodyFontSize,
                                             fontWeight: FontWeight.w500,
-                                            color: const Color(0xFF00A4E4), // Color cyan como en la referencia
+                                            color: const Color(
+                                              0xFF00A4E4,
+                                            ), // Color cyan como en la referencia
                                           ),
                                         ),
                                       ),
@@ -320,41 +337,61 @@ class _LoginPageState extends State<LoginPage> {
 
                                     // Button "Iniciar sesion"
                                     CustomButton(
-                                      text: _isLoading ? 'Verificando...' : 'Iniciar sesión',
+                                      text: _isLoading
+                                          ? 'Verificando...'
+                                          : 'Iniciar sesión',
                                       gradient: const LinearGradient(
-                                        colors: [Color(0xFF39A900), Color(0xFF238500)],
+                                        colors: [
+                                          Color(0xFF39A900),
+                                          Color(0xFF238500),
+                                        ],
                                         begin: Alignment.topCenter,
                                         end: Alignment.bottomCenter,
                                       ),
                                       textColor: Colors.white,
-                                      onPressed: _isLoading ? null : _handleLogin,
+                                      onPressed: _isLoading
+                                          ? null
+                                          : _handleLogin,
                                     ),
-                                    
+
                                     SizedBox(height: sectionSpacing),
 
                                     // ¿No tienes una cuenta? separator
                                     Row(
                                       children: [
-                                        Expanded(child: Divider(color: Colors.grey.shade300)),
+                                        Expanded(
+                                          child: Divider(
+                                            color: Colors.grey.shade300,
+                                          ),
+                                        ),
                                         Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8.0,
+                                          ),
                                           child: FittedBox(
                                             fit: BoxFit.scaleDown,
                                             child: Text(
                                               '¿No tienes una cuenta?',
                                               style: TextStyle(
                                                 fontSize: footerFontSize,
-                                                color: const Color(0xFF092444), // Azul oscuro
-                                                fontWeight: FontWeight.w700, // En negrita como en la foto
+                                                color: const Color(
+                                                  0xFF092444,
+                                                ), // Azul oscuro
+                                                fontWeight: FontWeight
+                                                    .w700, // En negrita como en la foto
                                               ),
                                             ),
                                           ),
                                         ),
-                                        Expanded(child: Divider(color: Colors.grey.shade300)),
+                                        Expanded(
+                                          child: Divider(
+                                            color: Colors.grey.shade300,
+                                          ),
+                                        ),
                                       ],
                                     ),
-                                    
-                                    const Spacer(),
+
+                                    SizedBox(height: isSmallPhone ? 8 : 14),
 
                                     // Footer (c) 2024 SENA (Color oscuro al estar sobre blanco)
                                     Center(
@@ -386,5 +423,3 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
-
-

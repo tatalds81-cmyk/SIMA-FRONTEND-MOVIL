@@ -196,7 +196,7 @@ class AttendanceService {
   }
 
   static Future<void> submitJustification({
-    required String sessionId,
+    required String attendanceId,
     required String description,
     required PlatformFile file,
   }) async {
@@ -212,21 +212,26 @@ class AttendanceService {
         'Accept': 'application/json',
         'Authorization': 'Bearer $token',
       });
-      request.fields['session_id'] = sessionId;
-      request.fields['description'] = description;
+      request.fields['id_asistencia'] = attendanceId;
+      request.fields['comentario_aprendiz'] = description;
+      final extension = file.extension?.toLowerCase();
+      final contentType = extension == 'pdf'
+          ? MediaType('application', 'pdf')
+          : MediaType('image', 'png');
 
       if (file.bytes != null) {
         request.files.add(http.MultipartFile.fromBytes(
-          'file',
+          'soporte',
           file.bytes!,
           filename: file.name,
-          contentType: MediaType('application', 'octet-stream'),
+          contentType: contentType,
         ));
       } else if (file.path != null) {
         request.files.add(await http.MultipartFile.fromPath(
-          'file',
+          'soporte',
           file.path!,
           filename: file.name,
+          contentType: contentType,
         ));
       } else {
         throw Exception('No se pudo cargar el archivo de justificación.');
@@ -252,6 +257,90 @@ class AttendanceService {
         } catch (_) {}
         throw Exception(errorMessage);
       }
+    } on Exception catch (e) {
+      final rawMessage = e.toString();
+      final cleanMessage = rawMessage.startsWith('Exception: ')
+          ? rawMessage.replaceFirst('Exception: ', '')
+          : 'Error de red al conectar con el servidor.';
+      throw Exception(cleanMessage);
+    }
+  }
+
+  static Future<Map<String, dynamic>?> getEligibleJustifications() async {
+    final token = AuthService.currentToken;
+    if (token == null || token.isEmpty) {
+      throw Exception('No hay sesiÃ³n activa. Por favor, inicia sesiÃ³n nuevamente.');
+    }
+
+    try {
+      final uri = Uri.parse(ApiConfig.eligibleJustifications);
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> body = jsonDecode(response.body);
+        if (body['ok'] == true && body['data'] != null) {
+          return body['data'] as Map<String, dynamic>;
+        }
+        throw Exception(body['message'] ?? 'Error desconocido del servidor');
+      }
+
+      String errorMessage = 'Error ${response.statusCode}';
+      try {
+        final body = jsonDecode(response.body);
+        if (body['message'] != null) {
+          errorMessage = body['message'];
+        }
+      } catch (_) {}
+      throw Exception(errorMessage);
+    } on Exception catch (e) {
+      final rawMessage = e.toString();
+      final cleanMessage = rawMessage.startsWith('Exception: ')
+          ? rawMessage.replaceFirst('Exception: ', '')
+          : 'Error de red al conectar con el servidor.';
+      throw Exception(cleanMessage);
+    }
+  }
+
+  static Future<Map<String, dynamic>?> getMyJustifications() async {
+    final token = AuthService.currentToken;
+    if (token == null || token.isEmpty) {
+      throw Exception('No hay sesiÃ³n activa. Por favor, inicia sesiÃ³n nuevamente.');
+    }
+
+    try {
+      final uri = Uri.parse(ApiConfig.myJustifications);
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> body = jsonDecode(response.body);
+        if (body['ok'] == true && body['data'] != null) {
+          return body['data'] as Map<String, dynamic>;
+        }
+        throw Exception(body['message'] ?? 'Error desconocido del servidor');
+      }
+
+      String errorMessage = 'Error ${response.statusCode}';
+      try {
+        final body = jsonDecode(response.body);
+        if (body['message'] != null) {
+          errorMessage = body['message'];
+        }
+      } catch (_) {}
+      throw Exception(errorMessage);
     } on Exception catch (e) {
       final rawMessage = e.toString();
       final cleanMessage = rawMessage.startsWith('Exception: ')
