@@ -256,10 +256,7 @@ class _HomePageState extends State<HomePage> {
       _firstString([session['hora_fin'], block['hora_fin']]),
     );
     final place = _formatPlace(environment);
-    final group = _firstString([
-      ficha['numero_ficha'],
-      'Grupo por asignar',
-    ]);
+    final group = _firstString([ficha['numero_ficha'], 'Grupo por asignar']);
     final programName = _firstString([
       program['nombre_programa'],
       program['sigla'],
@@ -284,130 +281,132 @@ class _HomePageState extends State<HomePage> {
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 22),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Container(
-                  width: 42,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD8DDE6),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-                const SizedBox(height: 22),
-                Container(
-                  width: 68,
-                  height: 68,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF092444),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.person_rounded,
-                    color: Colors.white,
-                    size: 38,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Tienes una sesión activa',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Color(0xFF092444),
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF092444),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Column(
-                    children: [
-                      _ActiveSessionInfoRow(
-                        icon: Icons.description_outlined,
-                        label: 'Programa',
-                        value: programShortName,
-                      ),
-                      _ActiveSessionInfoRow(
-                        icon: Icons.adjust_rounded,
-                        label: 'Competencia',
-                        value: _firstString([
-                          competency['nombre_competencia'],
-                          'Clase programada',
-                        ]),
-                      ),
-                      _ActiveSessionInfoRow(
-                        icon: Icons.person_outline,
-                        label: 'Instructor',
-                        value: instructorName,
-                      ),
-                      _ActiveSessionInfoRow(
-                        icon: Icons.groups_outlined,
-                        label: 'Grupo',
-                        value: '$programShortName - $group',
-                      ),
-                      _ActiveSessionInfoRow(
-                        icon: Icons.science_outlined,
-                        label: 'Ambiente',
-                        value: place,
-                        showDivider: false,
-                      ),
-                      const SizedBox(height: 14),
-                      _ActiveSessionTimePanel(
-                        startTime: startTime.isEmpty ? 'Por definir' : startTime,
-                        endTime: endTime.isEmpty ? 'Por definir' : endTime,
-                        date: date,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 22),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: FilledButton.icon(
-                    onPressed: () async {
-                      Navigator.of(context).pop();
-                      await startDashboardQrFlow(context);
-                    },
-                    icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
-                    label: const Text('Escanear QR de la sesión'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF28B000),
-                      foregroundColor: Colors.white,
-                      textStyle: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD8DDE6),
+                      borderRadius: BorderRadius.circular(999),
                     ),
                   ),
-                ),
-                // const SizedBox(height: 16), // Espacio removido junto con los botones
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                  child: const Text(
-                    'Cancelar',
+                  const SizedBox(height: 22),
+                  Container(
+                    width: 68,
+                    height: 68,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF092444),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.person_rounded,
+                      color: Colors.white,
+                      size: 38,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Tienes una sesión activa',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Color(0xFF8B97A8),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF092444),
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(height: 18),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF092444),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      children: [
+                        _ActiveSessionInfoRow(
+                          icon: Icons.description_outlined,
+                          label: 'Programa',
+                          value: programShortName,
+                        ),
+                        _ActiveSessionInfoRow(
+                          icon: Icons.adjust_rounded,
+                          label: 'Competencia',
+                          value: _firstString([
+                            competency['nombre_competencia'],
+                            'Clase programada',
+                          ]),
+                        ),
+                        _ActiveSessionInfoRow(
+                          icon: Icons.person_outline,
+                          label: 'Instructor',
+                          value: instructorName,
+                        ),
+                        _ActiveSessionInfoRow(
+                          icon: Icons.groups_outlined,
+                          label: 'Grupo',
+                          value: '$programShortName - $group',
+                        ),
+                        _ActiveSessionInfoRow(
+                          icon: Icons.science_outlined,
+                          label: 'Ambiente',
+                          value: place,
+                          showDivider: false,
+                        ),
+                        const SizedBox(height: 14),
+                        _ActiveSessionTimePanel(
+                          startTime: startTime.isEmpty
+                              ? 'Por definir'
+                              : startTime,
+                          endTime: endTime.isEmpty ? 'Por definir' : endTime,
+                          date: date,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: FilledButton.icon(
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        await startDashboardQrFlow(context);
+                      },
+                      icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
+                      label: const Text('Escanear QR de la sesión'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF28B000),
+                        foregroundColor: Colors.white,
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // const SizedBox(height: 16), // Espacio removido junto con los botones
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text(
+                      'Cancelar',
+                      style: TextStyle(
+                        color: Color(0xFF8B97A8),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -717,11 +716,7 @@ class _ActiveSessionInfoRow extends StatelessWidget {
             ],
           ),
         ),
-        if (showDivider)
-          Container(
-            height: 1,
-            color: const Color(0xFF244361),
-          ),
+        if (showDivider) Container(height: 1, color: const Color(0xFF244361)),
       ],
     );
   }
@@ -768,11 +763,7 @@ class _ActiveSessionTimePanel extends StatelessWidget {
                   value: startTime,
                 ),
               ),
-              Container(
-                height: 42,
-                width: 1,
-                color: const Color(0xFF446083),
-              ),
+              Container(height: 42, width: 1, color: const Color(0xFF446083)),
               Expanded(
                 child: _ActiveSessionTimeValue(
                   label: 'Hora fin',
@@ -788,10 +779,7 @@ class _ActiveSessionTimePanel extends StatelessWidget {
 }
 
 class _ActiveSessionTimeValue extends StatelessWidget {
-  const _ActiveSessionTimeValue({
-    required this.label,
-    required this.value,
-  });
+  const _ActiveSessionTimeValue({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -801,37 +789,33 @@ class _ActiveSessionTimeValue extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Icon(
-          Icons.schedule_rounded,
-          color: Colors.white,
-          size: 18,
-        ),
+        const Icon(Icons.schedule_rounded, color: Colors.white, size: 18),
         const SizedBox(width: 8),
         Flexible(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Color(0xFF2DCC35),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Color(0xFF2DCC35),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
                 ),
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                  ),
+              ),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -1632,7 +1616,7 @@ class _QuickAccessSection extends StatelessWidget {
                   child: _QuickAccessCard(
                     icon: Icons.assignment_turned_in_rounded,
                     label: 'Registrar asistencia',
-                    color: const Color(0xFFF4A900),
+                    color: const Color(0xFF062E4F),
                     onTap: onAttendanceTap,
                   ),
                 ),
@@ -1641,7 +1625,7 @@ class _QuickAccessSection extends StatelessWidget {
                   child: _QuickAccessCard(
                     icon: Icons.calendar_today_rounded,
                     label: 'Mis asistencias',
-                    color: const Color(0xFF39A900),
+                    color: const Color(0xFF062E4F),
                     onTap: onJustifyTap,
                   ),
                 ),
@@ -1650,7 +1634,7 @@ class _QuickAccessSection extends StatelessWidget {
                   child: _QuickAccessCard(
                     icon: Icons.description_rounded,
                     label: 'Justificaciones',
-                    color: const Color(0xFF0F9D58),
+                    color: const Color(0xFF062E4F),
                     onTap: onObservationsTap,
                   ),
                 ),
@@ -1659,7 +1643,7 @@ class _QuickAccessSection extends StatelessWidget {
                   child: _QuickAccessCard(
                     icon: Icons.notifications_active_rounded,
                     label: 'Alertas y Observaciones',
-                    color: const Color(0xFF0F9D58),
+                    color: const Color(0xFF062E4F),
                     onTap: onAlertsTap,
                   ),
                 ),
@@ -1688,18 +1672,25 @@ class _QuickAccessCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
+      color: color,
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
         onTap: onTap,
         child: Container(
-          constraints: const BoxConstraints(minHeight: 110),
+          constraints: const BoxConstraints(minHeight: 102),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFE9EEF5)),
+            color: color,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.18),
+                blurRadius: 14,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1709,17 +1700,17 @@ class _QuickAccessCard extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: color, size: 20),
+                child: Icon(icon, color: Colors.white, size: 20),
               ),
               Text(
                 label,
                 style: const TextStyle(
-                  color: Color(0xFF092444),
+                  color: Colors.white,
                   fontSize: 13,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],
@@ -1821,7 +1812,8 @@ class _ClassCard extends StatelessWidget {
                     color: item.color,
                     titleFontSize: blockTitleFontSize,
                   ),
-                  if (index < item.blocks.length - 1) const SizedBox(height: 10),
+                  if (index < item.blocks.length - 1)
+                    const SizedBox(height: 10),
                 ],
               );
             }),
@@ -1833,7 +1825,11 @@ class _ClassCard extends StatelessWidget {
 }
 
 class _ClassBlockTile extends StatelessWidget {
-  const _ClassBlockTile({required this.block, required this.color, this.titleFontSize = 15});
+  const _ClassBlockTile({
+    required this.block,
+    required this.color,
+    this.titleFontSize = 15,
+  });
 
   final ClassBlock block;
   final Color color;
@@ -1986,9 +1982,10 @@ String _getCurrentUserFullName() {
     user['apellido_materno'],
   ]);
 
-  final combined = [firstName, lastName]
-      .where((part) => part.trim().isNotEmpty)
-      .join(' ');
+  final combined = [
+    firstName,
+    lastName,
+  ].where((part) => part.trim().isNotEmpty).join(' ');
   return combined.isEmpty ? 'Aprendiz' : combined;
 }
 
@@ -2002,12 +1999,7 @@ String _getCurrentUserGreetingName() {
 
 String _getCurrentUserRole() {
   final user = AuthService.currentUser ?? {};
-  return _firstString([
-    user['rol'],
-    user['role'],
-    user['perfil'],
-    'Aprendiz',
-  ]);
+  return _firstString([user['rol'], user['role'], user['perfil'], 'Aprendiz']);
 }
 
 String _getCurrentUserProgram() {
@@ -2134,40 +2126,48 @@ List<ClassItem> _classItemsFromSessions(List<Map<String, dynamic>> sessions) {
     groupedByDate.putIfAbsent(dateKey, () => []).add(session);
   }
 
-  return weekDays.map((date) {
-    final dateKey = _dateKey(date);
-    final sessionsForDay = groupedByDate[dateKey];
+  return weekDays
+      .map((date) {
+        final dateKey = _dateKey(date);
+        final sessionsForDay = groupedByDate[dateKey];
 
-    if (sessionsForDay == null || sessionsForDay.isEmpty) {
-      return ClassItem(
-        day: _formatDay(date.toIso8601String()),
-        status: 'Cerrada',
-        color: const Color(0xFF607086),
-        blocks: const [
-          ClassBlock(
-            title: 'No hay jornada programada',
-            time: 'Horario por definir',
-            place: 'Jornada cerrada',
-            instructor: 'Sin instructor',
-          ),
-        ],
-      );
-    }
+        if (sessionsForDay == null || sessionsForDay.isEmpty) {
+          return ClassItem(
+            day: _formatDay(date.toIso8601String()),
+            status: 'Cerrada',
+            color: const Color(0xFF607086),
+            blocks: const [
+              ClassBlock(
+                title: 'No hay jornada programada',
+                time: 'Horario por definir',
+                place: 'Jornada cerrada',
+                instructor: 'Sin instructor',
+              ),
+            ],
+          );
+        }
 
-    final status = _firstString([sessionsForDay.first['estado'], 'PROGRAMADA']);
-    final color = _sessionColor(status);
-    final blocks = sessionsForDay
-        .map(_classBlockFromSession)
-        .toList(growable: false)
-      ..sort((a, b) => _parseTimeForSort(a.time).compareTo(_parseTimeForSort(b.time)));
+        final status = _firstString([
+          sessionsForDay.first['estado'],
+          'PROGRAMADA',
+        ]);
+        final color = _sessionColor(status);
+        final blocks =
+            sessionsForDay.map(_classBlockFromSession).toList(growable: false)
+              ..sort(
+                (a, b) => _parseTimeForSort(
+                  a.time,
+                ).compareTo(_parseTimeForSort(b.time)),
+              );
 
-    return ClassItem(
-      day: _formatDay(date.toIso8601String()),
-      status: _statusLabel(status),
-      color: color,
-      blocks: blocks,
-    );
-  }).toList(growable: false);
+        return ClassItem(
+          day: _formatDay(date.toIso8601String()),
+          status: _statusLabel(status),
+          color: color,
+          blocks: blocks,
+        );
+      })
+      .toList(growable: false);
 }
 
 String _dateKey(DateTime date) {
@@ -2184,10 +2184,7 @@ ClassBlock _classBlockFromSession(Map<String, dynamic> session) {
   final block = _firstMap([session['bloque_jornada']]);
 
   return ClassBlock(
-    title: _firstString([
-      competency['nombre_competencia'],
-      'Clase programada',
-    ]),
+    title: _firstString([competency['nombre_competencia'], 'Clase programada']),
     time: _formatTimeRange(
       _firstString([session['hora_inicio'], block['hora_inicio']]),
       _firstString([session['hora_fin'], block['hora_fin']]),
@@ -2296,10 +2293,9 @@ String _programShortName(String value) {
   final text = value.trim();
   if (text.isEmpty) return 'Programa';
 
-  final upperWords = RegExp(r'\b[A-Z]{2,}\b')
-      .allMatches(text)
-      .map((match) => match.group(0)!)
-      .toList(growable: false);
+  final upperWords = RegExp(
+    r'\b[A-Z]{2,}\b',
+  ).allMatches(text).map((match) => match.group(0)!).toList(growable: false);
   if (upperWords.isNotEmpty) {
     return upperWords.first;
   }

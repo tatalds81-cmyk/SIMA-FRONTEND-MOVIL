@@ -4,10 +4,7 @@ import 'package:sima_movil_froned/services/attendance_service.dart';
 import 'dart:math' as math;
 
 class AttendancePage extends StatefulWidget {
-  const AttendancePage({
-    super.key,
-    this.initialTabIndex = 0,
-  });
+  const AttendancePage({super.key, this.initialTabIndex = 0});
 
   final int initialTabIndex;
 
@@ -18,13 +15,12 @@ class AttendancePage extends StatefulWidget {
 class _AttendancePageState extends State<AttendancePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final TextEditingController _justificationDescriptionController = TextEditingController();
-  String _selectedMonth = 'Mayo 2024';
-  String _selectedFilter = 'Todos';
+  final TextEditingController _justificationDescriptionController =
+      TextEditingController();
   Map<String, dynamic>? _hoveredSegmentData;
   Offset? _hoverPosition;
 
-  // ── Calendario visual ────────────────────────────────────────────────
+  // â”€â”€ Calendario visual â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   int _selectedDay = 0;
   int _monthIndex = 0;
   int _year = 0;
@@ -35,8 +31,18 @@ class _AttendancePageState extends State<AttendancePage>
   Map<int, String> _observacion = {};
 
   static const List<String> _monthNames = [
-    "Enero","Febrero","Marzo","Abril","Mayo","Junio",
-    "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
+    "Enero",
+    "Febrero",
+    "Marzo",
+    "Abril",
+    "Mayo",
+    "Junio",
+    "Julio",
+    "Agosto",
+    "Septiembre",
+    "Octubre",
+    "Noviembre",
+    "Diciembre",
   ];
 
   bool _isLoadingDashboard = true;
@@ -50,6 +56,10 @@ class _AttendancePageState extends State<AttendancePage>
   bool _isLoadingSessions = true;
   Map<String, dynamic>? _sessionsData;
   String? _sessionsError;
+
+  bool _isLoadingJustifications = true;
+  Map<String, dynamic>? _eligibleJustificationsData;
+  String? _justificationsError;
 
   final Map<String, PlatformFile?> _selectedJustificationFiles = {};
   final Map<String, bool> _isSubmittingJustification = {};
@@ -70,6 +80,7 @@ class _AttendancePageState extends State<AttendancePage>
     _fetchDashboard();
     _fetchCalendar();
     _fetchSessions();
+    _fetchEligibleJustifications();
   }
 
   Future<void> _fetchDashboard() async {
@@ -103,11 +114,16 @@ class _AttendancePageState extends State<AttendancePage>
     });
 
     try {
-      final String fechaRef = '$_year-${(_monthIndex + 1).toString().padLeft(2, '0')}-01';
-      final data = await AttendanceService.getMyCalendar(periodo: 'mes', fechaReferencia: fechaRef);
-      
+      final String fechaRef =
+          '$_year-${(_monthIndex + 1).toString().padLeft(2, '0')}-01';
+      final data = await AttendanceService.getMyCalendar(
+        periodo: 'mes',
+        fechaReferencia: fechaRef,
+      );
+
       if (mounted) {
-        final List<dynamic> registros = (data?['registros'] as List<dynamic>?) ?? [];
+        final List<dynamic> registros =
+            (data?['registros'] as List<dynamic>?) ?? [];
         final Map<int, String> statusMap = {};
         final Map<int, Map<String, String>> detailMap = {};
         final Map<int, String> competMap = {};
@@ -122,7 +138,9 @@ class _AttendancePageState extends State<AttendancePage>
           if (fecha.month != _monthIndex + 1 || fecha.year != _year) continue;
 
           final int day = fecha.day;
-          final String ep05 = (reg['estado_asistencia'] ?? '').toString().toUpperCase();
+          final String ep05 = (reg['estado_ep05'] ?? reg['estado_asistencia'] ?? '')
+              .toString()
+              .toUpperCase();
 
           switch (ep05) {
             case 'PRESENTE':
@@ -130,9 +148,11 @@ class _AttendancePageState extends State<AttendancePage>
               statusMap[day] = 'presente';
               break;
             case 'INASISTENTE':
+            case 'INASISTENCIA':
               statusMap[day] = 'ausente';
               break;
             case 'JUSTIFICADA':
+            case 'JUSTIFICADO':
               statusMap[day] = 'justificada';
               break;
           }
@@ -146,7 +166,8 @@ class _AttendancePageState extends State<AttendancePage>
             };
           }
 
-          final String? nombreComp = reg['sesion']?['competencia']?['nombre_competencia'];
+          final String? nombreComp =
+              reg['sesion']?['competencia']?['nombre_competencia'];
           if (nombreComp != null && nombreComp.isNotEmpty) {
             competMap[day] = nombreComp;
           }
@@ -156,14 +177,19 @@ class _AttendancePageState extends State<AttendancePage>
             obsMap[day] = obs;
           }
 
-          final List<dynamic> justs = (reg['justificaciones'] as List<dynamic>?) ?? [];
+          final List<dynamic> justs =
+              (reg['justificaciones'] as List<dynamic>?) ?? [];
           if (justs.isNotEmpty) {
             justs.sort((a, b) {
-              final da = DateTime.tryParse(a['fecha_envio'] ?? '') ?? DateTime(2000);
-              final db = DateTime.tryParse(b['fecha_envio'] ?? '') ?? DateTime(2000);
+              final da =
+                  DateTime.tryParse(a['fecha_envio'] ?? '') ?? DateTime(2000);
+              final db =
+                  DateTime.tryParse(b['fecha_envio'] ?? '') ?? DateTime(2000);
               return db.compareTo(da);
             });
-            final String justEstado = (justs.first['estado'] ?? '').toString().toUpperCase();
+            final String justEstado = (justs.first['estado'] ?? '')
+                .toString()
+                .toUpperCase();
             justMap[day] = justEstado;
           }
         }
@@ -212,6 +238,30 @@ class _AttendancePageState extends State<AttendancePage>
     }
   }
 
+  Future<void> _fetchEligibleJustifications() async {
+    setState(() {
+      _isLoadingJustifications = true;
+      _justificationsError = null;
+    });
+
+    try {
+      final data = await AttendanceService.getEligibleJustifications();
+      if (mounted) {
+        setState(() {
+          _eligibleJustificationsData = data;
+          _isLoadingJustifications = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _justificationsError = e.toString();
+          _isLoadingJustifications = false;
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
     _tabController.dispose();
@@ -219,122 +269,11 @@ class _AttendancePageState extends State<AttendancePage>
     super.dispose();
   }
 
-  void _showMonthPicker() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Seleccionar Mes',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              ListTile(
-                title: const Text('Mayo 2024'),
-                onTap: () {
-                  setState(() => _selectedMonth = 'Mayo 2024');
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: const Text('Abril 2024'),
-                onTap: () {
-                  setState(() => _selectedMonth = 'Abril 2024');
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: const Text('Marzo 2024'),
-                onTap: () {
-                  setState(() => _selectedMonth = 'Marzo 2024');
-                  Navigator.pop(context);
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _showFilterPicker() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Filtrar por Estado',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              ListTile(
-                title: const Text('Todos'),
-                onTap: () {
-                  setState(() => _selectedFilter = 'Todos');
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: const Text('PENDIENTE'),
-                onTap: () {
-                  setState(() => _selectedFilter = 'PENDIENTE');
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: const Text('PRESENTE'),
-                onTap: () {
-                  setState(() => _selectedFilter = 'PRESENTE');
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: const Text('INASISTENTE'),
-                onTap: () {
-                  setState(() => _selectedFilter = 'INASISTENTE');
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: const Text('TARDE'),
-                onTap: () {
-                  setState(() => _selectedFilter = 'TARDE');
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: const Text('JUSTIFICADA'),
-                onTap: () {
-                  setState(() => _selectedFilter = 'JUSTIFICADA');
-                  Navigator.pop(context);
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   Future<void> _pickJustificationFile(String sessionId) async {
     try {
       final result = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+        allowedExtensions: ['pdf', 'png'],
         withData: true,
       );
 
@@ -347,7 +286,7 @@ class _AttendancePageState extends State<AttendancePage>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('El archivo supera el máximo permitido de 5 MB.'),
+              content: Text('El archivo supera el mÃ¡ximo permitido de 5 MB.'),
               backgroundColor: Color(0xFFF4A900),
             ),
           );
@@ -370,15 +309,15 @@ class _AttendancePageState extends State<AttendancePage>
     }
   }
 
-  Future<void> _submitJustification(String sessionId) async {
-    final file = _selectedJustificationFiles[sessionId];
+  Future<void> _submitJustification(String attendanceId) async {
+    final file = _selectedJustificationFiles[attendanceId];
     final description = _justificationDescriptionController.text.trim();
 
     if (file == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Selecciona un archivo de justificación.'),
+            content: Text('Selecciona un archivo de justificaciÃ³n.'),
             backgroundColor: Color(0xFFF4A900),
           ),
         );
@@ -390,7 +329,9 @@ class _AttendancePageState extends State<AttendancePage>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Describe brevemente el motivo de la justificación.'),
+            content: Text(
+              'Describe brevemente el motivo de la justificaciÃ³n.',
+            ),
             backgroundColor: Color(0xFFF4A900),
           ),
         );
@@ -399,22 +340,23 @@ class _AttendancePageState extends State<AttendancePage>
     }
 
     setState(() {
-      _isSubmittingJustification[sessionId] = true;
+      _isSubmittingJustification[attendanceId] = true;
     });
 
     try {
       await AttendanceService.submitJustification(
-        sessionId: sessionId,
+        attendanceId: attendanceId,
         description: description,
         file: file,
       );
       if (mounted) {
         _justificationDescriptionController.clear();
-        _selectedJustificationFiles.remove(sessionId);
+        _selectedJustificationFiles.remove(attendanceId);
         _fetchCalendar();
+        _fetchEligibleJustifications();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Justificación enviada correctamente.'),
+            content: Text('JustificaciÃ³n enviada correctamente.'),
             backgroundColor: Color(0xFF39A900),
           ),
         );
@@ -423,7 +365,7 @@ class _AttendancePageState extends State<AttendancePage>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al enviar justificación: ${e.toString()}'),
+            content: Text('Error al enviar justificaciÃ³n: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -431,119 +373,99 @@ class _AttendancePageState extends State<AttendancePage>
     } finally {
       if (mounted) {
         setState(() {
-          _isSubmittingJustification[sessionId] = false;
+          _isSubmittingJustification[attendanceId] = false;
         });
       }
-    }
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toUpperCase()) {
-      case 'PENDIENTE':
-        return Colors.grey.shade500;
-      case 'PRESENTE':
-        return const Color(0xFF39A900);
-      case 'INASISTENTE':
-        return const Color(0xFFE53935);
-      case 'TARDE':
-        return const Color(0xFFF6A900);
-      case 'JUSTIFICADA':
-        return const Color(0xFF1565C0);
-      default:
-        return Colors.grey;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FB),
+      backgroundColor: const Color(0xFF062E4F),
       body: SafeArea(
+        bottom: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // â”€â”€ Header Principal â”€â”€
+            // Ã¢â€â‚¬Ã¢â€â‚¬ Header Principal Ã¢â€â‚¬Ã¢â€â‚¬
             const Padding(
-              padding: EdgeInsets.fromLTRB(20, 20, 20, 4),
+              padding: EdgeInsets.fromLTRB(20, 18, 20, 18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Asistencia',
                     style: TextStyle(
-                      color: Color(0xFF092444),
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                   SizedBox(height: 6),
                   Text(
                     'Registro y consulta de asistencia',
                     style: TextStyle(
-                      color: Color(0xFF607086),
-                      fontSize: 14,
+                      color: Colors.white70,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
               ),
             ),
 
-            // â”€â”€ Banner Control de Asistencia (visible en todas las pestaÃ±as) â”€â”€
-            _buildSessionBanner(),
-
-            // TabBar
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withValues(alpha: 0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: TabBar(
-                controller: _tabController,
-                indicatorColor: const Color(0xFF39A900),
-                indicatorWeight: 3,
-                labelColor: const Color(0xFF39A900),
-                unselectedLabelColor: const Color(0xFF607086),
-                labelStyle: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
-                unselectedLabelStyle: const TextStyle(
-                  fontWeight: FontWeight.w400,
-                  fontSize: 13,
-                ),
-                tabs: const [
-                  Tab(text: 'Resumen'),
-                  Tab(text: 'Calendario'),
-                  Tab(text: 'Justificar'),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            // Tab content
             Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  // â”€â”€ Tab 0: Resumen â”€â”€
-                  _buildResumenTab(),
-
-                  // â”€â”€ Tab 1: Historial â”€â”€
-                  _buildHistorialTab(),
-
-                  // â”€â”€ Tab 2: Justificar â”€â”€
-                  _buildJustificarTab(),
-
-                ],
+              child: Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF2F5FB),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSessionBanner(),
+                    Container(
+                      margin: const EdgeInsets.fromLTRB(16, 2, 16, 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE1E7EF)),
+                      ),
+                      child: TabBar(
+                        controller: _tabController,
+                        indicatorColor: const Color(0xFF39A900),
+                        indicatorWeight: 3,
+                        labelColor: const Color(0xFF39A900),
+                        unselectedLabelColor: const Color(0xFF607086),
+                        labelStyle: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                        unselectedLabelStyle: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                        tabs: const [
+                          Tab(text: 'Resumen'),
+                          Tab(text: 'Calendario'),
+                          Tab(text: 'Justificar'),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildResumenTab(),
+                          _buildHistorialTab(),
+                          _buildJustificarTabBackend(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -552,59 +474,70 @@ class _AttendancePageState extends State<AttendancePage>
     );
   }
 
-  // â”€â”€â”€ Banner "Control de Asistencia de Aprendices" â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Banner "Control de Asistencia de Aprendices" Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   Widget _buildSessionBanner() {
-    // â”€â”€ Extraer datos de la respuesta real del backend â”€â”€
-    final ficha     = _sessionsData?['ficha']         as Map<String, dynamic>?;
-    final sesion    = _sessionsData?['sesion_activa'] as Map<String, dynamic>?;
+    // Ã¢â€â‚¬Ã¢â€â‚¬ Extraer datos de la respuesta real del backend Ã¢â€â‚¬Ã¢â€â‚¬
+    final ficha = _sessionsData?['ficha'] as Map<String, dynamic>?;
+    final sesion = _sessionsData?['sesion_activa'] as Map<String, dynamic>?;
 
     // Ficha / Programa
-    final String numeroFicha = ficha?['numero_ficha']?.toString() ?? 'â€”';
+    final String numeroFicha = ficha?['numero_ficha']?.toString() ?? 'Ã¢â‚¬â€';
     final programa = ficha?['programa'] as Map<String, dynamic>?;
-    final String nombrePrograma = programa?['nombre_programa']?.toString() ?? 'â€”';
+    final String nombrePrograma =
+        programa?['nombre_programa']?.toString() ?? 'Ã¢â‚¬â€';
 
-    // Instructor lÃ­der (viene en ficha.instructor_lider)
+    // Instructor lÃƒÂ­der (viene en ficha.instructor_lider)
     final instructorLider = ficha?['instructor_lider'] as Map<String, dynamic>?;
     final bool instructorRegistrado = instructorLider?['registrado'] == true;
     final String nombreInstructor = instructorRegistrado
-        ? (instructorLider?['nombre_completo']?.toString() ?? 'â€”')
-        : 'â€”';
+        ? (instructorLider?['nombre_completo']?.toString() ?? 'Ã¢â‚¬â€')
+        : 'Ã¢â‚¬â€';
 
     // Jornada del grupo
-    final String jornada = ficha?['jornada']?.toString() ?? 'â€”';
+    final String jornada = ficha?['jornada']?.toString() ?? 'Ã¢â‚¬â€';
 
-    // Fecha de la sesiÃ³n activa (formateada)
-    String fechaFormateada = 'â€”';
+    // Fecha de la sesiÃƒÂ³n activa (formateada)
+    String fechaFormateada = 'Ã¢â‚¬â€';
     if (sesion != null) {
       final fechaRaw = sesion['fecha_clase']?.toString() ?? '';
       if (fechaRaw.length >= 10) {
         final parts = fechaRaw.substring(0, 10).split('-');
         if (parts.length == 3) {
           const meses = {
-            '01': 'enero',    '02': 'febrero', '03': 'marzo',
-            '04': 'abril',    '05': 'mayo',    '06': 'junio',
-            '07': 'julio',    '08': 'agosto',  '09': 'septiembre',
-            '10': 'octubre',  '11': 'noviembre','12': 'diciembre',
+            '01': 'enero',
+            '02': 'febrero',
+            '03': 'marzo',
+            '04': 'abril',
+            '05': 'mayo',
+            '06': 'junio',
+            '07': 'julio',
+            '08': 'agosto',
+            '09': 'septiembre',
+            '10': 'octubre',
+            '11': 'noviembre',
+            '12': 'diciembre',
           };
-          fechaFormateada = '${parts[2]} de ${meses[parts[1]] ?? ''} de ${parts[0]}';
+          fechaFormateada =
+              '${parts[2]} de ${meses[parts[1]] ?? ''} de ${parts[0]}';
         }
       }
     }
 
-    // Estado de sesiÃ³n
+    // Estado de sesiÃƒÂ³n
     final bool haySession = sesion != null;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE1E7EF)),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -621,7 +554,7 @@ class _AttendancePageState extends State<AttendancePage>
           ),
           const SizedBox(height: 16),
 
-          // â”€â”€ Estado: cargando â”€â”€
+          // Ã¢â€â‚¬Ã¢â€â‚¬ Estado: cargando Ã¢â€â‚¬Ã¢â€â‚¬
           if (_isLoadingSessions)
             const SizedBox(
               height: 20,
@@ -637,23 +570,25 @@ class _AttendancePageState extends State<AttendancePage>
                   ),
                   SizedBox(width: 10),
                   Text(
-                    'Cargando sesiÃ³n...',
+                    'Cargando sesiÃƒÂ³n...',
                     style: TextStyle(color: Color(0xFF607086), fontSize: 13),
                   ),
                 ],
               ),
             )
-
-          // â”€â”€ Estado: error al cargar â”€â”€
+          // Ã¢â€â‚¬Ã¢â€â‚¬ Estado: error al cargar Ã¢â€â‚¬Ã¢â€â‚¬
           else if (_sessionsError != null)
             Row(
               children: [
-                const Icon(Icons.warning_amber_rounded,
-                    size: 16, color: Color(0xFFF6A900)),
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 16,
+                  color: Color(0xFFF6A900),
+                ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    'No se pudo cargar la sesiÃ³n',
+                    'No se pudo cargar la sesiÃƒÂ³n',
                     style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -671,8 +606,7 @@ class _AttendancePageState extends State<AttendancePage>
                 ),
               ],
             )
-
-          // â”€â”€ Estado: datos reales del backend â”€â”€
+          // Ã¢â€â‚¬Ã¢â€â‚¬ Estado: datos reales del backend Ã¢â€â‚¬Ã¢â€â‚¬
           else
             LayoutBuilder(
               builder: (context, constraints) {
@@ -712,15 +646,19 @@ class _AttendancePageState extends State<AttendancePage>
                             ),
                           ],
                         ),
-                        // Segunda fila: Fecha (solo si hay sesiÃ³n activa)
+                        // Segunda fila: Fecha (solo si hay sesiÃƒÂ³n activa)
                         if (haySession) ...[
                           const SizedBox(height: 8),
-                          _bannerInlineText('Fecha de sesión: ', fechaFormateada),
+                          _bannerInlineText(
+                            'Fecha de sesiÃ³n: ',
+                            fechaFormateada,
+                          ),
                         ] else ...[
                           const SizedBox(height: 8),
                           Text(
-                            _sessionsData?['mensaje_sesion_activa']?.toString() ??
-                                'No hay sesiÃ³n activa en este momento',
+                            _sessionsData?['mensaje_sesion_activa']
+                                    ?.toString() ??
+                                'No hay sesiÃƒÂ³n activa en este momento',
                             style: TextStyle(
                               color: Colors.grey.shade500,
                               fontSize: 12,
@@ -743,8 +681,22 @@ class _AttendancePageState extends State<AttendancePage>
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: const TextStyle(color: Color(0xFF607086), fontSize: 13, fontWeight: FontWeight.w500)),
-        Text(value, style: const TextStyle(color: Color(0xFF092444), fontSize: 13, fontWeight: FontWeight.bold)),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF607086),
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Color(0xFF092444),
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ],
     );
   }
@@ -766,7 +718,7 @@ class _AttendancePageState extends State<AttendancePage>
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        isActive ? 'Activa' : 'Sin sesión',
+        isActive ? 'Activa' : 'Sin sesiÃ³n',
         style: const TextStyle(
           color: Colors.white,
           fontSize: 12,
@@ -776,11 +728,34 @@ class _AttendancePageState extends State<AttendancePage>
     );
   }
 
+  String _normalizeAttendanceState(Object? value) {
+    final state = value?.toString().trim().toUpperCase() ?? '';
+    switch (state) {
+      case 'INASISTENTE':
+        return 'INASISTENCIA';
+      case 'JUSTIFICADA':
+        return 'JUSTIFICADO';
+      default:
+        return state;
+    }
+  }
+
+  bool _sameAttendanceState(Object? item, String expected) {
+    if (item is! Map<String, dynamic>) return false;
+    final rawState = item['estado_ep05'] ?? item['estado_asistencia'];
+    return _normalizeAttendanceState(rawState) ==
+        _normalizeAttendanceState(expected);
+  }
+
   void _showDetailBottomSheet(String apiEstado, String status, Color color) {
-    final data = (_calendarData ?? []).where((e) => e['estado_asistencia'] == apiEstado).toList();
+    final data = (_calendarData ?? [])
+        .where((e) => _sameAttendanceState(e, apiEstado))
+        .toList();
     final int count = data.length;
     final String instructor = 'N/A';
-    final String ultActualizacion = data.isNotEmpty ? (data.first['actualizado_en'] as String? ?? 'N/A') : 'N/A';
+    final String ultActualizacion = data.isNotEmpty
+        ? (data.first['actualizado_en'] as String? ?? 'N/A')
+        : 'N/A';
 
     showModalBottomSheet(
       context: context,
@@ -801,7 +776,9 @@ class _AttendancePageState extends State<AttendancePage>
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.1),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(24),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -821,7 +798,7 @@ class _AttendancePageState extends State<AttendancePage>
                           icon: const Icon(Icons.close),
                           color: color,
                           onPressed: () => Navigator.pop(context),
-                        )
+                        ),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -830,7 +807,12 @@ class _AttendancePageState extends State<AttendancePage>
                       children: [
                         _buildTooltipInfo('Cantidad', '$count'),
                         _buildTooltipInfo('Instructor', instructor),
-                        _buildTooltipInfo('Ãšltima act.', ultActualizacion.length > 10 ? ultActualizacion.substring(0, 10) : ultActualizacion),
+                        _buildTooltipInfo(
+                          'ÃƒÅ¡ltima act.',
+                          ultActualizacion.length > 10
+                              ? ultActualizacion.substring(0, 10)
+                              : ultActualizacion,
+                        ),
                       ],
                     ),
                   ],
@@ -849,10 +831,17 @@ class _AttendancePageState extends State<AttendancePage>
                         itemCount: data.length,
                         itemBuilder: (context, index) {
                           final item = data[index];
-                          final sesion = item['sesion'] as Map<String, dynamic>? ?? {};
-                          final fecha = sesion['fecha_clase'] as String? ?? 'Sin fecha';
-                          final materia = sesion['competencia']?['nombre_competencia'] ?? 'Sin asignar';
-                          final diasFaltados = apiEstado == 'INASISTENTE' ? 1 : 0;
+                          final sesion =
+                              item['sesion'] as Map<String, dynamic>? ?? {};
+                          final fecha =
+                              sesion['fecha_clase'] as String? ?? 'Sin fecha';
+                          final materia =
+                              sesion['competencia']?['nombre_competencia'] ??
+                              'Sin asignar';
+                          final diasFaltados =
+                              _normalizeAttendanceState(apiEstado) == 'INASISTENCIA'
+                              ? 1
+                              : 0;
                           final observacion = item['observacion'] ?? 'Ninguna';
 
                           return Container(
@@ -867,14 +856,15 @@ class _AttendancePageState extends State<AttendancePage>
                                   color: Colors.grey.withValues(alpha: 0.05),
                                   blurRadius: 4,
                                   offset: const Offset(0, 2),
-                                )
+                                ),
                               ],
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
                                       fecha,
@@ -885,7 +875,10 @@ class _AttendancePageState extends State<AttendancePage>
                                       ),
                                     ),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: color.withValues(alpha: 0.1),
                                         borderRadius: BorderRadius.circular(12),
@@ -904,23 +897,37 @@ class _AttendancePageState extends State<AttendancePage>
                                 const SizedBox(height: 8),
                                 Row(
                                   children: [
-                                    const Icon(Icons.person_outline, size: 16, color: Colors.grey),
+                                    const Icon(
+                                      Icons.person_outline,
+                                      size: 16,
+                                      color: Colors.grey,
+                                    ),
                                     const SizedBox(width: 4),
                                     Text(
                                       'Instructor: N/A',
-                                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                      style: TextStyle(
+                                        color: Colors.grey.shade700,
+                                        fontSize: 13,
+                                      ),
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 4),
                                 Row(
                                   children: [
-                                    const Icon(Icons.book_outlined, size: 16, color: Colors.grey),
+                                    const Icon(
+                                      Icons.book_outlined,
+                                      size: 16,
+                                      color: Colors.grey,
+                                    ),
                                     const SizedBox(width: 4),
                                     Expanded(
                                       child: Text(
                                         'Materia: $materia',
-                                        style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                        style: TextStyle(
+                                          color: Colors.grey.shade700,
+                                          fontSize: 13,
+                                        ),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
@@ -929,11 +936,18 @@ class _AttendancePageState extends State<AttendancePage>
                                 const SizedBox(height: 4),
                                 Row(
                                   children: [
-                                    const Icon(Icons.date_range_outlined, size: 16, color: Colors.grey),
+                                    const Icon(
+                                      Icons.date_range_outlined,
+                                      size: 16,
+                                      color: Colors.grey,
+                                    ),
                                     const SizedBox(width: 4),
                                     Text(
-                                      'DÃ­as faltados: $diasFaltados',
-                                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                      'DÃƒÂ­as faltados: $diasFaltados',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade700,
+                                        fontSize: 13,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -941,12 +955,19 @@ class _AttendancePageState extends State<AttendancePage>
                                 Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Icon(Icons.info_outline, size: 16, color: Colors.grey),
+                                    const Icon(
+                                      Icons.info_outline,
+                                      size: 16,
+                                      color: Colors.grey,
+                                    ),
                                     const SizedBox(width: 4),
                                     Expanded(
                                       child: Text(
-                                        'ObservaciÃ³n: $observacion',
-                                        style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                        'ObservaciÃƒÂ³n: $observacion',
+                                        style: TextStyle(
+                                          color: Colors.grey.shade700,
+                                          fontSize: 13,
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -970,23 +991,32 @@ class _AttendancePageState extends State<AttendancePage>
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: 12, color: Colors.black.withValues(alpha: 0.6)),
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.black.withValues(alpha: 0.6),
+          ),
         ),
         const SizedBox(height: 2),
         Text(
           value,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
         ),
       ],
     );
   }
 
-  // â”€â”€â”€ Tab Resumen con dona â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Tab Resumen con dona Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   Widget _buildResumenTab() {
     if (_isLoadingDashboard) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xFF39A900)));
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF39A900)),
+      );
     }
-    
+
     if (_dashboardError != null) {
       return Center(
         child: Column(
@@ -1005,8 +1035,13 @@ class _AttendancePageState extends State<AttendancePage>
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _fetchDashboard,
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF39A900)),
-              child: const Text('Reintentar', style: TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF39A900),
+              ),
+              child: const Text(
+                'Reintentar',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -1017,8 +1052,9 @@ class _AttendancePageState extends State<AttendancePage>
     final asistenciaTrimestre = _dashboardData?['asistencia_trimestre'];
     final int total = asistenciaTrimestre?['total'] ?? 0;
 
-    // Trimestre activo â€” leÃ­do directamente del dashboard, sin variables extra
-    final trimestreActivo = _dashboardData?['trimestre_activo'] as Map<String, dynamic>?;
+    // Trimestre activo Ã¢â‚¬â€ leÃƒÂ­do directamente del dashboard, sin variables extra
+    final trimestreActivo =
+        _dashboardData?['trimestre_activo'] as Map<String, dynamic>?;
     final bool trimestreRegistrado = trimestreActivo?['registrado'] == true;
     final int? numeroTrimestre = trimestreRegistrado
         ? (trimestreActivo?['numero_trimestre'] as int?)
@@ -1033,18 +1069,18 @@ class _AttendancePageState extends State<AttendancePage>
     if (asistenciaTrimestre != null && asistenciaTrimestre['estados'] != null) {
       final List<dynamic> estados = asistenciaTrimestre['estados'];
       for (var estadoInfo in estados) {
-        final estado = estadoInfo['estado'];
+        final estado = _normalizeAttendanceState(estadoInfo['estado']);
         final cantidad = estadoInfo['cantidad'] as int;
 
         if (estado == 'PENDIENTE') {
           pendiente = cantidad;
         } else if (estado == 'PRESENTE') {
           presente = cantidad;
-        } else if (estado == 'INASISTENTE') {
+        } else if (estado == 'INASISTENCIA') {
           ausente = cantidad;
         } else if (estado == 'TARDE') {
           retardado = cantidad;
-        } else if (estado == 'JUSTIFICADA') {
+        } else if (estado == 'JUSTIFICADO') {
           justificado = cantidad;
         }
       }
@@ -1079,11 +1115,14 @@ class _AttendancePageState extends State<AttendancePage>
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                // Chip de trimestre â€” solo visible cuando el backend confirma
+                // Chip de trimestre Ã¢â‚¬â€ solo visible cuando el backend confirma
                 // trimestre_activo.registrado == true
                 if (numeroTrimestre != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
@@ -1114,10 +1153,7 @@ class _AttendancePageState extends State<AttendancePage>
             const SizedBox(height: 4),
             Text(
               'Total sesiones: $total',
-              style: const TextStyle(
-                color: Color(0xFF607086),
-                fontSize: 13,
-              ),
+              style: const TextStyle(color: Color(0xFF607086), fontSize: 13),
             ),
             const SizedBox(height: 24),
             // Dona centrada
@@ -1137,33 +1173,61 @@ class _AttendancePageState extends State<AttendancePage>
                           final dx = event.localPosition.dx - center.dx;
                           final dy = event.localPosition.dy - center.dy;
                           final distance = math.sqrt(dx * dx + dy * dy);
-                          
+
                           const double strokeWidth = 180 * 0.18;
                           const double outerRadius = 90;
                           const double innerRadius = outerRadius - strokeWidth;
 
-                          if (distance >= innerRadius && distance <= outerRadius) {
+                          if (distance >= innerRadius &&
+                              distance <= outerRadius) {
                             double angle = math.atan2(dy, dx);
                             double adjustedAngle = angle - (-math.pi / 2);
                             if (adjustedAngle < 0) adjustedAngle += 2 * math.pi;
 
                             final segments = [
-                              {'cat': 'PENDIENTE', 'label': 'PENDIENTE', 'value': pendiente, 'color': Colors.grey.shade400},
-                              {'cat': 'PRESENTE', 'label': 'PRESENTE', 'value': presente, 'color': const Color(0xFF39A900)},
-                              {'cat': 'TARDE', 'label': 'TARDE', 'value': retardado, 'color': const Color(0xFFF6A900)},
-                              {'cat': 'INASISTENTE', 'label': 'INASISTENTE', 'value': ausente, 'color': const Color(0xFFE53935)},
-                              {'cat': 'JUSTIFICADA', 'label': 'JUSTIFICADA', 'value': justificado, 'color': const Color(0xFF1565C0)},
+                              {
+                                'cat': 'PENDIENTE',
+                                'label': 'PENDIENTE',
+                                'value': pendiente,
+                                'color': Colors.grey.shade400,
+                              },
+                              {
+                                'cat': 'PRESENTE',
+                                'label': 'PRESENTE',
+                                'value': presente,
+                                'color': const Color(0xFF39A900),
+                              },
+                              {
+                                'cat': 'TARDE',
+                                'label': 'TARDE',
+                                'value': retardado,
+                                'color': const Color(0xFFF6A900),
+                              },
+                              {
+                                'cat': 'INASISTENCIA',
+                                'label': 'INASISTENTE',
+                                'value': ausente,
+                                'color': const Color(0xFFE53935),
+                              },
+                              {
+                                'cat': 'JUSTIFICADO',
+                                'label': 'JUSTIFICADA',
+                                'value': justificado,
+                                'color': const Color(0xFF1565C0),
+                              },
                             ];
 
                             double currentAngle = 0;
                             const double gap = 0.04;
-                            
+
                             for (final seg in segments) {
                               final val = seg['value'] as int;
                               if (val == 0) continue;
-                              
-                              final double sweep = (val / total) * 2 * math.pi - gap;
-                              if (adjustedAngle >= currentAngle && adjustedAngle <= currentAngle + sweep) {
+
+                              final double sweep =
+                                  (val / total) * 2 * math.pi - gap;
+                              if (adjustedAngle >= currentAngle &&
+                                  adjustedAngle <= currentAngle + sweep) {
                                 setState(() {
                                   _hoveredSegmentData = seg;
                                   _hoverPosition = event.localPosition;
@@ -1195,34 +1259,69 @@ class _AttendancePageState extends State<AttendancePage>
                             final dx = details.localPosition.dx - center.dx;
                             final dy = details.localPosition.dy - center.dy;
                             final distance = math.sqrt(dx * dx + dy * dy);
-                            
+
                             const double strokeWidth = 180 * 0.18;
                             const double outerRadius = 90;
-                            const double innerRadius = outerRadius - strokeWidth;
+                            const double innerRadius =
+                                outerRadius - strokeWidth;
 
-                            if (distance >= innerRadius && distance <= outerRadius) {
+                            if (distance >= innerRadius &&
+                                distance <= outerRadius) {
                               double angle = math.atan2(dy, dx);
                               double adjustedAngle = angle - (-math.pi / 2);
-                              if (adjustedAngle < 0) adjustedAngle += 2 * math.pi;
+                              if (adjustedAngle < 0) {
+                                adjustedAngle += 2 * math.pi;
+                              }
 
                               final segments = [
-                                {'cat': 'PENDIENTE', 'label': 'PENDIENTE', 'value': pendiente, 'color': Colors.grey.shade400},
-                                {'cat': 'PRESENTE', 'label': 'PRESENTE', 'value': presente, 'color': const Color(0xFF39A900)},
-                                {'cat': 'TARDE', 'label': 'TARDE', 'value': retardado, 'color': const Color(0xFFF6A900)},
-                                {'cat': 'INASISTENTE', 'label': 'INASISTENTE', 'value': ausente, 'color': const Color(0xFFE53935)},
-                                {'cat': 'JUSTIFICADA', 'label': 'JUSTIFICADA', 'value': justificado, 'color': const Color(0xFF1565C0)},
+                                {
+                                  'cat': 'PENDIENTE',
+                                  'label': 'PENDIENTE',
+                                  'value': pendiente,
+                                  'color': Colors.grey.shade400,
+                                },
+                                {
+                                  'cat': 'PRESENTE',
+                                  'label': 'PRESENTE',
+                                  'value': presente,
+                                  'color': const Color(0xFF39A900),
+                                },
+                                {
+                                  'cat': 'TARDE',
+                                  'label': 'TARDE',
+                                  'value': retardado,
+                                  'color': const Color(0xFFF6A900),
+                                },
+                                {
+                                  'cat': 'INASISTENCIA',
+                                  'label': 'INASISTENTE',
+                                  'value': ausente,
+                                  'color': const Color(0xFFE53935),
+                                },
+                                {
+                                  'cat': 'JUSTIFICADO',
+                                  'label': 'JUSTIFICADA',
+                                  'value': justificado,
+                                  'color': const Color(0xFF1565C0),
+                                },
                               ];
 
                               double currentAngle = 0;
                               const double gap = 0.04;
-                              
+
                               for (final seg in segments) {
                                 final val = seg['value'] as int;
                                 if (val == 0) continue;
-                                
-                                final double sweep = (val / total) * 2 * math.pi - gap;
-                                if (adjustedAngle >= currentAngle && adjustedAngle <= currentAngle + sweep) {
-                                  _showDetailBottomSheet(seg['cat'] as String, seg['label'] as String, seg['color'] as Color);
+
+                                final double sweep =
+                                    (val / total) * 2 * math.pi - gap;
+                                if (adjustedAngle >= currentAngle &&
+                                    adjustedAngle <= currentAngle + sweep) {
+                                  _showDetailBottomSheet(
+                                    seg['cat'] as String,
+                                    seg['label'] as String,
+                                    seg['color'] as Color,
+                                  );
                                   break;
                                 }
                                 currentAngle += sweep + gap;
@@ -1277,7 +1376,11 @@ class _AttendancePageState extends State<AttendancePage>
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
-                                BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 5))
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.1),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 5),
+                                ),
                               ],
                               border: Border.all(color: Colors.grey.shade200),
                             ),
@@ -1288,22 +1391,35 @@ class _AttendancePageState extends State<AttendancePage>
                                 Row(
                                   children: [
                                     Container(
-                                      width: 12, height: 12,
-                                      decoration: BoxDecoration(color: _hoveredSegmentData!['color'] as Color, shape: BoxShape.circle),
+                                      width: 12,
+                                      height: 12,
+                                      decoration: BoxDecoration(
+                                        color:
+                                            _hoveredSegmentData!['color']
+                                                as Color,
+                                        shape: BoxShape.circle,
+                                      ),
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
                                         '${_hoveredSegmentData!['label']}: ${_hoveredSegmentData!['value']} registros (${(((_hoveredSegmentData!['value'] as int) / total) * 100).round()}%)',
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF092444)),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                          color: Color(0xFF092444),
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 8),
                                 const Text(
-                                  'Haz clic en el Ã­cono del ojo para ver el detalle',
-                                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                                  'Haz clic en el ÃƒÂ­cono del ojo para ver el detalle',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
                                 ),
                               ],
                             ),
@@ -1316,22 +1432,58 @@ class _AttendancePageState extends State<AttendancePage>
             ),
             const SizedBox(height: 28),
             // Leyendas
-            _statRow('PENDIENTE', pendiente, total, Colors.grey.shade400, 'PENDIENTE'),
+            _statRow(
+              'PENDIENTE',
+              pendiente,
+              total,
+              Colors.grey.shade400,
+              'PENDIENTE',
+            ),
             const SizedBox(height: 16),
-            _statRow('PRESENTE', presente, total, const Color(0xFF39A900), 'PRESENTE'),
+            _statRow(
+              'PRESENTE',
+              presente,
+              total,
+              const Color(0xFF39A900),
+              'PRESENTE',
+            ),
             const SizedBox(height: 16),
-            _statRow('TARDE', retardado, total, const Color(0xFFF6A900), 'TARDE'),
+            _statRow(
+              'TARDE',
+              retardado,
+              total,
+              const Color(0xFFF6A900),
+              'TARDE',
+            ),
             const SizedBox(height: 16),
-            _statRow('INASISTENTE', ausente, total, const Color(0xFFE53935), 'INASISTENTE'),
+            _statRow(
+              'INASISTENTE',
+              ausente,
+              total,
+              const Color(0xFFE53935),
+              'INASISTENCIA',
+            ),
             const SizedBox(height: 16),
-            _statRow('JUSTIFICADA', justificado, total, const Color(0xFF1565C0), 'JUSTIFICADA'),
+            _statRow(
+              'JUSTIFICADA',
+              justificado,
+              total,
+              const Color(0xFF1565C0),
+              'JUSTIFICADO',
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _statRow(String label, int count, int total, Color color, String categoryId) {
+  Widget _statRow(
+    String label,
+    int count,
+    int total,
+    Color color,
+    String categoryId,
+  ) {
     final double pct = total == 0 ? 0 : count / total;
     final int pctInt = (pct * 100).round();
     return InkWell(
@@ -1348,7 +1500,10 @@ class _AttendancePageState extends State<AttendancePage>
                 Container(
                   width: 10,
                   height: 10,
-                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1412,12 +1567,270 @@ class _AttendancePageState extends State<AttendancePage>
     );
   }
 
-  Widget _buildJustificarTab() {
-    if (_isLoadingSessions) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xFF39A900)));
+  Widget _buildJustificarTabBackend() {
+    if (_isLoadingJustifications) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF39A900)),
+      );
     }
 
-    if (_sessionsError != null) {
+    if (_justificationsError != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.red, size: 48),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                'Error al cargar justificaciones:\n$_justificationsError',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFF607086)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _fetchEligibleJustifications,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF39A900),
+              ),
+              child: const Text(
+                'Reintentar',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final inasistencias =
+        (_eligibleJustificationsData?['inasistencias'] as List<dynamic>?) ??
+            const [];
+    if (inasistencias.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.assignment_turned_in_outlined,
+              color: Color(0xFF607086),
+              size: 50,
+            ),
+            const SizedBox(height: 14),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                _eligibleJustificationsData?['mensaje']?.toString() ??
+                    'No tienes inasistencias disponibles para justificar.',
+                style: const TextStyle(color: Color(0xFF607086), fontSize: 15),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: _fetchEligibleJustifications,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF39A900),
+              ),
+              child: const Text(
+                'Actualizar',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final item = inasistencias.first as Map<String, dynamic>;
+    final session = item['sesion'] as Map<String, dynamic>? ?? const {};
+    final attendanceId = item['id_asistencia']?.toString() ?? '';
+    final selectedFile = _selectedJustificationFiles[attendanceId];
+    final isSubmitting = _isSubmittingJustification[attendanceId] == true;
+
+    final competencia =
+        (session['competencia'] as Map<String, dynamic>?)?['nombre_competencia']
+                ?.toString() ??
+            'Competencia no disponible';
+    final ambiente =
+        (session['ambiente'] as Map<String, dynamic>?)?['nombre_ambiente']
+                ?.toString() ??
+            'Ambiente no disponible';
+    final fechaRaw = session['fecha_clase']?.toString() ?? '';
+    var fechaLegible = 'Fecha no disponible';
+    if (fechaRaw.length >= 10) {
+      final parts = fechaRaw.substring(0, 10).split('-');
+      if (parts.length == 3) {
+        fechaLegible = '${parts[2]}/${parts[1]}/${parts[0]}';
+      }
+    }
+
+    final horaInicio = session['hora_inicio']?.toString() ?? '';
+    final horaFin = session['hora_fin']?.toString() ?? '';
+    final horaTexto = (horaInicio.length >= 5 && horaFin.length >= 5)
+        ? '${horaInicio.substring(0, 5)} - ${horaFin.substring(0, 5)}'
+        : 'Horario no disponible';
+    final fechaLimite = item['fecha_limite']?.toString().split('T').first ?? '';
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withValues(alpha: 0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Inasistencia disponible para justificar',
+                  style: TextStyle(
+                    color: Color(0xFF092444),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _buildDetailRow(Icons.calendar_today, 'Fecha', fechaLegible),
+                const SizedBox(height: 10),
+                _buildDetailRow(Icons.access_time, 'Horario', horaTexto),
+                if (fechaLimite.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  _buildDetailRow(
+                    Icons.event_available_outlined,
+                    'Fecha limite',
+                    fechaLimite,
+                  ),
+                ],
+                const SizedBox(height: 10),
+                _buildDetailRow(Icons.school, 'Competencia', competencia),
+                const SizedBox(height: 10),
+                _buildDetailRow(Icons.location_on, 'Ambiente', ambiente),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Adjunta tu justificante',
+            style: TextStyle(
+              color: Color(0xFF092444),
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ElevatedButton.icon(
+            onPressed: () => _pickJustificationFile(attendanceId),
+            icon: const Icon(Icons.attach_file_outlined),
+            label: const Text('Seleccionar archivo'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF39A900),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+            ),
+          ),
+          if (selectedFile != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              selectedFile.name,
+              style: const TextStyle(
+                color: Color(0xFF092444),
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          const SizedBox(height: 20),
+          const Text(
+            'Descripcion',
+            style: TextStyle(
+              color: Color(0xFF092444),
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _justificationDescriptionController,
+            maxLines: 5,
+            decoration: InputDecoration(
+              hintText: 'Describe el motivo de la falta',
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.all(16),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () => _submitJustification(attendanceId),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF39A900),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
+                    )
+                  : const Text('Enviar'),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Formato aceptado: PDF o PNG. Tamano maximo 5 MB.',
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJustificarTab() {
+    if (_isLoadingJustifications) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF39A900)),
+      );
+    }
+
+    if (_justificationsError != null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1427,61 +1840,94 @@ class _AttendancePageState extends State<AttendancePage>
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32.0),
               child: Text(
-                'Error al cargar la sesión activa:\n$_sessionsError',
+                'Error al cargar justificaciones:\n$_justificationsError',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Color(0xFF607086)),
               ),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: _fetchSessions,
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF39A900)),
-              child: const Text('Reintentar', style: TextStyle(color: Colors.white)),
+              onPressed: _fetchEligibleJustifications,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF39A900),
+              ),
+              child: const Text(
+                'Reintentar',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         ),
       );
     }
 
-    final session = _sessionsData?['sesion_activa'] as Map<String, dynamic>?;
-    if (session == null) {
+    final inasistencias =
+        (_eligibleJustificationsData?['inasistencias'] as List<dynamic>?) ??
+            const [];
+    if (inasistencias.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.hourglass_empty, color: Color(0xFF607086), size: 50),
+            const Icon(
+              Icons.assignment_turned_in_outlined,
+              color: Color(0xFF607086),
+              size: 50,
+            ),
             const SizedBox(height: 14),
             const Text(
-              'No hay sesión activa en este momento.',
+              'No hay sesiÃ³n activa en este momento.',
               style: TextStyle(color: Color(0xFF607086), fontSize: 15),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             ElevatedButton(
               onPressed: _fetchSessions,
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF39A900)),
-              child: const Text('Actualizar sesión', style: TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF39A900),
+              ),
+              child: const Text(
+                'Actualizar sesiÃ³n',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         ),
       );
     }
 
-    final String sessionId = session['id']?.toString() ?? '';
+    final legacyItem = inasistencias.first as Map<String, dynamic>;
+    final session = legacyItem['sesion'] as Map<String, dynamic>? ?? const {};
+    final String sessionId = legacyItem['id_asistencia']?.toString() ?? '';
     final selectedFile = _selectedJustificationFiles[sessionId];
     final isSubmitting = _isSubmittingJustification[sessionId] == true;
 
-    final String competencia = (session['competencia'] as Map<String, dynamic>?)?['nombre_competencia']?.toString() ?? 'Competencia no disponible';
-    final String ambiente = (session['ambiente'] as Map<String, dynamic>?)?['nombre_ambiente']?.toString() ?? 'Ambiente no disponible';
+    final String competencia =
+        (session['competencia'] as Map<String, dynamic>?)?['nombre_competencia']
+            ?.toString() ??
+        'Competencia no disponible';
+    final String ambiente =
+        (session['ambiente'] as Map<String, dynamic>?)?['nombre_ambiente']
+            ?.toString() ??
+        'Ambiente no disponible';
     final String fechaRaw = session['fecha_clase']?.toString() ?? '';
     String fechaLegible = 'Fecha no disponible';
     if (fechaRaw.length >= 10) {
       final parts = fechaRaw.substring(0, 10).split('-');
       if (parts.length == 3) {
         final meses = {
-          '01': 'enero', '02': 'febrero', '03': 'marzo', '04': 'abril',
-          '05': 'mayo', '06': 'junio', '07': 'julio', '08': 'agosto',
-          '09': 'septiembre', '10': 'octubre', '11': 'noviembre', '12': 'diciembre'
+          '01': 'enero',
+          '02': 'febrero',
+          '03': 'marzo',
+          '04': 'abril',
+          '05': 'mayo',
+          '06': 'junio',
+          '07': 'julio',
+          '08': 'agosto',
+          '09': 'septiembre',
+          '10': 'octubre',
+          '11': 'noviembre',
+          '12': 'diciembre',
         };
         fechaLegible = '${parts[2]} de ${meses[parts[1]] ?? ''} de ${parts[0]}';
       }
@@ -1516,7 +1962,7 @@ class _AttendancePageState extends State<AttendancePage>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Sesión activa disponible para justificar',
+                  'SesiÃ³n activa disponible para justificar',
                   style: TextStyle(
                     color: Color(0xFF092444),
                     fontSize: 16,
@@ -1554,7 +2000,9 @@ class _AttendancePageState extends State<AttendancePage>
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF39A900),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
               alignment: Alignment.center,
             ),
@@ -1567,16 +2015,24 @@ class _AttendancePageState extends State<AttendancePage>
               decoration: BoxDecoration(
                 color: const Color(0xFFF0F8F4),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFF39A900).withValues(alpha: 0.2)),
+                border: Border.all(
+                  color: const Color(0xFF39A900).withValues(alpha: 0.2),
+                ),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.check_circle_outline, color: Color(0xFF39A900)),
+                  const Icon(
+                    Icons.check_circle_outline,
+                    color: Color(0xFF39A900),
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       selectedFile.name,
-                      style: const TextStyle(color: Color(0xFF092444), fontSize: 14),
+                      style: const TextStyle(
+                        color: Color(0xFF092444),
+                        fontSize: 14,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -1586,7 +2042,7 @@ class _AttendancePageState extends State<AttendancePage>
           ],
           const SizedBox(height: 20),
           const Text(
-            'Descripción',
+            'DescripciÃ³n',
             style: TextStyle(
               color: Color(0xFF092444),
               fontSize: 16,
@@ -1598,7 +2054,7 @@ class _AttendancePageState extends State<AttendancePage>
             controller: _justificationDescriptionController,
             maxLines: 5,
             decoration: InputDecoration(
-              hintText: 'Describe el motivo de la falta o la justificación',
+              hintText: 'Describe el motivo de la falta o la justificaciÃ³n',
               filled: true,
               fillColor: Colors.white,
               contentPadding: const EdgeInsets.all(16),
@@ -1617,19 +2073,29 @@ class _AttendancePageState extends State<AttendancePage>
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: isSubmitting ? null : () => _submitJustification(sessionId),
+              onPressed: isSubmitting
+                  ? null
+                  : () => _submitJustification(sessionId),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF39A900),
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 alignment: Alignment.center,
-                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                textStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               child: isSubmitting
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
                     )
                   : const Text(
                       'Enviar',
@@ -1640,7 +2106,7 @@ class _AttendancePageState extends State<AttendancePage>
           ),
           const SizedBox(height: 20),
           Text(
-            'Formato aceptado: PDF, JPG, JPEG, PNG. Tamaño máximo 5 MB.',
+            'Formato aceptado: PDF, JPG, JPEG, PNG. TamaÃ±o mÃ¡ximo 5 MB.',
             style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
           ),
         ],
@@ -1660,10 +2126,7 @@ class _AttendancePageState extends State<AttendancePage>
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  color: Color(0xFF607086),
-                  fontSize: 13,
-                ),
+                style: const TextStyle(color: Color(0xFF607086), fontSize: 13),
               ),
               const SizedBox(height: 2),
               Text(
@@ -1681,7 +2144,7 @@ class _AttendancePageState extends State<AttendancePage>
     );
   }
 
-  // ── Helpers de calendario ──────────────────────────────────────────────────
+  // â”€â”€ Helpers de calendario â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   int get _firstWeekday => DateTime(_year, _monthIndex + 1, 1).weekday - 1;
   int get _daysInMonth => DateTime(_year, _monthIndex + 2, 0).day;
 
@@ -1702,57 +2165,85 @@ class _AttendancePageState extends State<AttendancePage>
   }
 
   String _dayName(int day) {
-    const n = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+    const n = [
+      "Lunes",
+      "Martes",
+      "MiÃ©rcoles",
+      "Jueves",
+      "Viernes",
+      "SÃ¡bado",
+      "Domingo",
+    ];
     return n[DateTime(_year, _monthIndex + 1, day).weekday - 1];
   }
 
-  // ── Helpers de color/texto ────────────────────────────────────────────────
+  // â”€â”€ Helpers de color/texto â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Color _statusColor(String? s) {
     switch (s) {
-      case 'presente': return const Color(0xFF44C21E);
-      case 'ausente': return const Color(0xFFE53935);
-      case 'justificada': return const Color(0xFFF6A900);
-      default: return const Color(0xFFBDBDBD);
+      case 'presente':
+        return const Color(0xFF44C21E);
+      case 'ausente':
+        return const Color(0xFFE53935);
+      case 'justificada':
+        return const Color(0xFFF6A900);
+      default:
+        return const Color(0xFFBDBDBD);
     }
   }
 
   String _statusLabel(String? s) {
     switch (s) {
-      case 'presente': return 'Presente';
-      case 'ausente': return 'Ausente';
-      case 'justificada': return 'Justificada';
-      default: return 'Sin clase';
+      case 'presente':
+        return 'Presente';
+      case 'ausente':
+        return 'Ausente';
+      case 'justificada':
+        return 'Justificada';
+      default:
+        return 'Sin clase';
     }
   }
 
   Color _justColor(String estado) {
     switch (estado) {
-      case 'APROBADA': return const Color(0xFF44C21E);
-      case 'RECHAZADA': return const Color(0xFFE53935);
-      case 'PENDIENTE': return const Color(0xFFF6A900);
-      default: return Colors.grey;
+      case 'APROBADA':
+        return const Color(0xFF44C21E);
+      case 'RECHAZADA':
+        return const Color(0xFFE53935);
+      case 'PENDIENTE':
+        return const Color(0xFFF6A900);
+      default:
+        return Colors.grey;
     }
   }
 
   String _justLabel(String estado) {
     switch (estado) {
-      case 'APROBADA': return 'Justificación aprobada';
-      case 'RECHAZADA': return 'Justificación rechazada';
-      case 'PENDIENTE': return 'Justificación pendiente de revisión';
-      default: return '';
+      case 'APROBADA':
+        return 'JustificaciÃ³n aprobada';
+      case 'RECHAZADA':
+        return 'JustificaciÃ³n rechazada';
+      case 'PENDIENTE':
+        return 'JustificaciÃ³n pendiente de revisiÃ³n';
+      default:
+        return '';
     }
   }
 
   IconData _justIcon(String estado) {
     switch (estado) {
-      case 'APROBADA': return Icons.check_circle_outline;
-      case 'RECHAZADA': return Icons.cancel_outlined;
-      case 'PENDIENTE': return Icons.hourglass_empty_rounded;
-      default: return Icons.info_outline;
+      case 'APROBADA':
+        return Icons.check_circle_outline;
+      case 'RECHAZADA':
+        return Icons.cancel_outlined;
+      case 'PENDIENTE':
+        return Icons.hourglass_empty_rounded;
+      default:
+        return Icons.info_outline;
     }
   }
 
-  // ── Widgets auxiliares ─────────────────────────────────────────────────────
+  // â”€â”€ Widgets auxiliares â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _card({required Widget child}) => Container(
     width: double.infinity,
     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
@@ -1760,7 +2251,11 @@ class _AttendancePageState extends State<AttendancePage>
       color: Colors.white,
       borderRadius: BorderRadius.circular(20),
       boxShadow: [
-        BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 4)),
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.05),
+          blurRadius: 12,
+          offset: const Offset(0, 4),
+        ),
       ],
     ),
     child: child,
@@ -1803,7 +2298,9 @@ class _AttendancePageState extends State<AttendancePage>
 
   Widget _buildHistorialTab() {
     if (_isLoadingCalendar) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xFF39A900)));
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF39A900)),
+      );
     }
 
     if (_calendarError != null) {
@@ -1813,17 +2310,30 @@ class _AttendancePageState extends State<AttendancePage>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.wifi_off_rounded, size: 52, color: Color(0xFF607086)),
+              const Icon(
+                Icons.wifi_off_rounded,
+                size: 52,
+                color: Color(0xFF607086),
+              ),
               const SizedBox(height: 14),
-              Text(_calendarError!, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF607086), fontSize: 14)),
+              Text(
+                _calendarError!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFF607086), fontSize: 14),
+              ),
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 onPressed: _fetchCalendar,
                 icon: const Icon(Icons.refresh, color: Colors.white),
-                label: const Text('Reintentar', style: TextStyle(color: Colors.white)),
+                label: const Text(
+                  'Reintentar',
+                  style: TextStyle(color: Colors.white),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF44C21E),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
             ],
@@ -1846,11 +2356,11 @@ class _AttendancePageState extends State<AttendancePage>
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       child: Column(
         children: [
-          // ── Card calendario ──────────────────────────────────────────────
+          // â”€â”€ Card calendario â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           _card(
             child: Column(
               children: [
-                // Navegación mes
+                // NavegaciÃ³n mes
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -1871,23 +2381,25 @@ class _AttendancePageState extends State<AttendancePage>
                 // Cabecera L M M J V S D
                 Row(
                   children: ["L", "M", "M", "J", "V", "S", "D"]
-                      .map((d) => Expanded(
-                            child: Center(
-                              child: Text(
-                                d,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF94A3B8),
-                                ),
+                      .map(
+                        (d) => Expanded(
+                          child: Center(
+                            child: Text(
+                              d,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF94A3B8),
                               ),
                             ),
-                          ))
+                          ),
+                        ),
+                      )
                       .toList(),
                 ),
                 const SizedBox(height: 10),
 
-                // Grid de días
+                // Grid de dÃ­as
                 GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -1899,7 +2411,8 @@ class _AttendancePageState extends State<AttendancePage>
                     childAspectRatio: 0.82,
                   ),
                   itemBuilder: (context, index) {
-                    if (index < firstWeekday || index >= firstWeekday + daysInMonth) {
+                    if (index < firstWeekday ||
+                        index >= firstWeekday + daysInMonth) {
                       return const SizedBox.shrink();
                     }
 
@@ -1917,7 +2430,9 @@ class _AttendancePageState extends State<AttendancePage>
                             width: 34,
                             height: 34,
                             decoration: BoxDecoration(
-                              color: isSelected ? const Color(0xFF44C21E) : Colors.transparent,
+                              color: isSelected
+                                  ? const Color(0xFF44C21E)
+                                  : Colors.transparent,
                               shape: BoxShape.circle,
                             ),
                             child: Center(
@@ -1926,7 +2441,9 @@ class _AttendancePageState extends State<AttendancePage>
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
-                                  color: isSelected ? Colors.white : const Color(0xFF334155),
+                                  color: isSelected
+                                      ? Colors.white
+                                      : const Color(0xFF334155),
                                 ),
                               ),
                             ),
@@ -1936,13 +2453,21 @@ class _AttendancePageState extends State<AttendancePage>
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                _dot6(status != null ? _statusColor(status) : Colors.transparent),
+                                _dot6(
+                                  status != null
+                                      ? _statusColor(status)
+                                      : Colors.transparent,
+                                ),
                                 const SizedBox(width: 2),
                                 _dot6(const Color(0xFFF6A900)),
                               ],
                             )
                           else
-                            _dot6(status != null ? _statusColor(status) : Colors.transparent),
+                            _dot6(
+                              status != null
+                                  ? _statusColor(status)
+                                  : Colors.transparent,
+                            ),
                         ],
                       ),
                     );
@@ -1954,7 +2479,7 @@ class _AttendancePageState extends State<AttendancePage>
 
           const SizedBox(height: 14),
 
-          // ── Card detalle del día ─────────────────────────────────────────
+          // â”€â”€ Card detalle del dÃ­a â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           _card(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1978,13 +2503,20 @@ class _AttendancePageState extends State<AttendancePage>
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              const Icon(Icons.access_time_rounded, size: 14, color: Color(0xFF94A3B8)),
+                              const Icon(
+                                Icons.access_time_rounded,
+                                size: 14,
+                                color: Color(0xFF94A3B8),
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 selDetail != null
                                     ? "${selDetail['entrada']} - ${selDetail['salida']}"
                                     : "Sin registro de horario",
-                                style: const TextStyle(fontSize: 13, color: Color(0xFF607086)),
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF607086),
+                                ),
                               ),
                             ],
                           ),
@@ -1992,7 +2524,10 @@ class _AttendancePageState extends State<AttendancePage>
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: _statusColor(selStatus).withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(20),
@@ -2015,13 +2550,28 @@ class _AttendancePageState extends State<AttendancePage>
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      const Icon(Icons.book_outlined, size: 16, color: Color(0xFF94A3B8)),
+                      const Icon(
+                        Icons.book_outlined,
+                        size: 16,
+                        color: Color(0xFF94A3B8),
+                      ),
                       const SizedBox(width: 8),
-                      const Text('Competencia: ', style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500)),
+                      const Text(
+                        'Competencia: ',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                       Expanded(
                         child: Text(
                           selComp,
-                          style: const TextStyle(fontSize: 13, color: Color(0xFF1E293B), fontWeight: FontWeight.w600),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF1E293B),
+                            fontWeight: FontWeight.w600,
+                          ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -2033,15 +2583,24 @@ class _AttendancePageState extends State<AttendancePage>
                   const SizedBox(height: 10),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: _justColor(selJust).withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _justColor(selJust).withValues(alpha: 0.25)),
+                      border: Border.all(
+                        color: _justColor(selJust).withValues(alpha: 0.25),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        Icon(_justIcon(selJust), size: 16, color: _justColor(selJust)),
+                        Icon(
+                          _justIcon(selJust),
+                          size: 16,
+                          color: _justColor(selJust),
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -2062,7 +2621,10 @@ class _AttendancePageState extends State<AttendancePage>
                   const SizedBox(height: 10),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF8F9FB),
                       borderRadius: BorderRadius.circular(12),
@@ -2070,12 +2632,19 @@ class _AttendancePageState extends State<AttendancePage>
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.info_outline, size: 16, color: Color(0xFF94A3B8)),
+                        const Icon(
+                          Icons.info_outline,
+                          size: 16,
+                          color: Color(0xFF94A3B8),
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             selObs,
-                            style: const TextStyle(fontSize: 13, color: Color(0xFF607086)),
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF607086),
+                            ),
                           ),
                         ),
                       ],
@@ -2087,7 +2656,7 @@ class _AttendancePageState extends State<AttendancePage>
                   const SizedBox(height: 10),
                   const Center(
                     child: Text(
-                      'Sin sesión registrada este día',
+                      'Sin sesiÃ³n registrada este dÃ­a',
                       style: TextStyle(fontSize: 13, color: Color(0xFFBDBDBD)),
                     ),
                   ),
@@ -2098,7 +2667,7 @@ class _AttendancePageState extends State<AttendancePage>
 
           const SizedBox(height: 14),
 
-          // ── Leyenda ──────────────────────────────────────────────────────
+          // â”€â”€ Leyenda â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           _card(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2129,7 +2698,7 @@ class _AttendancePageState extends State<AttendancePage>
                     _dot6(const Color(0xFFF6A900)),
                     const SizedBox(width: 8),
                     const Text(
-                      'Ausente con justificación pendiente',
+                      'Ausente con justificaciÃ³n pendiente',
                       style: TextStyle(fontSize: 12, color: Color(0xFF607086)),
                     ),
                   ],

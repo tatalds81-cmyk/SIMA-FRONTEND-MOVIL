@@ -10,8 +10,9 @@ class SimaBottomNavBar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onItemSelected;
 
-  static const _activeColor = Color(0xFF44C21E);
-  static const _inactiveColor = Color(0xFF6E7B8D);
+  static const _activeColor = Color(0xFF39A900);
+  static const _inactiveColor = Color(0xFFB9C4D3);
+  static const _navy = Color(0xFF062E4F);
 
   @override
   Widget build(BuildContext context) {
@@ -26,21 +27,22 @@ class SimaBottomNavBar extends StatelessWidget {
     ];
 
     return SafeArea(
-      minimum: const EdgeInsets.fromLTRB(18, 0, 18, 14),
+      minimum: const EdgeInsets.fromLTRB(14, 0, 14, 10),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(30),
+          color: _navy,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.10),
+              color: _navy.withValues(alpha: 0.26),
               blurRadius: 18,
-              offset: const Offset(0, 6),
+              offset: const Offset(0, 10),
             ),
           ],
         ),
         child: SizedBox(
-          height: 70,
+          height: 64,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: List.generate(items.length, (index) {
@@ -57,9 +59,9 @@ class SimaBottomNavBar extends StatelessWidget {
                       Icon(
                         item.icon,
                         color: isSelected ? _activeColor : _inactiveColor,
-                        size: 23,
+                        size: 24,
                       ),
-                      const SizedBox(height: 5),
+                      const SizedBox(height: 4),
                       Text(
                         item.label,
                         maxLines: 1,

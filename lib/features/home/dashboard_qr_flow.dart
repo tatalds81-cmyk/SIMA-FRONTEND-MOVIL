@@ -40,17 +40,20 @@ class _DashboardQrScannerScreenState extends State<_DashboardQrScannerScreen> {
         throw Exception('El código QR no coincide con tu sesión activa.');
       }
 
-      final selectedMethod = await Navigator.of(context).push<_DashboardStepType?>(
-        MaterialPageRoute(
-          builder: (_) => const _DashboardMethodChoiceStep(),
-        ),
-      );
+      final selectedMethod = await Navigator.of(context)
+          .push<_DashboardStepType?>(
+            MaterialPageRoute(
+              builder: (_) => const _DashboardMethodChoiceStep(),
+            ),
+          );
 
       if (selectedMethod == null) {
         if (!mounted) return;
         _controller.start();
         return;
       }
+
+      if (!mounted) return;
 
       final biometricSuccess = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
@@ -217,14 +220,17 @@ class _DashboardMethodChoiceStep extends StatelessWidget {
                       icon: Icons.face_retouching_natural_rounded,
                       title: 'Reconocimiento facial',
                       description: 'Usa tu rostro para validar tu asistencia.',
-                      onTap: () => Navigator.of(context).pop(_DashboardStepType.face),
+                      onTap: () =>
+                          Navigator.of(context).pop(_DashboardStepType.face),
                     ),
                     const SizedBox(height: 18),
                     _MethodOptionCard(
                       icon: Icons.fingerprint_rounded,
                       title: 'Huella dactilar',
                       description: 'Usa tu huella para validar tu asistencia.',
-                      onTap: () => Navigator.of(context).pop(_DashboardStepType.fingerprint),
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(_DashboardStepType.fingerprint),
                     ),
                   ],
                 ),
@@ -298,7 +304,11 @@ class _MethodOptionCard extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 18),
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: Colors.white70,
+              size: 18,
+            ),
           ],
         ),
       ),
@@ -521,18 +531,17 @@ class _ScannerRingPainter extends CustomPainter {
 }
 
 class _StepProgress extends StatelessWidget {
-  const _StepProgress({required this.activeStep, this.thirdLabel = 'Biométrico'});
+  const _StepProgress({
+    required this.activeStep,
+    this.thirdLabel = 'Biométrico',
+  });
 
   final int activeStep;
   final String thirdLabel;
 
   @override
   Widget build(BuildContext context) {
-    final labels = [
-      'Escanear QR',
-      'Elegir método',
-      thirdLabel,
-    ];
+    final labels = ['Escanear QR', 'Elegir método', thirdLabel];
 
     return Row(
       children: List.generate(3, (index) {
