@@ -4,9 +4,14 @@ import 'package:sima_movil_froned/services/attendance_service.dart';
 import 'dart:math' as math;
 
 class AttendancePage extends StatefulWidget {
-  const AttendancePage({super.key, this.initialTabIndex = 0});
+  const AttendancePage({
+    super.key,
+    this.initialTabIndex = 0,
+    this.initialSelectedJustificationDate,
+  });
 
   final int initialTabIndex;
+  final DateTime? initialSelectedJustificationDate;
 
   @override
   State<AttendancePage> createState() => _AttendancePageState();
@@ -19,6 +24,7 @@ class _AttendancePageState extends State<AttendancePage>
       TextEditingController();
   Map<String, dynamic>? _hoveredSegmentData;
   Offset? _hoverPosition;
+  DateTime? _selectedJustificationDate;
 
   // â”€â”€ Calendario visual â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   int _selectedDay = 0;
@@ -77,6 +83,7 @@ class _AttendancePageState extends State<AttendancePage>
     _selectedDay = DateTime.now().day;
     _monthIndex = DateTime.now().month - 1;
     _year = DateTime.now().year;
+    _selectedJustificationDate = widget.initialSelectedJustificationDate;
     _fetchDashboard();
     _fetchCalendar();
     _fetchSessions();
@@ -286,7 +293,7 @@ class _AttendancePageState extends State<AttendancePage>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('El archivo supera el mÃ¡ximo permitido de 5 MB.'),
+              content: Text('El archivo supera el máximo permitido de 5 MB.'),
               backgroundColor: Color(0xFFF4A900),
             ),
           );
@@ -317,7 +324,7 @@ class _AttendancePageState extends State<AttendancePage>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Selecciona un archivo de justificaciÃ³n.'),
+            content: Text('Selecciona un archivo de justificación.'),
             backgroundColor: Color(0xFFF4A900),
           ),
         );
@@ -330,7 +337,7 @@ class _AttendancePageState extends State<AttendancePage>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Describe brevemente el motivo de la justificaciÃ³n.',
+              'Describe brevemente el motivo de la justificación.',
             ),
             backgroundColor: Color(0xFFF4A900),
           ),
@@ -356,7 +363,7 @@ class _AttendancePageState extends State<AttendancePage>
         _fetchEligibleJustifications();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('JustificaciÃ³n enviada correctamente.'),
+            content: Text('Justificación enviada correctamente.'),
             backgroundColor: Color(0xFF39A900),
           ),
         );
@@ -365,7 +372,7 @@ class _AttendancePageState extends State<AttendancePage>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al enviar justificaciÃ³n: ${e.toString()}'),
+            content: Text('Error al enviar justificación: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -388,7 +395,7 @@ class _AttendancePageState extends State<AttendancePage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Ã¢â€â‚¬Ã¢â€â‚¬ Header Principal Ã¢â€â‚¬Ã¢â€â‚¬
+            // Header Principal
             const Padding(
               padding: EdgeInsets.fromLTRB(20, 18, 20, 18),
               child: Column(
@@ -481,23 +488,23 @@ class _AttendancePageState extends State<AttendancePage>
     final sesion = _sessionsData?['sesion_activa'] as Map<String, dynamic>?;
 
     // Ficha / Programa
-    final String numeroFicha = ficha?['numero_ficha']?.toString() ?? 'Ã¢â‚¬â€';
+    final String numeroFicha = ficha?['numero_ficha']?.toString() ?? 'No disponible';
     final programa = ficha?['programa'] as Map<String, dynamic>?;
     final String nombrePrograma =
-        programa?['nombre_programa']?.toString() ?? 'Ã¢â‚¬â€';
+        programa?['nombre_programa']?.toString() ?? 'No disponible';
 
-    // Instructor lÃƒÂ­der (viene en ficha.instructor_lider)
+    // Instructor líder (viene en ficha.instructor_lider)
     final instructorLider = ficha?['instructor_lider'] as Map<String, dynamic>?;
     final bool instructorRegistrado = instructorLider?['registrado'] == true;
     final String nombreInstructor = instructorRegistrado
-        ? (instructorLider?['nombre_completo']?.toString() ?? 'Ã¢â‚¬â€')
-        : 'Ã¢â‚¬â€';
+        ? (instructorLider?['nombre_completo']?.toString() ?? 'No disponible')
+        : 'No disponible';
 
     // Jornada del grupo
-    final String jornada = ficha?['jornada']?.toString() ?? 'Ã¢â‚¬â€';
+    final String jornada = ficha?['jornada']?.toString() ?? 'No disponible';
 
-    // Fecha de la sesiÃƒÂ³n activa (formateada)
-    String fechaFormateada = 'Ã¢â‚¬â€';
+    // Fecha de la sesión activa (formateada)
+    String fechaFormateada = 'No disponible';
     if (sesion != null) {
       final fechaRaw = sesion['fecha_clase']?.toString() ?? '';
       if (fechaRaw.length >= 10) {
@@ -523,7 +530,7 @@ class _AttendancePageState extends State<AttendancePage>
       }
     }
 
-    // Estado de sesiÃƒÂ³n
+    // Estado de sesión
     final bool haySession = sesion != null;
 
     return Container(
@@ -554,7 +561,7 @@ class _AttendancePageState extends State<AttendancePage>
           ),
           const SizedBox(height: 16),
 
-          // Ã¢â€â‚¬Ã¢â€â‚¬ Estado: cargando Ã¢â€â‚¬Ã¢â€â‚¬
+          // Estado: cargando
           if (_isLoadingSessions)
             const SizedBox(
               height: 20,
@@ -570,13 +577,13 @@ class _AttendancePageState extends State<AttendancePage>
                   ),
                   SizedBox(width: 10),
                   Text(
-                    'Cargando sesiÃƒÂ³n...',
+                    'Cargando sesión...',
                     style: TextStyle(color: Color(0xFF607086), fontSize: 13),
                   ),
                 ],
               ),
             )
-          // Ã¢â€â‚¬Ã¢â€â‚¬ Estado: error al cargar Ã¢â€â‚¬Ã¢â€â‚¬
+          // Estado: error al cargar
           else if (_sessionsError != null)
             Row(
               children: [
@@ -588,7 +595,7 @@ class _AttendancePageState extends State<AttendancePage>
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    'No se pudo cargar la sesiÃƒÂ³n',
+                    'No se pudo cargar la sesión',
                     style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -606,7 +613,7 @@ class _AttendancePageState extends State<AttendancePage>
                 ),
               ],
             )
-          // Ã¢â€â‚¬Ã¢â€â‚¬ Estado: datos reales del backend Ã¢â€â‚¬Ã¢â€â‚¬
+          // Estado: datos reales del backend
           else
             LayoutBuilder(
               builder: (context, constraints) {
@@ -646,11 +653,11 @@ class _AttendancePageState extends State<AttendancePage>
                             ),
                           ],
                         ),
-                        // Segunda fila: Fecha (solo si hay sesiÃƒÂ³n activa)
+                        // Segunda fila: Fecha (solo si hay sesión activa)
                         if (haySession) ...[
                           const SizedBox(height: 8),
                           _bannerInlineText(
-                            'Fecha de sesiÃ³n: ',
+                            'Fecha de sesión: ',
                             fechaFormateada,
                           ),
                         ] else ...[
@@ -658,7 +665,7 @@ class _AttendancePageState extends State<AttendancePage>
                           Text(
                             _sessionsData?['mensaje_sesion_activa']
                                     ?.toString() ??
-                                'No hay sesiÃƒÂ³n activa en este momento',
+                                'No hay sesión activa en este momento',
                             style: TextStyle(
                               color: Colors.grey.shade500,
                               fontSize: 12,
@@ -718,7 +725,7 @@ class _AttendancePageState extends State<AttendancePage>
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        isActive ? 'Activa' : 'Sin sesiÃ³n',
+        isActive ? 'Activa' : 'Sin sesión',
         style: const TextStyle(
           color: Colors.white,
           fontSize: 12,
@@ -808,7 +815,7 @@ class _AttendancePageState extends State<AttendancePage>
                         _buildTooltipInfo('Cantidad', '$count'),
                         _buildTooltipInfo('Instructor', instructor),
                         _buildTooltipInfo(
-                          'ÃƒÅ¡ltima act.',
+                          'Última act.',
                           ultActualizacion.length > 10
                               ? ultActualizacion.substring(0, 10)
                               : ultActualizacion,
@@ -943,7 +950,7 @@ class _AttendancePageState extends State<AttendancePage>
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
-                                      'DÃƒÂ­as faltados: $diasFaltados',
+                                      'Días faltados: $diasFaltados',
                                       style: TextStyle(
                                         color: Colors.grey.shade700,
                                         fontSize: 13,
@@ -963,7 +970,7 @@ class _AttendancePageState extends State<AttendancePage>
                                     const SizedBox(width: 4),
                                     Expanded(
                                       child: Text(
-                                        'ObservaciÃƒÂ³n: $observacion',
+                                        'Observación: $observacion',
                                         style: TextStyle(
                                           color: Colors.grey.shade700,
                                           fontSize: 13,
@@ -1415,7 +1422,7 @@ class _AttendancePageState extends State<AttendancePage>
                                 ),
                                 const SizedBox(height: 8),
                                 const Text(
-                                  'Haz clic en el ÃƒÂ­cono del ojo para ver el detalle',
+                                  'Haz clic en el ícono del ojo para ver el detalle',
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: Colors.grey,
@@ -1567,6 +1574,26 @@ class _AttendancePageState extends State<AttendancePage>
     );
   }
 
+  Map<String, dynamic>? _findJustificationForDate(List<dynamic> inasistencias) {
+    if (_selectedJustificationDate == null) return null;
+
+    for (final dynamic item in inasistencias) {
+      if (item is! Map<String, dynamic>) continue;
+      final session = item['sesion'] as Map<String, dynamic>?;
+      final fechaRaw = session?['fecha_clase']?.toString() ?? '';
+      if (fechaRaw.length >= 10) {
+        final fecha = DateTime.tryParse(fechaRaw.substring(0, 10));
+        if (fecha != null &&
+            fecha.year == _selectedJustificationDate!.year &&
+            fecha.month == _selectedJustificationDate!.month &&
+            fecha.day == _selectedJustificationDate!.day) {
+          return item;
+        }
+      }
+    }
+    return null;
+  }
+
   Widget _buildJustificarTabBackend() {
     if (_isLoadingJustifications) {
       return const Center(
@@ -1644,7 +1671,48 @@ class _AttendancePageState extends State<AttendancePage>
       );
     }
 
-    final item = inasistencias.first as Map<String, dynamic>;
+    final Map<String, dynamic>? selectedItem =
+        _findJustificationForDate(inasistencias) ??
+            (inasistencias.isNotEmpty
+                ? inasistencias.first as Map<String, dynamic>
+                : null);
+    if (selectedItem == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.assignment_turned_in_outlined,
+              color: Color(0xFF607086),
+              size: 50,
+            ),
+            const SizedBox(height: 14),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                _eligibleJustificationsData?['mensaje']?.toString() ??
+                    'No tienes inasistencias disponibles para justificar.',
+                style: const TextStyle(color: Color(0xFF607086), fontSize: 15),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: _fetchEligibleJustifications,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF39A900),
+              ),
+              child: const Text(
+                'Actualizar',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final item = selectedItem;
     final session = item['sesion'] as Map<String, dynamic>? ?? const {};
     final attendanceId = item['id_asistencia']?.toString() ?? '';
     final selectedFile = _selectedJustificationFiles[attendanceId];
@@ -1712,7 +1780,7 @@ class _AttendancePageState extends State<AttendancePage>
                   const SizedBox(height: 10),
                   _buildDetailRow(
                     Icons.event_available_outlined,
-                    'Fecha limite',
+                    'Fecha límite',
                     fechaLimite,
                   ),
                 ],
@@ -1760,7 +1828,7 @@ class _AttendancePageState extends State<AttendancePage>
           ],
           const SizedBox(height: 20),
           const Text(
-            'Descripcion',
+            'Descripción',
             style: TextStyle(
               color: Color(0xFF092444),
               fontSize: 16,
@@ -1815,298 +1883,7 @@ class _AttendancePageState extends State<AttendancePage>
           ),
           const SizedBox(height: 20),
           Text(
-            'Formato aceptado: PDF o PNG. Tamano maximo 5 MB.',
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildJustificarTab() {
-    if (_isLoadingJustifications) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF39A900)),
-      );
-    }
-
-    if (_justificationsError != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 48),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32.0),
-              child: Text(
-                'Error al cargar justificaciones:\n$_justificationsError',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFF607086)),
-              ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _fetchEligibleJustifications,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF39A900),
-              ),
-              child: const Text(
-                'Reintentar',
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final inasistencias =
-        (_eligibleJustificationsData?['inasistencias'] as List<dynamic>?) ??
-            const [];
-    if (inasistencias.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.assignment_turned_in_outlined,
-              color: Color(0xFF607086),
-              size: 50,
-            ),
-            const SizedBox(height: 14),
-            const Text(
-              'No hay sesiÃ³n activa en este momento.',
-              style: TextStyle(color: Color(0xFF607086), fontSize: 15),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: _fetchSessions,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF39A900),
-              ),
-              child: const Text(
-                'Actualizar sesiÃ³n',
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final legacyItem = inasistencias.first as Map<String, dynamic>;
-    final session = legacyItem['sesion'] as Map<String, dynamic>? ?? const {};
-    final String sessionId = legacyItem['id_asistencia']?.toString() ?? '';
-    final selectedFile = _selectedJustificationFiles[sessionId];
-    final isSubmitting = _isSubmittingJustification[sessionId] == true;
-
-    final String competencia =
-        (session['competencia'] as Map<String, dynamic>?)?['nombre_competencia']
-            ?.toString() ??
-        'Competencia no disponible';
-    final String ambiente =
-        (session['ambiente'] as Map<String, dynamic>?)?['nombre_ambiente']
-            ?.toString() ??
-        'Ambiente no disponible';
-    final String fechaRaw = session['fecha_clase']?.toString() ?? '';
-    String fechaLegible = 'Fecha no disponible';
-    if (fechaRaw.length >= 10) {
-      final parts = fechaRaw.substring(0, 10).split('-');
-      if (parts.length == 3) {
-        final meses = {
-          '01': 'enero',
-          '02': 'febrero',
-          '03': 'marzo',
-          '04': 'abril',
-          '05': 'mayo',
-          '06': 'junio',
-          '07': 'julio',
-          '08': 'agosto',
-          '09': 'septiembre',
-          '10': 'octubre',
-          '11': 'noviembre',
-          '12': 'diciembre',
-        };
-        fechaLegible = '${parts[2]} de ${meses[parts[1]] ?? ''} de ${parts[0]}';
-      }
-    }
-
-    final String horaInicio = session['hora_inicio']?.toString() ?? '';
-    final String horaFin = session['hora_fin']?.toString() ?? '';
-    final String horaTexto = (horaInicio.isNotEmpty && horaFin.isNotEmpty)
-        ? '${horaInicio.substring(0, 5)} - ${horaFin.substring(0, 5)}'
-        : 'Horario no disponible';
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withValues(alpha: 0.08),
-                  blurRadius: 12,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'SesiÃ³n activa disponible para justificar',
-                  style: TextStyle(
-                    color: Color(0xFF092444),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                _buildDetailRow(Icons.calendar_today, 'Fecha', fechaLegible),
-                const SizedBox(height: 10),
-                _buildDetailRow(Icons.access_time, 'Horario', horaTexto),
-                const SizedBox(height: 10),
-                _buildDetailRow(Icons.school, 'Competencia', competencia),
-                const SizedBox(height: 10),
-                _buildDetailRow(Icons.location_on, 'Ambiente', ambiente),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Adjunta tu justificante',
-            style: TextStyle(
-              color: Color(0xFF092444),
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 10),
-          ElevatedButton.icon(
-            onPressed: () => _pickJustificationFile(sessionId),
-            icon: const Icon(Icons.attach_file_outlined),
-            label: const Text(
-              'Seleccionar archivo',
-              textAlign: TextAlign.center,
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF39A900),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-              alignment: Alignment.center,
-            ),
-          ),
-          if (selectedFile != null) ...[
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0F8F4),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: const Color(0xFF39A900).withValues(alpha: 0.2),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.check_circle_outline,
-                    color: Color(0xFF39A900),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      selectedFile.name,
-                      style: const TextStyle(
-                        color: Color(0xFF092444),
-                        fontSize: 14,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          const SizedBox(height: 20),
-          const Text(
-            'DescripciÃ³n',
-            style: TextStyle(
-              color: Color(0xFF092444),
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _justificationDescriptionController,
-            maxLines: 5,
-            decoration: InputDecoration(
-              hintText: 'Describe el motivo de la falta o la justificaciÃ³n',
-              filled: true,
-              fillColor: Colors.white,
-              contentPadding: const EdgeInsets.all(16),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: Colors.grey.shade300),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: Colors.grey.shade300),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: ElevatedButton(
-              onPressed: isSubmitting
-                  ? null
-                  : () => _submitJustification(sessionId),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF39A900),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                alignment: Alignment.center,
-                textStyle: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              child: isSubmitting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2.5,
-                      ),
-                    )
-                  : const Text(
-                      'Enviar',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white),
-                    ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Formato aceptado: PDF, JPG, JPEG, PNG. TamaÃ±o mÃ¡ximo 5 MB.',
+            'Formato aceptado: PDF o PNG. Tamaño máximo 5 MB.',
             style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
           ),
         ],
@@ -2168,10 +1945,10 @@ class _AttendancePageState extends State<AttendancePage>
     const n = [
       "Lunes",
       "Martes",
-      "MiÃ©rcoles",
+      "Miércoles",
       "Jueves",
       "Viernes",
-      "SÃ¡bado",
+      "Sábado",
       "Domingo",
     ];
     return n[DateTime(_year, _monthIndex + 1, day).weekday - 1];
@@ -2220,11 +1997,11 @@ class _AttendancePageState extends State<AttendancePage>
   String _justLabel(String estado) {
     switch (estado) {
       case 'APROBADA':
-        return 'JustificaciÃ³n aprobada';
+        return 'Justificación aprobada';
       case 'RECHAZADA':
-        return 'JustificaciÃ³n rechazada';
+        return 'Justificación rechazada';
       case 'PENDIENTE':
-        return 'JustificaciÃ³n pendiente de revisiÃ³n';
+        return 'Justificación pendiente de revisión';
       default:
         return '';
     }
@@ -2652,11 +2429,49 @@ class _AttendancePageState extends State<AttendancePage>
                   ),
                 ],
 
+                if (selStatus == 'ausente') ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _selectedJustificationDate = DateTime(
+                            _year,
+                            _monthIndex + 1,
+                            _selectedDay,
+                          );
+                        });
+                        _tabController.animateTo(2);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF39A900),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      child: const Text(
+                        'Justificar inasistencia',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+
                 if (selStatus == null) ...[
                   const SizedBox(height: 10),
                   const Center(
                     child: Text(
-                      'Sin sesiÃ³n registrada este dÃ­a',
+                      'Sin sesión registrada este día',
                       style: TextStyle(fontSize: 13, color: Color(0xFFBDBDBD)),
                     ),
                   ),
@@ -2698,7 +2513,7 @@ class _AttendancePageState extends State<AttendancePage>
                     _dot6(const Color(0xFFF6A900)),
                     const SizedBox(width: 8),
                     const Text(
-                      'Ausente con justificaciÃ³n pendiente',
+                      'Ausente con justificación pendiente',
                       style: TextStyle(fontSize: 12, color: Color(0xFF607086)),
                     ),
                   ],
