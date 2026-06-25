@@ -29,10 +29,8 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   static const int _initialPage = 10000;
 
-  final PageController _controller = PageController(
-    initialPage: _initialPage,
-    viewportFraction: 0.92,
-  );
+  late final PageController _controller;
+  bool _scheduleCarouselInitialized = false;
   final ObservatoryRepository _observatoryRepository =
       const BackendObservatoryRepository();
   late Future<_DashboardData> _dashboardFuture;
@@ -141,6 +139,10 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _controller = PageController(
+      initialPage: _initialPage,
+      viewportFraction: 0.92,
+    );
     _dashboardFuture = _fetchDashboardData();
     _showActiveSessionPrompt();
   }
@@ -588,6 +590,25 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
+    if (!_scheduleCarouselInitialized) {
+      final initialIndex = _findInitialScheduleIndex(classes);
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _scheduleCarouselInitialized) {
+          return;
+        }
+
+        if (_controller.hasClients) {
+          _controller.jumpToPage(_initialPage + initialIndex);
+        }
+
+        setState(() {
+          _currentClass = initialIndex;
+          _scheduleCarouselInitialized = true;
+        });
+      });
+    }
+
     final activeIndex = _currentClass % classes.length;
 
     final screenHeight = MediaQuery.of(context).size.height;
@@ -649,6 +670,29 @@ class _HomePageState extends State<HomePage> {
       ],
     );
   }
+}
+
+int _findInitialScheduleIndex(List<ClassItem> classes) {
+  if (classes.isEmpty) {
+    return 0;
+  }
+
+  final now = DateTime.now();
+  final todayIndex = (now.weekday - 1).clamp(0, classes.length - 1);
+
+  for (var index = todayIndex; index < classes.length; index++) {
+    if (classes[index].status.toLowerCase() != 'cerrada') {
+      return index;
+    }
+  }
+
+  for (var index = 0; index < todayIndex; index++) {
+    if (classes[index].status.toLowerCase() != 'cerrada') {
+      return index;
+    }
+  }
+
+  return todayIndex;
 }
 
 class _CarouselScrollBehavior extends MaterialScrollBehavior {
@@ -1030,11 +1074,8 @@ class _HomeHeader extends StatelessWidget {
                 color: const Color(0xFFE7F3E3),
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: const Icon(
-                Icons.person_rounded,
-                color: Color(0xFF052D4F),
-                size: 28,
-              ),
+              clipBehavior: Clip.hardEdge,
+              child: _buildProfilePhoto(),
             ),
           ),
           const SizedBox(width: 14),
@@ -1960,9 +2001,16 @@ String _getCurrentUserFullName() {
   final user = AuthService.currentUser ?? {};
   final fullName = _firstString([
     user['nombre_completo'],
+    user['nombreCompleto'],
     user['full_name'],
-    user['name'],
+    user['fullName'],
+    user['nombre_usuario'],
+    user['nombreUsuario'],
     user['nombre'],
+    user['name'],
+    user['nombres'],
+    user['primer_nombre'],
+    user['primerNombre'],
   ]);
 
   if (fullName.isNotEmpty) {
@@ -1970,9 +2018,12 @@ String _getCurrentUserFullName() {
   }
 
   final firstName = _firstString([
+    user['primer_nombre'],
+    user['primerNombre'],
     user['first_name'],
     user['firstName'],
     user['nombre'],
+    user['name'],
   ]);
   final lastName = _firstString([
     user['last_name'],
@@ -1980,6 +2031,7 @@ String _getCurrentUserFullName() {
     user['apellido'],
     user['apellido_paterno'],
     user['apellido_materno'],
+    user['apellidos'],
   ]);
 
   final combined = [
@@ -1991,10 +2043,60 @@ String _getCurrentUserFullName() {
 
 String _getCurrentUserGreetingName() {
   final fullName = _getCurrentUserFullName();
-  if (fullName.isEmpty) {
+  if (fullName.isEmpty || fullName == 'Aprendiz') {
     return 'Aprendiz';
   }
-  return fullName.split(' ').first;
+  final firstName = fullName.split(' ').first;
+  return _capitalize(firstName);
+}
+
+String _capitalize(String value) {
+  if (value.isEmpty) return value;
+  return value[0].toUpperCase() + value.substring(1);
+}
+
+String? _getCurrentUserPhoto() {
+  final user = AuthService.currentUser ?? {};
+  final photoUrl = _firstString([
+    user['foto'],
+    user['photo'],
+    user['photo_url'],
+    user['photoUrl'],
+    user['imagen'],
+    user['imagen_perfil'],
+    user['profile_image'],
+    user['profilePhoto'],
+  ]);
+  return photoUrl.isEmpty ? null : photoUrl;
+}
+
+Widget _buildProfilePhoto() {
+  final photoUrl = _getCurrentUserPhoto();
+  if (photoUrl == null) {
+    return const Center(
+      child: Icon(
+        Icons.person_rounded,
+        color: Color(0xFF052D4F),
+        size: 28,
+      ),
+    );
+  }
+
+  return Image.network(
+    photoUrl,
+    width: 52,
+    height: 52,
+    fit: BoxFit.cover,
+    errorBuilder: (context, error, stackTrace) {
+      return const Center(
+        child: Icon(
+          Icons.person_rounded,
+          color: Color(0xFF052D4F),
+          size: 28,
+        ),
+      );
+    },
+  );
 }
 
 String _getCurrentUserRole() {
