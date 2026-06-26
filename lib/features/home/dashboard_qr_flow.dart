@@ -2,7 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:sima_movil_froned/services/attendance_service.dart';
 import 'package:sima_movil_froned/services/hardware/local_auth_service.dart';
+import 'package:sima_movil_froned/services/hardware/location_service.dart';
 
 Future<bool> startDashboardQrFlow(BuildContext context) async {
   final result = await Navigator.of(context).push<bool>(
@@ -73,6 +75,21 @@ class _DashboardQrScannerScreenState extends State<_DashboardQrScannerScreen> {
 
       if (!mounted) return;
 
+      final idSesionActiva = await _getActiveSessionId();
+      final locationData = await LocationService.getCurrentLocation();
+
+      await AttendanceService.registerQrAttendance({
+        'id_sesion_formacion': idSesionActiva,
+        'token_qr': value,
+        'latitud': locationData['latitud'],
+        'longitud': locationData['longitud'],
+        'precision': locationData['precision'],
+        'mocked': locationData['mocked'],
+        'local_auth': true,
+      });
+
+      if (!mounted) return;
+
       await showDialog(
         context: context,
         barrierDismissible: false,
@@ -97,6 +114,26 @@ class _DashboardQrScannerScreenState extends State<_DashboardQrScannerScreen> {
         ),
       );
     }
+  }
+
+  Future<int> _getActiveSessionId() async {
+    final sessionsData = await AttendanceService.getSessions();
+    final activeSession = sessionsData?['sesion_activa'];
+
+    if (activeSession is! Map<String, dynamic> ||
+        activeSession['id_sesion_formacion'] == null) {
+      throw Exception('No hay una sesiÃ³n activa para registrar asistencia.');
+    }
+
+    final idSesion = activeSession['id_sesion_formacion'];
+    final parsedId =
+        idSesion is int ? idSesion : int.tryParse(idSesion.toString());
+
+    if (parsedId == null) {
+      throw Exception('No hay una sesiÃ³n activa para registrar asistencia.');
+    }
+
+    return parsedId;
   }
 
   bool _isInvalidDesignQr(String value) {
@@ -339,7 +376,11 @@ class _DashboardBiometricStepState extends State<_DashboardBiometricStep> {
 
   Future<void> _authenticate() async {
     try {
-      final success = await LocalAuthService.authenticate();
+      final success = await LocalAuthService.authenticate(
+        localizedReason: _isFace
+            ? 'Usa el reconocimiento facial para registrar tu asistencia'
+            : 'Usa tu huella dactilar para registrar tu asistencia',
+      );
       if (!mounted) return;
       Navigator.of(context).pop(success);
     } catch (error) {
@@ -365,10 +406,14 @@ class _DashboardBiometricStepState extends State<_DashboardBiometricStep> {
 
   @override
   Widget build(BuildContext context) {
-    final title = _isFace ? 'Reconocimiento facial' : 'Verificación dactilar';
+    final title = _isFace ? 'Reconocimiento facial' : 'Huella dactilar';
     final helper = _isFace
         ? 'Mantenga su rostro dentro del recuadro'
         : 'Coloque su dedo sobre el sensor';
+    final actionIcon = _isFace
+        ? Icons.face_retouching_natural_rounded
+        : Icons.fingerprint_rounded;
+    final stepLabel = _isFace ? 'Facial' : 'Huella dactilar';
 
     return Scaffold(
       backgroundColor: const Color(0xFF052D4F),
@@ -394,7 +439,7 @@ class _DashboardBiometricStepState extends State<_DashboardBiometricStep> {
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
           child: Column(
             children: [
-              _StepProgress(activeStep: _isFace ? 2 : 3),
+              _StepProgress(activeStep: 3, thirdLabel: stepLabel),
               const SizedBox(height: 22),
               Text(
                 helper,
@@ -415,7 +460,7 @@ class _DashboardBiometricStepState extends State<_DashboardBiometricStep> {
                 height: 54,
                 child: ElevatedButton.icon(
                   onPressed: _authenticate,
-                  icon: const Icon(Icons.fingerprint_rounded),
+                  icon: Icon(actionIcon),
                   label: const Text('Verificar sesión'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF39A900),
