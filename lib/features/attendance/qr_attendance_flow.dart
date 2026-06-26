@@ -231,6 +231,36 @@ class _QrAttendanceScannerScreenState extends State<QrAttendanceScannerScreen> {
     }
   }
 
+  Future<bool> _showQrConfirmationDialog(String rawValue) async {
+    if (!mounted) {
+      return false;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Confirmar QR'),
+        content: Text('¿Deseas procesar este QR?\n\n$rawValue'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(
+              'Confirmar',
+              style: TextStyle(color: Color(0xFF39A900)),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return confirmed == true;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -295,7 +325,23 @@ class _QrAttendanceScannerScreenState extends State<QrAttendanceScannerScreen> {
                 return;
               }
 
-              await _processQr(rawValue);
+              setState(() => _isProcessing = true);
+              await controller.stop();
+
+              if (!mounted) {
+                return;
+              }
+
+              final confirmed = await _showQrConfirmationDialog(rawValue);
+              if (confirmed) {
+                await _processQr(rawValue);
+              } else {
+                if (!mounted) {
+                  return;
+                }
+                setState(() => _isProcessing = false);
+                await controller.start();
+              }
             },
           ),
           SafeArea(

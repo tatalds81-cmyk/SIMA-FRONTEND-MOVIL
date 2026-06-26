@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:sima_movil_froned/services/hardware/local_auth_service.dart';
 
 Future<bool> startDashboardQrFlow(BuildContext context) async {
   final result = await Navigator.of(context).push<bool>(
@@ -39,6 +40,8 @@ class _DashboardQrScannerScreenState extends State<_DashboardQrScannerScreen> {
       if (_isInvalidDesignQr(value)) {
         throw Exception('El código QR no coincide con tu sesión activa.');
       }
+
+      if (!mounted) return;
 
       final selectedMethod = await Navigator.of(context)
           .push<_DashboardStepType?>(
@@ -126,7 +129,13 @@ class _DashboardQrScannerScreenState extends State<_DashboardQrScannerScreen> {
               final rawValue = capture.barcodes.isEmpty
                   ? null
                   : capture.barcodes.first.rawValue;
-              if (rawValue == null) return;
+              if (rawValue == null || rawValue.trim().isEmpty) return;
+
+              setState(() => _isProcessing = true);
+              await _controller.stop();
+
+              if (!mounted) return;
+
               await _processQr(rawValue);
             },
           ),
@@ -316,12 +325,43 @@ class _MethodOptionCard extends StatelessWidget {
   }
 }
 
-class _DashboardBiometricStep extends StatelessWidget {
+class _DashboardBiometricStep extends StatefulWidget {
   const _DashboardBiometricStep({required this.type});
 
   final _DashboardStepType type;
 
-  bool get _isFace => type == _DashboardStepType.face;
+  @override
+  State<_DashboardBiometricStep> createState() => _DashboardBiometricStepState();
+}
+
+class _DashboardBiometricStepState extends State<_DashboardBiometricStep> {
+  bool get _isFace => widget.type == _DashboardStepType.face;
+
+  Future<void> _authenticate() async {
+    try {
+      final success = await LocalAuthService.authenticate();
+      if (!mounted) return;
+      Navigator.of(context).pop(success);
+    } catch (error) {
+      if (!mounted) return;
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: const Text('Error de Biometría'),
+          content: Text(error.toString()),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Aceptar'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -374,8 +414,8 @@ class _DashboardBiometricStep extends StatelessWidget {
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton.icon(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  icon: const Icon(Icons.check_circle_outline_rounded),
+                  onPressed: _authenticate,
+                  icon: const Icon(Icons.fingerprint_rounded),
                   label: const Text('Verificar sesión'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF39A900),
