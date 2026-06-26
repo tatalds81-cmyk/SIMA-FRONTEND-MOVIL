@@ -59,14 +59,12 @@ class BackendProfileRepository implements ProfileRepository {
 
   @override
   Future<ApprenticeProfile> fetchCurrentApprenticeProfile() async {
-    final profileData = await _tryGetMap(ApiConfig.currentApprentice);
-    final userData = await _tryGetMap(ApiConfig.currentUser);
+    final profileData = await _tryGetMap(ApiConfig.profileOverview);
     final sessionsData = await _tryGetMap(ApiConfig.sessions);
     final authData = await _tryGetMap(ApiConfig.me);
     final dashboardData = await _tryGetMap(ApiConfig.apprenticeDashboard);
 
     if (profileData.isEmpty &&
-        userData.isEmpty &&
         sessionsData.isEmpty &&
         authData.isEmpty &&
         dashboardData.isEmpty &&
@@ -83,7 +81,7 @@ class BackendProfileRepository implements ProfileRepository {
     return ApprenticeProfile.fromJson(
       _normalizeProfileResponse(
         profileData: profileData,
-        userData: userData,
+        userData: authData,
         sessionsData: sessionsData,
         authData: authData,
         dashboardData: dashboardData,
@@ -98,19 +96,10 @@ class BackendProfileRepository implements ProfileRepository {
   ) async {
     await _sendJson(
       method: 'PUT',
-      url: ApiConfig.currentUser,
+      url: ApiConfig.profileOverview,
       payload: {
-        'nombre': profile.firstName,
-        'nombres': profile.firstName,
-        'apellido': profile.lastName,
-        'apellidos': profile.lastName,
-        'tipo_documento': profile.documentType,
-        'numero_documento': profile.documentNumber,
-        'documento': profile.documentNumber,
-        'correo': profile.email,
         'email': profile.email,
         'telefono': profile.phone,
-        'celular': profile.phone,
       },
     );
 
@@ -123,7 +112,7 @@ class BackendProfileRepository implements ProfileRepository {
   ) async {
     await _sendJson(
       method: 'PUT',
-      url: ApiConfig.currentUser,
+      url: ApiConfig.profileOverview,
       payload: {
         'contacto_emergencia': {
           'nombre': contact.name,
@@ -149,12 +138,10 @@ class BackendProfileRepository implements ProfileRepository {
   }) async {
     await _sendJson(
       method: 'PUT',
-      url: ApiConfig.currentUser,
+      url: ApiConfig.profileOverview,
       payload: {
         'password_actual': currentPassword,
-        'current_password': currentPassword,
-        'password': newPassword,
-        'new_password': newPassword,
+        'password_nuevo': newPassword,
       },
     );
   }
@@ -255,6 +242,10 @@ Map<String, dynamic> _normalizeProfileResponse({
   required Map<String, dynamic>? currentUser,
 }) {
   final sessionUser = currentUser ?? const <String, dynamic>{};
+  final roleInfo = _firstMap([
+    profileData['informacion_rol'],
+    profileData['informacionRol'],
+  ]);
   final apprentice = _firstMap([
     profileData['aprendiz'],
     profileData['apprentice'],
@@ -295,6 +286,7 @@ Map<String, dynamic> _normalizeProfileResponse({
     apprentice['ficha'],
     sessionsData['ficha'],
     dashboardData['ficha'],
+    sessionsData['ficha'],
   ]);
   final program = _firstMap([
     profileData['programa'],
@@ -480,6 +472,7 @@ Map<String, dynamic> _normalizeProfileResponse({
       sessionUser['nro_documento'],
     ]),
     'email': _firstString([
+      profileData['email'],
       apprentice['email'],
       apprentice['correo'],
       apprentice['correo_electronico'],
@@ -535,6 +528,8 @@ Map<String, dynamic> _normalizeProfileResponse({
       ficha['numeroFicha'],
       ficha['ficha'],
       ficha['codigo'],
+      _firstListValue(roleInfo['fichas_activas']),
+      _firstListValue(roleInfo['fichasActivas']),
       profileData['ficha'],
       apprentice['ficha'],
       apprentice['numero_ficha'],
@@ -636,6 +631,23 @@ String _firstString(List<Object?> values) {
     if (text.isNotEmpty) {
       return text;
     }
+  }
+  return '';
+}
+
+String _firstListValue(Object? value) {
+  if (value is List && value.isNotEmpty) {
+    final first = value.first;
+    if (first is Map<String, dynamic>) {
+      return _firstString([
+        first['numero_ficha'],
+        first['numeroFicha'],
+        first['ficha'],
+        first['nombre'],
+        first['name'],
+      ]);
+    }
+    return first.toString().trim();
   }
   return '';
 }

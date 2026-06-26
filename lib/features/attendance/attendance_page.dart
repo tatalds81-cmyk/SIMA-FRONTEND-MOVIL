@@ -1,12 +1,12 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:sima_movil_froned/services/attendance_service.dart';
-import 'package:sima_movil_froned/services/hardware/location_service.dart';
-import 'package:sima_movil_froned/services/hardware/local_auth_service.dart';
 import 'dart:math' as math;
 
 class AttendancePage extends StatefulWidget {
-  const AttendancePage({super.key});
+  const AttendancePage({super.key, this.initialTabIndex = 0});
+
+  final int initialTabIndex;
 
   @override
   State<AttendancePage> createState() => _AttendancePageState();
@@ -15,10 +15,35 @@ class AttendancePage extends StatefulWidget {
 class _AttendancePageState extends State<AttendancePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  String _selectedMonth = 'Mayo 2024';
-  String _selectedFilter = 'Todos';
+  final TextEditingController _justificationDescriptionController =
+      TextEditingController();
   Map<String, dynamic>? _hoveredSegmentData;
   Offset? _hoverPosition;
+
+  // â”€â”€ Calendario visual â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  int _selectedDay = 0;
+  int _monthIndex = 0;
+  int _year = 0;
+  Map<int, String> _attendanceStatus = {};
+  Map<int, Map<String, String>> _dayDetails = {};
+  Map<int, String> _competencia = {};
+  Map<int, String> _justEstado = {};
+  Map<int, String> _observacion = {};
+
+  static const List<String> _monthNames = [
+    "Enero",
+    "Febrero",
+    "Marzo",
+    "Abril",
+    "Mayo",
+    "Junio",
+    "Julio",
+    "Agosto",
+    "Septiembre",
+    "Octubre",
+    "Noviembre",
+    "Diciembre",
+  ];
 
   bool _isLoadingDashboard = true;
   Map<String, dynamic>? _dashboardData;
@@ -32,13 +57,30 @@ class _AttendancePageState extends State<AttendancePage>
   Map<String, dynamic>? _sessionsData;
   String? _sessionsError;
 
+  bool _isLoadingJustifications = true;
+  Map<String, dynamic>? _eligibleJustificationsData;
+  String? _justificationsError;
+
+  final Map<String, PlatformFile?> _selectedJustificationFiles = {};
+  final Map<String, bool> _isSubmittingJustification = {};
+  static const int _maxJustificationBytes = 5 * 1024 * 1024;
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    final initialIndex = widget.initialTabIndex.clamp(0, 2);
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: initialIndex,
+    );
+    _selectedDay = DateTime.now().day;
+    _monthIndex = DateTime.now().month - 1;
+    _year = DateTime.now().year;
     _fetchDashboard();
     _fetchCalendar();
     _fetchSessions();
+    _fetchEligibleJustifications();
   }
 
   Future<void> _fetchDashboard() async {
@@ -72,10 +114,95 @@ class _AttendancePageState extends State<AttendancePage>
     });
 
     try {
-      final data = await AttendanceService.getMyCalendar();
+      final String fechaRef =
+          '$_year-${(_monthIndex + 1).toString().padLeft(2, '0')}-01';
+      final data = await AttendanceService.getMyCalendar(
+        periodo: 'mes',
+        fechaReferencia: fechaRef,
+      );
+
       if (mounted) {
+        final List<dynamic> registros =
+            (data?['registros'] as List<dynamic>?) ?? [];
+        final Map<int, String> statusMap = {};
+        final Map<int, Map<String, String>> detailMap = {};
+        final Map<int, String> competMap = {};
+        final Map<int, String> justMap = {};
+        final Map<int, String> obsMap = {};
+
+        for (final reg in registros) {
+          final String? fechaClase = reg['sesion']?['fecha_clase'];
+          if (fechaClase == null) continue;
+
+          final DateTime fecha = DateTime.parse(fechaClase);
+          if (fecha.month != _monthIndex + 1 || fecha.year != _year) continue;
+
+          final int day = fecha.day;
+          final String ep05 = _normalizeAttendanceState(
+            reg['estado_ep05'] ?? reg['estado_asistencia'] ?? reg['estado'],
+          );
+
+          switch (ep05) {
+            case 'PRESENTE':
+              statusMap[day] = 'presente';
+              break;
+            case 'TARDE':
+              statusMap[day] = 'tarde';
+              break;
+            case 'INASISTENTE':
+            case 'INASISTENCIA':
+              statusMap[day] = 'ausente';
+              break;
+            case 'JUSTIFICADA':
+            case 'JUSTIFICADO':
+              statusMap[day] = 'justificada';
+              break;
+          }
+
+          final String? hi = reg['sesion']?['hora_inicio_programada'];
+          final String? hf = reg['sesion']?['hora_fin_programada'];
+          if (hi != null && hf != null) {
+            detailMap[day] = {
+              'entrada': hi.length >= 5 ? hi.substring(0, 5) : hi,
+              'salida': hf.length >= 5 ? hf.substring(0, 5) : hf,
+            };
+          }
+
+          final String? nombreComp =
+              reg['sesion']?['competencia']?['nombre_competencia'];
+          if (nombreComp != null && nombreComp.isNotEmpty) {
+            competMap[day] = nombreComp;
+          }
+
+          final String? obs = reg['observacion'];
+          if (obs != null && obs.isNotEmpty) {
+            obsMap[day] = obs;
+          }
+
+          final List<dynamic> justs =
+              (reg['justificaciones'] as List<dynamic>?) ?? [];
+          if (justs.isNotEmpty) {
+            justs.sort((a, b) {
+              final da =
+                  DateTime.tryParse(a['fecha_envio'] ?? '') ?? DateTime(2000);
+              final db =
+                  DateTime.tryParse(b['fecha_envio'] ?? '') ?? DateTime(2000);
+              return db.compareTo(da);
+            });
+            final String justEstado = (justs.first['estado'] ?? '')
+                .toString()
+                .toUpperCase();
+            justMap[day] = justEstado;
+          }
+        }
+
         setState(() {
-          _calendarData = data?['registros'] as List<dynamic>? ?? [];
+          _calendarData = registros;
+          _attendanceStatus = statusMap;
+          _dayDetails = detailMap;
+          _competencia = competMap;
+          _justEstado = justMap;
+          _observacion = obsMap;
           _isLoadingCalendar = false;
         });
       }
@@ -113,286 +240,234 @@ class _AttendancePageState extends State<AttendancePage>
     }
   }
 
+  Future<void> _fetchEligibleJustifications() async {
+    setState(() {
+      _isLoadingJustifications = true;
+      _justificationsError = null;
+    });
+
+    try {
+      final data = await AttendanceService.getEligibleJustifications();
+      if (mounted) {
+        setState(() {
+          _eligibleJustificationsData = data;
+          _isLoadingJustifications = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _justificationsError = e.toString();
+          _isLoadingJustifications = false;
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
     _tabController.dispose();
+    _justificationDescriptionController.dispose();
     super.dispose();
   }
 
-  void _openScanner(BuildContext context) async {
-    final sesionActiva = _sessionsData?['sesion_activa'];
-    if (sesionActiva == null || sesionActiva['id_sesion_formacion'] == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No hay una sesión activa para registrar asistencia.'),
-          backgroundColor: Colors.red,
-        ),
+  Future<void> _pickJustificationFile(String sessionId) async {
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'png'],
+        withData: true,
       );
+
+      if (result == null || result.files.isEmpty) {
+        return;
+      }
+
+      final file = result.files.first;
+      if (file.size > _maxJustificationBytes) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('El archivo supera el mÃ¡ximo permitido de 5 MB.'),
+              backgroundColor: Color(0xFFF4A900),
+            ),
+          );
+        }
+        return;
+      }
+
+      setState(() {
+        _selectedJustificationFiles[sessionId] = file;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al seleccionar archivo: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _submitJustification(String attendanceId) async {
+    final file = _selectedJustificationFiles[attendanceId];
+    final description = _justificationDescriptionController.text.trim();
+
+    if (file == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Selecciona un archivo de justificaciÃ³n.'),
+            backgroundColor: Color(0xFFF4A900),
+          ),
+        );
+      }
       return;
     }
 
-    final int idSesionActiva = sesionActiva['id_sesion_formacion'];
-
-    final bool? success = await Navigator.of(context).push(MaterialPageRoute(
-      builder: (context) => ScannerScreen(idSesionActiva: idSesionActiva),
-    ));
-
-    if (success == true) {
-      _fetchDashboard();
-      _fetchCalendar();
-      _fetchSessions();
+    if (description.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Describe brevemente el motivo de la justificaciÃ³n.',
+            ),
+            backgroundColor: Color(0xFFF4A900),
+          ),
+        );
+      }
+      return;
     }
-  }
 
-  void _showMonthPicker() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Seleccionar Mes',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              ListTile(
-                title: const Text('Mayo 2024'),
-                onTap: () {
-                  setState(() => _selectedMonth = 'Mayo 2024');
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: const Text('Abril 2024'),
-                onTap: () {
-                  setState(() => _selectedMonth = 'Abril 2024');
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: const Text('Marzo 2024'),
-                onTap: () {
-                  setState(() => _selectedMonth = 'Marzo 2024');
-                  Navigator.pop(context);
-                },
-              ),
-            ],
+    setState(() {
+      _isSubmittingJustification[attendanceId] = true;
+    });
+
+    try {
+      await AttendanceService.submitJustification(
+        attendanceId: attendanceId,
+        description: description,
+        file: file,
+      );
+      if (mounted) {
+        _justificationDescriptionController.clear();
+        _selectedJustificationFiles.remove(attendanceId);
+        _fetchCalendar();
+        _fetchEligibleJustifications();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('JustificaciÃ³n enviada correctamente.'),
+            backgroundColor: Color(0xFF39A900),
           ),
         );
-      },
-    );
-  }
-
-  void _showFilterPicker() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Filtrar por Estado',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              ListTile(
-                title: const Text('Todos'),
-                onTap: () {
-                  setState(() => _selectedFilter = 'Todos');
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: const Text('Presente'),
-                onTap: () {
-                  setState(() => _selectedFilter = 'Presente');
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: const Text('Ausente'),
-                onTap: () {
-                  setState(() => _selectedFilter = 'Ausente');
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: const Text('Justificada'),
-                onTap: () {
-                  setState(() => _selectedFilter = 'Justificada');
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: const Text('Tardanza'),
-                onTap: () {
-                  setState(() => _selectedFilter = 'Tardanza');
-                  Navigator.pop(context);
-                },
-              ),
-            ],
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al enviar justificaciÃ³n: ${e.toString()}'),
+            backgroundColor: Colors.red,
           ),
         );
-      },
-    );
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'presente':
-        return const Color(0xFF39A900);
-      case 'ausente':
-        return const Color(0xFFE53935);
-      case 'tardanza':
-      case 'justificada':
-        return const Color(0xFFF6A900);
-      default:
-        return Colors.grey;
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmittingJustification[attendanceId] = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FB),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 70),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            FloatingActionButton(
-              onPressed: () => _openScanner(context),
-              backgroundColor: const Color(0xFF39A900),
-              elevation: 6,
-              shape: const CircleBorder(),
-              child: const Icon(
-                Icons.qr_code_scanner,
-                color: Colors.white,
-                size: 28,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Escanear QR',
-              style: TextStyle(
-                color: Color(0xFF39A900),
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
+      backgroundColor: const Color(0xFF062E4F),
       body: SafeArea(
+        bottom: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header Principal ──
+            // Ã¢â€â‚¬Ã¢â€â‚¬ Header Principal Ã¢â€â‚¬Ã¢â€â‚¬
             const Padding(
-              padding: EdgeInsets.fromLTRB(20, 20, 20, 4),
+              padding: EdgeInsets.fromLTRB(20, 18, 20, 18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Asistencia',
                     style: TextStyle(
-                      color: Color(0xFF092444),
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                   SizedBox(height: 6),
                   Text(
                     'Registro y consulta de asistencia',
                     style: TextStyle(
-                      color: Color(0xFF607086),
-                      fontSize: 14,
+                      color: Colors.white70,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
               ),
             ),
 
-            // ── Banner Control de Asistencia (visible en todas las pestañas) ──
-            _buildSessionBanner(),
-
-            // TabBar
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withValues(alpha: 0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: TabBar(
-                controller: _tabController,
-                indicatorColor: const Color(0xFF39A900),
-                indicatorWeight: 3,
-                labelColor: const Color(0xFF39A900),
-                unselectedLabelColor: const Color(0xFF607086),
-                labelStyle: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
-                unselectedLabelStyle: const TextStyle(
-                  fontWeight: FontWeight.w400,
-                  fontSize: 13,
-                ),
-                tabs: const [
-                  Tab(text: 'Resumen'),
-                  Tab(text: 'Historial'),
-                  Tab(text: 'Justificar'),
-                  Tab(text: 'Estadísticas'),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            // Tab content
             Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  // ── Tab 0: Resumen ──
-                  _buildResumenTab(),
-
-                  // ── Tab 1: Historial ──
-                  _buildHistorialTab(),
-
-                  // ── Tab 2: Justificar (vacío) ──
-                  const Center(
-                    child: Text(
-                      'Justificar próximamente',
-                      style: TextStyle(color: Color(0xFF607086), fontSize: 15),
+              child: Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF2F5FB),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSessionBanner(),
+                    Container(
+                      margin: const EdgeInsets.fromLTRB(16, 2, 16, 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE1E7EF)),
+                      ),
+                      child: TabBar(
+                        controller: _tabController,
+                        indicatorColor: const Color(0xFF39A900),
+                        indicatorWeight: 3,
+                        labelColor: const Color(0xFF39A900),
+                        unselectedLabelColor: const Color(0xFF607086),
+                        labelStyle: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                        unselectedLabelStyle: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                        tabs: const [
+                          Tab(text: 'Resumen'),
+                          Tab(text: 'Calendario'),
+                          Tab(text: 'Justificar'),
+                        ],
+                      ),
                     ),
-                  ),
-
-                  // ── Tab 3: Estadísticas (vacío) ──
-                  const Center(
-                    child: Text(
-                      'Estadísticas próximamente',
-                      style: TextStyle(color: Color(0xFF607086), fontSize: 15),
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildResumenTab(),
+                          _buildHistorialTab(),
+                          _buildJustificarTabBackend(),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],
@@ -401,59 +476,70 @@ class _AttendancePageState extends State<AttendancePage>
     );
   }
 
-  // ─── Banner "Control de Asistencia de Aprendices" ───────────────────────
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Banner "Control de Asistencia de Aprendices" Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   Widget _buildSessionBanner() {
-    // ── Extraer datos de la respuesta real del backend ──
-    final ficha     = _sessionsData?['ficha']         as Map<String, dynamic>?;
-    final sesion    = _sessionsData?['sesion_activa'] as Map<String, dynamic>?;
+    // Ã¢â€â‚¬Ã¢â€â‚¬ Extraer datos de la respuesta real del backend Ã¢â€â‚¬Ã¢â€â‚¬
+    final ficha = _sessionsData?['ficha'] as Map<String, dynamic>?;
+    final sesion = _sessionsData?['sesion_activa'] as Map<String, dynamic>?;
 
     // Ficha / Programa
-    final String numeroFicha = ficha?['numero_ficha']?.toString() ?? '—';
+    final String numeroFicha = ficha?['numero_ficha']?.toString() ?? 'Ã¢â‚¬â€';
     final programa = ficha?['programa'] as Map<String, dynamic>?;
-    final String nombrePrograma = programa?['nombre_programa']?.toString() ?? '—';
+    final String nombrePrograma =
+        programa?['nombre_programa']?.toString() ?? 'Ã¢â‚¬â€';
 
-    // Instructor líder (viene en ficha.instructor_lider)
+    // Instructor lÃƒÂ­der (viene en ficha.instructor_lider)
     final instructorLider = ficha?['instructor_lider'] as Map<String, dynamic>?;
     final bool instructorRegistrado = instructorLider?['registrado'] == true;
     final String nombreInstructor = instructorRegistrado
-        ? (instructorLider?['nombre_completo']?.toString() ?? '—')
-        : '—';
+        ? (instructorLider?['nombre_completo']?.toString() ?? 'Ã¢â‚¬â€')
+        : 'Ã¢â‚¬â€';
 
     // Jornada del grupo
-    final String jornada = ficha?['jornada']?.toString() ?? '—';
+    final String jornada = ficha?['jornada']?.toString() ?? 'Ã¢â‚¬â€';
 
-    // Fecha de la sesión activa (formateada)
-    String fechaFormateada = '—';
+    // Fecha de la sesiÃƒÂ³n activa (formateada)
+    String fechaFormateada = 'Ã¢â‚¬â€';
     if (sesion != null) {
       final fechaRaw = sesion['fecha_clase']?.toString() ?? '';
       if (fechaRaw.length >= 10) {
         final parts = fechaRaw.substring(0, 10).split('-');
         if (parts.length == 3) {
           const meses = {
-            '01': 'enero',    '02': 'febrero', '03': 'marzo',
-            '04': 'abril',    '05': 'mayo',    '06': 'junio',
-            '07': 'julio',    '08': 'agosto',  '09': 'septiembre',
-            '10': 'octubre',  '11': 'noviembre','12': 'diciembre',
+            '01': 'enero',
+            '02': 'febrero',
+            '03': 'marzo',
+            '04': 'abril',
+            '05': 'mayo',
+            '06': 'junio',
+            '07': 'julio',
+            '08': 'agosto',
+            '09': 'septiembre',
+            '10': 'octubre',
+            '11': 'noviembre',
+            '12': 'diciembre',
           };
-          fechaFormateada = '${parts[2]} de ${meses[parts[1]] ?? ''} de ${parts[0]}';
+          fechaFormateada =
+              '${parts[2]} de ${meses[parts[1]] ?? ''} de ${parts[0]}';
         }
       }
     }
 
-    // Estado de sesión
+    // Estado de sesiÃƒÂ³n
     final bool haySession = sesion != null;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE1E7EF)),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -470,7 +556,7 @@ class _AttendancePageState extends State<AttendancePage>
           ),
           const SizedBox(height: 16),
 
-          // ── Estado: cargando ──
+          // Ã¢â€â‚¬Ã¢â€â‚¬ Estado: cargando Ã¢â€â‚¬Ã¢â€â‚¬
           if (_isLoadingSessions)
             const SizedBox(
               height: 20,
@@ -486,23 +572,25 @@ class _AttendancePageState extends State<AttendancePage>
                   ),
                   SizedBox(width: 10),
                   Text(
-                    'Cargando sesión...',
+                    'Cargando sesiÃƒÂ³n...',
                     style: TextStyle(color: Color(0xFF607086), fontSize: 13),
                   ),
                 ],
               ),
             )
-
-          // ── Estado: error al cargar ──
+          // Ã¢â€â‚¬Ã¢â€â‚¬ Estado: error al cargar Ã¢â€â‚¬Ã¢â€â‚¬
           else if (_sessionsError != null)
             Row(
               children: [
-                const Icon(Icons.warning_amber_rounded,
-                    size: 16, color: Color(0xFFF6A900)),
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 16,
+                  color: Color(0xFFF6A900),
+                ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    'No se pudo cargar la sesión',
+                    'No se pudo cargar la sesiÃƒÂ³n',
                     style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -520,8 +608,7 @@ class _AttendancePageState extends State<AttendancePage>
                 ),
               ],
             )
-
-          // ── Estado: datos reales del backend ──
+          // Ã¢â€â‚¬Ã¢â€â‚¬ Estado: datos reales del backend Ã¢â€â‚¬Ã¢â€â‚¬
           else
             LayoutBuilder(
               builder: (context, constraints) {
@@ -561,15 +648,19 @@ class _AttendancePageState extends State<AttendancePage>
                             ),
                           ],
                         ),
-                        // Segunda fila: Fecha (solo si hay sesión activa)
+                        // Segunda fila: Fecha (solo si hay sesiÃƒÂ³n activa)
                         if (haySession) ...[
                           const SizedBox(height: 8),
-                          _bannerInlineText('Fecha de sesión: ', fechaFormateada),
+                          _bannerInlineText(
+                            'Fecha de sesiÃ³n: ',
+                            fechaFormateada,
+                          ),
                         ] else ...[
                           const SizedBox(height: 8),
                           Text(
-                            _sessionsData?['mensaje_sesion_activa']?.toString() ??
-                                'No hay sesión activa en este momento',
+                            _sessionsData?['mensaje_sesion_activa']
+                                    ?.toString() ??
+                                'No hay sesiÃƒÂ³n activa en este momento',
                             style: TextStyle(
                               color: Colors.grey.shade500,
                               fontSize: 12,
@@ -592,8 +683,22 @@ class _AttendancePageState extends State<AttendancePage>
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: const TextStyle(color: Color(0xFF607086), fontSize: 13, fontWeight: FontWeight.w500)),
-        Text(value, style: const TextStyle(color: Color(0xFF092444), fontSize: 13, fontWeight: FontWeight.bold)),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF607086),
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Color(0xFF092444),
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ],
     );
   }
@@ -615,7 +720,7 @@ class _AttendancePageState extends State<AttendancePage>
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        isActive ? 'Activa' : 'Sin sesión',
+        isActive ? 'Activa' : 'Sin sesiÃ³n',
         style: const TextStyle(
           color: Colors.white,
           fontSize: 12,
@@ -625,18 +730,96 @@ class _AttendancePageState extends State<AttendancePage>
     );
   }
 
-  void _showDetailBottomSheet(String category, String status, Color color) {
-    String apiEstado = '';
-    if (category == 'presente') {
-      apiEstado = 'PRESENTE';
-    } else if (category == 'ausente') apiEstado = 'INASISTENCIA';
-    else if (category == 'retardado') apiEstado = 'TARDE';
-    else if (category == 'justificado') apiEstado = 'JUSTIFICADO';
+  String _normalizeAttendanceState(Object? value) {
+    final rawState = value?.toString().trim().toUpperCase() ?? '';
+    final state = rawState
+        .replaceAll('\u00C1', 'A')
+        .replaceAll('\u00C9', 'E')
+        .replaceAll('\u00CD', 'I')
+        .replaceAll('\u00D3', 'O')
+        .replaceAll('\u00DA', 'U');
+    switch (state) {
+      case 'ASISTENCIA':
+      case 'ASISTENTE':
+      case 'ASISTIO':
+      case 'ASISTE':
+      case 'PRESENTE':
+        return 'PRESENTE';
+      case 'INASISTENTE':
+      case 'AUSENTE':
+      case 'FALTA':
+        return 'INASISTENCIA';
+      case 'RETARDO':
+      case 'RETARDADO':
+      case 'TARDANZA':
+      case 'LLEGO TARDE':
+        return 'TARDE';
+      case 'JUSTIFICADA':
+      case 'JUSTIFICACION':
+        return 'JUSTIFICADO';
+      default:
+        return state;
+    }
+  }
 
-    final data = (_calendarData ?? []).where((e) => e['estado_asistencia'] == apiEstado).toList();
+  int _toCount(Object? value) {
+    if (value is int) return value;
+    if (value is num) return value.round();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  String _firstText(List<Object?> values) {
+    for (final value in values) {
+      if (value == null) continue;
+      final text = value.toString().trim();
+      if (text.isNotEmpty) return text;
+    }
+    return '';
+  }
+
+  String _instructorNameFromSession(Map<String, dynamic> session) {
+    final instructor = session['instructor'] as Map<String, dynamic>?;
+    final leader = session['instructor_lider'] as Map<String, dynamic>?;
+    final ficha = session['ficha'] as Map<String, dynamic>?;
+    final fichaLeader = ficha?['instructor_lider'] as Map<String, dynamic>?;
+
+    return _firstText([
+      instructor?['nombre_completo'],
+      instructor?['nombreCompleto'],
+      instructor?['nombre'],
+      leader?['nombre_completo'],
+      leader?['nombreCompleto'],
+      leader?['nombre'],
+      fichaLeader?['nombre_completo'],
+      fichaLeader?['nombreCompleto'],
+      fichaLeader?['nombre'],
+      session['nombre_instructor'],
+      session['instructor_nombre'],
+    ]);
+  }
+
+  bool _sameAttendanceState(Object? item, String expected) {
+    if (item is! Map<String, dynamic>) return false;
+    final rawState = item['estado_ep05'] ?? item['estado_asistencia'];
+    return _normalizeAttendanceState(rawState) ==
+        _normalizeAttendanceState(expected);
+  }
+
+  void _showDetailBottomSheet(String apiEstado, String status, Color color) {
+    final data = (_calendarData ?? [])
+        .where((e) => _sameAttendanceState(e, apiEstado))
+        .toList();
     final int count = data.length;
-    final String instructor = 'N/A';
-    final String ultActualizacion = data.isNotEmpty ? (data.first['actualizado_en'] as String? ?? 'N/A') : 'N/A';
+    final firstSession = data.isNotEmpty
+        ? (data.first['sesion'] as Map<String, dynamic>? ?? const {})
+        : const <String, dynamic>{};
+    final String instructor = _firstText([
+      _instructorNameFromSession(firstSession),
+      'No disponible',
+    ]);
+    final String ultActualizacion = data.isNotEmpty
+        ? (data.first['actualizado_en'] as String? ?? 'N/A')
+        : 'N/A';
 
     showModalBottomSheet(
       context: context,
@@ -657,7 +840,9 @@ class _AttendancePageState extends State<AttendancePage>
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.1),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(24),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -677,7 +862,7 @@ class _AttendancePageState extends State<AttendancePage>
                           icon: const Icon(Icons.close),
                           color: color,
                           onPressed: () => Navigator.pop(context),
-                        )
+                        ),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -686,7 +871,12 @@ class _AttendancePageState extends State<AttendancePage>
                       children: [
                         _buildTooltipInfo('Cantidad', '$count'),
                         _buildTooltipInfo('Instructor', instructor),
-                        _buildTooltipInfo('Última act.', ultActualizacion.length > 10 ? ultActualizacion.substring(0, 10) : ultActualizacion),
+                        _buildTooltipInfo(
+                          'ÃƒÅ¡ltima act.',
+                          ultActualizacion.length > 10
+                              ? ultActualizacion.substring(0, 10)
+                              : ultActualizacion,
+                        ),
                       ],
                     ),
                   ],
@@ -705,10 +895,21 @@ class _AttendancePageState extends State<AttendancePage>
                         itemCount: data.length,
                         itemBuilder: (context, index) {
                           final item = data[index];
-                          final sesion = item['sesion'] as Map<String, dynamic>? ?? {};
-                          final fecha = sesion['fecha_clase'] as String? ?? 'Sin fecha';
-                          final materia = sesion['competencia']?['nombre_competencia'] ?? 'Sin asignar';
-                          final diasFaltados = apiEstado == 'INASISTENCIA' ? 1 : 0;
+                          final sesion =
+                              item['sesion'] as Map<String, dynamic>? ?? {};
+                          final fecha =
+                              sesion['fecha_clase'] as String? ?? 'Sin fecha';
+                          final materia =
+                              sesion['competencia']?['nombre_competencia'] ??
+                              'Sin asignar';
+                          final instructorName = _firstText([
+                            _instructorNameFromSession(sesion),
+                            'No disponible',
+                          ]);
+                          final diasFaltados =
+                              _normalizeAttendanceState(apiEstado) == 'INASISTENCIA'
+                              ? 1
+                              : 0;
                           final observacion = item['observacion'] ?? 'Ninguna';
 
                           return Container(
@@ -723,14 +924,15 @@ class _AttendancePageState extends State<AttendancePage>
                                   color: Colors.grey.withValues(alpha: 0.05),
                                   blurRadius: 4,
                                   offset: const Offset(0, 2),
-                                )
+                                ),
                               ],
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
                                       fecha,
@@ -741,7 +943,10 @@ class _AttendancePageState extends State<AttendancePage>
                                       ),
                                     ),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: color.withValues(alpha: 0.1),
                                         borderRadius: BorderRadius.circular(12),
@@ -760,23 +965,37 @@ class _AttendancePageState extends State<AttendancePage>
                                 const SizedBox(height: 8),
                                 Row(
                                   children: [
-                                    const Icon(Icons.person_outline, size: 16, color: Colors.grey),
+                                    const Icon(
+                                      Icons.person_outline,
+                                      size: 16,
+                                      color: Colors.grey,
+                                    ),
                                     const SizedBox(width: 4),
                                     Text(
-                                      'Instructor: N/A',
-                                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                      'Instructor: $instructorName',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade700,
+                                        fontSize: 13,
+                                      ),
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 4),
                                 Row(
                                   children: [
-                                    const Icon(Icons.book_outlined, size: 16, color: Colors.grey),
+                                    const Icon(
+                                      Icons.book_outlined,
+                                      size: 16,
+                                      color: Colors.grey,
+                                    ),
                                     const SizedBox(width: 4),
                                     Expanded(
                                       child: Text(
                                         'Materia: $materia',
-                                        style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                        style: TextStyle(
+                                          color: Colors.grey.shade700,
+                                          fontSize: 13,
+                                        ),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
@@ -785,11 +1004,18 @@ class _AttendancePageState extends State<AttendancePage>
                                 const SizedBox(height: 4),
                                 Row(
                                   children: [
-                                    const Icon(Icons.date_range_outlined, size: 16, color: Colors.grey),
+                                    const Icon(
+                                      Icons.date_range_outlined,
+                                      size: 16,
+                                      color: Colors.grey,
+                                    ),
                                     const SizedBox(width: 4),
                                     Text(
-                                      'Días faltados: $diasFaltados',
-                                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                      'DÃƒÂ­as faltados: $diasFaltados',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade700,
+                                        fontSize: 13,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -797,12 +1023,19 @@ class _AttendancePageState extends State<AttendancePage>
                                 Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Icon(Icons.info_outline, size: 16, color: Colors.grey),
+                                    const Icon(
+                                      Icons.info_outline,
+                                      size: 16,
+                                      color: Colors.grey,
+                                    ),
                                     const SizedBox(width: 4),
                                     Expanded(
                                       child: Text(
-                                        'Observación: $observacion',
-                                        style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                        'ObservaciÃƒÂ³n: $observacion',
+                                        style: TextStyle(
+                                          color: Colors.grey.shade700,
+                                          fontSize: 13,
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -826,23 +1059,32 @@ class _AttendancePageState extends State<AttendancePage>
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: 12, color: Colors.black.withValues(alpha: 0.6)),
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.black.withValues(alpha: 0.6),
+          ),
         ),
         const SizedBox(height: 2),
         Text(
           value,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
         ),
       ],
     );
   }
 
-  // ─── Tab Resumen con dona ────────────────────────────────────────────────
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Tab Resumen con dona Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   Widget _buildResumenTab() {
     if (_isLoadingDashboard) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xFF39A900)));
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF39A900)),
+      );
     }
-    
+
     if (_dashboardError != null) {
       return Center(
         child: Column(
@@ -861,8 +1103,13 @@ class _AttendancePageState extends State<AttendancePage>
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _fetchDashboard,
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF39A900)),
-              child: const Text('Reintentar', style: TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF39A900),
+              ),
+              child: const Text(
+                'Reintentar',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -873,12 +1120,13 @@ class _AttendancePageState extends State<AttendancePage>
     final asistenciaTrimestre = _dashboardData?['asistencia_trimestre'];
     final int total = asistenciaTrimestre?['total'] ?? 0;
 
-    // Trimestre activo — leído directamente del dashboard, sin variables extra
-    final trimestreActivo = _dashboardData?['trimestre_activo'] as Map<String, dynamic>?;
+    // Fallback temporal hasta que el backend confirme el trimestre activo.
+    final trimestreActivo =
+        _dashboardData?['trimestre_activo'] as Map<String, dynamic>?;
     final bool trimestreRegistrado = trimestreActivo?['registrado'] == true;
-    final int? numeroTrimestre = trimestreRegistrado
-        ? (trimestreActivo?['numero_trimestre'] as int?)
-        : null;
+    final int numeroTrimestre = trimestreRegistrado
+        ? ((trimestreActivo?['numero_trimestre'] as int?) ?? 5)
+        : 5;
 
     int presente = 0;
     int ausente = 0;
@@ -886,18 +1134,53 @@ class _AttendancePageState extends State<AttendancePage>
     int justificado = 0;
 
     if (asistenciaTrimestre != null && asistenciaTrimestre['estados'] != null) {
-      final List<dynamic> estados = asistenciaTrimestre['estados'];
+      final estadosRaw = asistenciaTrimestre['estados'];
+      final estados = estadosRaw is Map
+          ? estadosRaw.entries
+              .map((entry) => {'estado': entry.key, 'cantidad': entry.value})
+              .toList()
+          : (estadosRaw as List<dynamic>? ?? []);
+
       for (var estadoInfo in estados) {
-        final estado = estadoInfo['estado'];
-        final cantidad = estadoInfo['cantidad'] as int;
+        if (estadoInfo is! Map) continue;
+        final estado = _normalizeAttendanceState(estadoInfo['estado']);
+        final cantidad = _toCount(estadoInfo['cantidad']);
 
         if (estado == 'PRESENTE') {
-          presente = cantidad;
-        } else if (estado == 'INASISTENCIA') ausente = cantidad;
-        else if (estado == 'TARDE') retardado = cantidad;
-        else if (estado == 'JUSTIFICADO') justificado = cantidad;
+          presente += cantidad;
+        } else if (estado == 'INASISTENCIA') {
+          ausente += cantidad;
+        } else if (estado == 'TARDE') {
+          retardado += cantidad;
+        } else if (estado == 'JUSTIFICADO') {
+          justificado += cantidad;
+        }
       }
     }
+
+    if (presente + ausente + retardado + justificado == 0) {
+      for (final item in _calendarData ?? const []) {
+        if (item is! Map<String, dynamic>) continue;
+        final estado = _normalizeAttendanceState(
+          item['estado_ep05'] ?? item['estado_asistencia'] ?? item['estado'],
+        );
+
+        if (estado == 'PRESENTE') {
+          presente += 1;
+        } else if (estado == 'INASISTENCIA') {
+          ausente += 1;
+        } else if (estado == 'TARDE') {
+          retardado += 1;
+        } else if (estado == 'JUSTIFICADO') {
+          justificado += 1;
+        }
+      }
+    }
+
+    final int chartTotal = presente + ausente + retardado + justificado;
+    final int attendancePercent = chartTotal == 0
+        ? 0
+        : (((presente + retardado) / chartTotal) * 100).round();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
@@ -928,45 +1211,42 @@ class _AttendancePageState extends State<AttendancePage>
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                // Chip de trimestre — solo visible cuando el backend confirma
-                // trimestre_activo.registrado == true
-                if (numeroTrimestre != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Trimestre $numeroTrimestre',
-                          style: const TextStyle(
-                            color: Color(0xFF092444),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(
-                          Icons.keyboard_arrow_down,
-                          size: 16,
-                          color: Color(0xFF39A900),
-                        ),
-                      ],
-                    ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
                   ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Trimestre $numeroTrimestre',
+                        style: const TextStyle(
+                          color: Color(0xFF092444),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.keyboard_arrow_down,
+                        size: 16,
+                        color: Color(0xFF39A900),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 4),
             Text(
               'Total sesiones: $total',
-              style: const TextStyle(
-                color: Color(0xFF607086),
-                fontSize: 13,
-              ),
+              style: const TextStyle(color: Color(0xFF607086), fontSize: 13),
             ),
             const SizedBox(height: 24),
             // Dona centrada
@@ -986,32 +1266,55 @@ class _AttendancePageState extends State<AttendancePage>
                           final dx = event.localPosition.dx - center.dx;
                           final dy = event.localPosition.dy - center.dy;
                           final distance = math.sqrt(dx * dx + dy * dy);
-                          
+
                           const double strokeWidth = 180 * 0.18;
                           const double outerRadius = 90;
                           const double innerRadius = outerRadius - strokeWidth;
 
-                          if (distance >= innerRadius && distance <= outerRadius) {
+                          if (distance >= innerRadius &&
+                              distance <= outerRadius) {
                             double angle = math.atan2(dy, dx);
                             double adjustedAngle = angle - (-math.pi / 2);
                             if (adjustedAngle < 0) adjustedAngle += 2 * math.pi;
 
                             final segments = [
-                              {'cat': 'presente', 'label': 'Asistencias', 'value': presente, 'color': const Color(0xFF39A900)},
-                              {'cat': 'ausente', 'label': 'Faltas', 'value': ausente, 'color': const Color(0xFFE53935)},
-                              {'cat': 'retardado', 'label': 'Retardos', 'value': retardado, 'color': const Color(0xFFF6A900)},
-                              {'cat': 'justificado', 'label': 'Faltas justificadas', 'value': justificado, 'color': const Color(0xFF1565C0)},
+                              {
+                                'cat': 'PRESENTE',
+                                'label': 'PRESENTE',
+                                'value': presente,
+                                'color': const Color(0xFF39A900),
+                              },
+                              {
+                                'cat': 'TARDE',
+                                'label': 'TARDE',
+                                'value': retardado,
+                                'color': const Color(0xFFF6A900),
+                              },
+                              {
+                                'cat': 'INASISTENCIA',
+                                'label': 'INASISTENTE',
+                                'value': ausente,
+                                'color': const Color(0xFFE53935),
+                              },
+                              {
+                                'cat': 'JUSTIFICADO',
+                                'label': 'JUSTIFICADA',
+                                'value': justificado,
+                                'color': const Color(0xFF1565C0),
+                              },
                             ];
 
                             double currentAngle = 0;
                             const double gap = 0.04;
-                            
+
                             for (final seg in segments) {
                               final val = seg['value'] as int;
                               if (val == 0) continue;
-                              
-                              final double sweep = (val / total) * 2 * math.pi - gap;
-                              if (adjustedAngle >= currentAngle && adjustedAngle <= currentAngle + sweep) {
+
+                              final double sweep =
+                                  (val / chartTotal) * 2 * math.pi - gap;
+                              if (adjustedAngle >= currentAngle &&
+                                  adjustedAngle <= currentAngle + sweep) {
                                 setState(() {
                                   _hoveredSegmentData = seg;
                                   _hoverPosition = event.localPosition;
@@ -1043,33 +1346,63 @@ class _AttendancePageState extends State<AttendancePage>
                             final dx = details.localPosition.dx - center.dx;
                             final dy = details.localPosition.dy - center.dy;
                             final distance = math.sqrt(dx * dx + dy * dy);
-                            
+
                             const double strokeWidth = 180 * 0.18;
                             const double outerRadius = 90;
-                            const double innerRadius = outerRadius - strokeWidth;
+                            const double innerRadius =
+                                outerRadius - strokeWidth;
 
-                            if (distance >= innerRadius && distance <= outerRadius) {
+                            if (distance >= innerRadius &&
+                                distance <= outerRadius) {
                               double angle = math.atan2(dy, dx);
                               double adjustedAngle = angle - (-math.pi / 2);
-                              if (adjustedAngle < 0) adjustedAngle += 2 * math.pi;
+                              if (adjustedAngle < 0) {
+                                adjustedAngle += 2 * math.pi;
+                              }
 
                               final segments = [
-                                {'cat': 'presente', 'label': 'Asistencias', 'value': presente, 'color': const Color(0xFF39A900)},
-                                {'cat': 'ausente', 'label': 'Faltas', 'value': ausente, 'color': const Color(0xFFE53935)},
-                                {'cat': 'retardado', 'label': 'Retardos', 'value': retardado, 'color': const Color(0xFFF6A900)},
-                                {'cat': 'justificado', 'label': 'Faltas justificadas', 'value': justificado, 'color': const Color(0xFF1565C0)},
+                                {
+                                  'cat': 'PRESENTE',
+                                  'label': 'PRESENTE',
+                                  'value': presente,
+                                  'color': const Color(0xFF39A900),
+                                },
+                                {
+                                  'cat': 'TARDE',
+                                  'label': 'TARDE',
+                                  'value': retardado,
+                                  'color': const Color(0xFFF6A900),
+                                },
+                                {
+                                  'cat': 'INASISTENCIA',
+                                  'label': 'INASISTENTE',
+                                  'value': ausente,
+                                  'color': const Color(0xFFE53935),
+                                },
+                                {
+                                  'cat': 'JUSTIFICADO',
+                                  'label': 'JUSTIFICADA',
+                                  'value': justificado,
+                                  'color': const Color(0xFF1565C0),
+                                },
                               ];
 
                               double currentAngle = 0;
                               const double gap = 0.04;
-                              
+
                               for (final seg in segments) {
                                 final val = seg['value'] as int;
                                 if (val == 0) continue;
-                                
-                                final double sweep = (val / total) * 2 * math.pi - gap;
-                                if (adjustedAngle >= currentAngle && adjustedAngle <= currentAngle + sweep) {
-                                  _showDetailBottomSheet(seg['cat'] as String, seg['label'] as String, seg['color'] as Color);
+
+                                final double sweep =
+                                    (val / chartTotal) * 2 * math.pi - gap;
+                                if (adjustedAngle >= currentAngle &&
+                                    adjustedAngle <= currentAngle + sweep) {
+                                  _showDetailBottomSheet(
+                                    seg['cat'] as String,
+                                    seg['label'] as String,
+                                    seg['color'] as Color,
+                                  );
                                   break;
                                 }
                                 currentAngle += sweep + gap;
@@ -1082,14 +1415,14 @@ class _AttendancePageState extends State<AttendancePage>
                               ausente: ausente,
                               retardado: retardado,
                               justificado: justificado,
-                              total: total,
+                              total: chartTotal,
                             ),
                             child: Center(
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    '${((presente / (total == 0 ? 1 : total)) * 100).round()}%',
+                                    '$attendancePercent%',
                                     style: const TextStyle(
                                       color: Color(0xFF092444),
                                       fontSize: 28,
@@ -1097,7 +1430,7 @@ class _AttendancePageState extends State<AttendancePage>
                                     ),
                                   ),
                                   const Text(
-                                    'Asistencias',
+                                    'ASISTENCIA',
                                     style: TextStyle(
                                       color: Color(0xFF607086),
                                       fontSize: 13,
@@ -1123,7 +1456,11 @@ class _AttendancePageState extends State<AttendancePage>
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
-                                BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 5))
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.1),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 5),
+                                ),
                               ],
                               border: Border.all(color: Colors.grey.shade200),
                             ),
@@ -1134,22 +1471,35 @@ class _AttendancePageState extends State<AttendancePage>
                                 Row(
                                   children: [
                                     Container(
-                                      width: 12, height: 12,
-                                      decoration: BoxDecoration(color: _hoveredSegmentData!['color'] as Color, shape: BoxShape.circle),
+                                      width: 12,
+                                      height: 12,
+                                      decoration: BoxDecoration(
+                                        color:
+                                            _hoveredSegmentData!['color']
+                                                as Color,
+                                        shape: BoxShape.circle,
+                                      ),
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        '${_hoveredSegmentData!['label']}: ${_hoveredSegmentData!['value']} registros (${(((_hoveredSegmentData!['value'] as int) / total) * 100).round()}%)',
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF092444)),
+                                        '${_hoveredSegmentData!['label']}: ${_hoveredSegmentData!['value']} registros (${chartTotal == 0 ? 0 : (((_hoveredSegmentData!['value'] as int) / chartTotal) * 100).round()}%)',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                          color: Color(0xFF092444),
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 8),
                                 const Text(
-                                  'Haz clic en el ícono del ojo para ver el detalle',
-                                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                                  'Haz clic en el ÃƒÂ­cono del ojo para ver el detalle',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
                                 ),
                               ],
                             ),
@@ -1162,20 +1512,50 @@ class _AttendancePageState extends State<AttendancePage>
             ),
             const SizedBox(height: 28),
             // Leyendas
-            _statRow('Asistencias', presente, total, const Color(0xFF39A900), 'presente'),
+            _statRow(
+              'PRESENTE',
+              presente,
+              chartTotal,
+              const Color(0xFF39A900),
+              'PRESENTE',
+            ),
             const SizedBox(height: 16),
-            _statRow('Faltas', ausente, total, const Color(0xFFE53935), 'ausente'),
+            _statRow(
+              'TARDE',
+              retardado,
+              chartTotal,
+              const Color(0xFFF6A900),
+              'TARDE',
+            ),
             const SizedBox(height: 16),
-            _statRow('Retardos', retardado, total, const Color(0xFFF6A900), 'retardado'),
+            _statRow(
+              'INASISTENTE',
+              ausente,
+              chartTotal,
+              const Color(0xFFE53935),
+              'INASISTENCIA',
+            ),
             const SizedBox(height: 16),
-            _statRow('Faltas justificadas', justificado, total, const Color(0xFF1565C0), 'justificado'),
+            _statRow(
+              'JUSTIFICADA',
+              justificado,
+              chartTotal,
+              const Color(0xFF1565C0),
+              'JUSTIFICADO',
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _statRow(String label, int count, int total, Color color, String categoryId) {
+  Widget _statRow(
+    String label,
+    int count,
+    int total,
+    Color color,
+    String categoryId,
+  ) {
     final double pct = total == 0 ? 0 : count / total;
     final int pctInt = (pct * 100).round();
     return InkWell(
@@ -1192,7 +1572,10 @@ class _AttendancePageState extends State<AttendancePage>
                 Container(
                   width: 10,
                   height: 10,
-                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1256,476 +1639,1174 @@ class _AttendancePageState extends State<AttendancePage>
     );
   }
 
-  Widget _buildHistorialTab() {
-    if (_isLoadingCalendar) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xFF39A900)));
+  Widget _buildJustificarTabBackend() {
+    if (_isLoadingJustifications) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF39A900)),
+      );
     }
-    
-    if (_calendarError != null) {
+
+    if (_justificationsError != null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.error_outline, color: Colors.red, size: 48),
             const SizedBox(height: 16),
-            Text(
-              'Error al cargar el historial:\n$_calendarError',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF607086)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                'Error al cargar justificaciones:\n$_justificationsError',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFF607086)),
+              ),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: _fetchCalendar,
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF39A900)),
-              child: const Text('Reintentar', style: TextStyle(color: Colors.white)),
+              onPressed: _fetchEligibleJustifications,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF39A900),
+              ),
+              child: const Text(
+                'Reintentar',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         ),
       );
     }
 
-    final List<Map<String, dynamic>> mappedData = (_calendarData ?? []).map((registro) {
-      final estadoRaw = registro['estado_asistencia'] as String? ?? '';
-      String status = 'Ausente';
-      if (estadoRaw == 'PRESENTE') {
-        status = 'Presente';
-      } else if (estadoRaw == 'TARDE') status = 'Tardanza';
-      else if (estadoRaw == 'INASISTENCIA') status = 'Ausente';
-      else if (estadoRaw == 'JUSTIFICADO') status = 'Justificada';
+    final inasistencias =
+        (_eligibleJustificationsData?['inasistencias'] as List<dynamic>?) ??
+            const [];
+    if (inasistencias.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.assignment_turned_in_outlined,
+              color: Color(0xFF607086),
+              size: 50,
+            ),
+            const SizedBox(height: 14),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                _eligibleJustificationsData?['mensaje']?.toString() ??
+                    'No tienes inasistencias disponibles para justificar.',
+                style: const TextStyle(color: Color(0xFF607086), fontSize: 15),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: _fetchEligibleJustifications,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF39A900),
+              ),
+              child: const Text(
+                'Actualizar',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
-      final sesion = registro['sesion'] as Map<String, dynamic>? ?? {};
-      final fechaClase = sesion['fecha_clase'] as String? ?? 'Sin fecha';
-      
-      String formattedDate = fechaClase;
-      if (fechaClase.length >= 10) {
-        final parts = fechaClase.substring(0, 10).split('-');
-        if (parts.length == 3) {
-          final year = parts[0];
-          final month = parts[1];
-          final day = parts[2];
-          
-          const meses = {
-            '01': 'ene', '02': 'feb', '03': 'mar', '04': 'abr',
-            '05': 'mayo', '06': 'jun', '07': 'jul', '08': 'ago',
-            '09': 'sep', '10': 'oct', '11': 'nov', '12': 'dic'
-          };
-          
-          formattedDate = '$day ${meses[month] ?? ''}';
-        }
+    final item = inasistencias.first as Map<String, dynamic>;
+    final session = item['sesion'] as Map<String, dynamic>? ?? const {};
+    final attendanceId = item['id_asistencia']?.toString() ?? '';
+    final selectedFile = _selectedJustificationFiles[attendanceId];
+    final isSubmitting = _isSubmittingJustification[attendanceId] == true;
+
+    final competencia =
+        (session['competencia'] as Map<String, dynamic>?)?['nombre_competencia']
+                ?.toString() ??
+            'Competencia no disponible';
+    final ambiente =
+        (session['ambiente'] as Map<String, dynamic>?)?['nombre_ambiente']
+                ?.toString() ??
+            'Ambiente no disponible';
+    final fechaRaw = session['fecha_clase']?.toString() ?? '';
+    var fechaLegible = 'Fecha no disponible';
+    if (fechaRaw.length >= 10) {
+      final parts = fechaRaw.substring(0, 10).split('-');
+      if (parts.length == 3) {
+        fechaLegible = '${parts[2]}/${parts[1]}/${parts[0]}';
       }
+    }
 
-      final horaIni = sesion['hora_inicio_programada'] as String? ?? '';
-      final horaFin = sesion['hora_fin_programada'] as String? ?? '';
-      final formattedTime = (horaIni.isNotEmpty && horaFin.isNotEmpty) 
-          ? '${horaIni.substring(0, 5)} - ${horaFin.substring(0, 5)}'
-          : 'Sin registro';
+    final horaInicio = session['hora_inicio']?.toString() ?? '';
+    final horaFin = session['hora_fin']?.toString() ?? '';
+    final horaTexto = (horaInicio.length >= 5 && horaFin.length >= 5)
+        ? '${horaInicio.substring(0, 5)} - ${horaFin.substring(0, 5)}'
+        : 'Horario no disponible';
+    final fechaLimite = item['fecha_limite']?.toString().split('T').first ?? '';
 
-      return {
-        'date': formattedDate,
-        'time': formattedTime,
-        'status': status,
-      };
-    }).toList();
-
-    final filteredData = _selectedFilter == 'Todos'
-        ? mappedData
-        : mappedData.where((e) => e['status'] == _selectedFilter).toList();
-
-    return Column(
-      children: [
-        // Historial header con filtros
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Historial',
-                style: TextStyle(
-                  color: Color(0xFF092444),
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withValues(alpha: 0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Inasistencia disponible para justificar',
+                  style: TextStyle(
+                    color: Color(0xFF092444),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _buildDetailRow(Icons.calendar_today, 'Fecha', fechaLegible),
+                const SizedBox(height: 10),
+                _buildDetailRow(Icons.access_time, 'Horario', horaTexto),
+                if (fechaLimite.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  _buildDetailRow(
+                    Icons.event_available_outlined,
+                    'Fecha limite',
+                    fechaLimite,
+                  ),
+                ],
+                const SizedBox(height: 10),
+                _buildDetailRow(Icons.school, 'Competencia', competencia),
+                const SizedBox(height: 10),
+                _buildDetailRow(Icons.location_on, 'Ambiente', ambiente),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Adjunta tu justificante',
+            style: TextStyle(
+              color: Color(0xFF092444),
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ElevatedButton.icon(
+            onPressed: () => _pickJustificationFile(attendanceId),
+            icon: const Icon(Icons.attach_file_outlined),
+            label: const Text('Seleccionar archivo'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF39A900),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+            ),
+          ),
+          if (selectedFile != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              selectedFile.name,
+              style: const TextStyle(
+                color: Color(0xFF092444),
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          const SizedBox(height: 20),
+          const Text(
+            'Descripcion',
+            style: TextStyle(
+              color: Color(0xFF092444),
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _justificationDescriptionController,
+            maxLines: 5,
+            decoration: InputDecoration(
+              hintText: 'Describe el motivo de la falta',
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.all(16),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () => _submitJustification(attendanceId),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF39A900),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  InkWell(
-                    onTap: _showMonthPicker,
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(20),
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
                       ),
-                      child: Row(
-                        children: [
-                          Text(
-                            _selectedMonth,
-                            style: TextStyle(
-                              color: Colors.grey.shade700,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(Icons.keyboard_arrow_down,
-                              color: Colors.grey.shade600, size: 18),
-                        ],
-                      ),
-                    ),
+                    )
+                  : const Text('Enviar'),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Formato aceptado: PDF o PNG. Tamano maximo 5 MB.',
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJustificarTab() {
+    if (_isLoadingJustifications) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF39A900)),
+      );
+    }
+
+    if (_justificationsError != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.red, size: 48),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32.0),
+              child: Text(
+                'Error al cargar justificaciones:\n$_justificationsError',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFF607086)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _fetchEligibleJustifications,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF39A900),
+              ),
+              child: const Text(
+                'Reintentar',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final inasistencias =
+        (_eligibleJustificationsData?['inasistencias'] as List<dynamic>?) ??
+            const [];
+    if (inasistencias.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.assignment_turned_in_outlined,
+              color: Color(0xFF607086),
+              size: 50,
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'No hay sesiÃ³n activa en este momento.',
+              style: TextStyle(color: Color(0xFF607086), fontSize: 15),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: _fetchSessions,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF39A900),
+              ),
+              child: const Text(
+                'Actualizar sesiÃ³n',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final legacyItem = inasistencias.first as Map<String, dynamic>;
+    final session = legacyItem['sesion'] as Map<String, dynamic>? ?? const {};
+    final String sessionId = legacyItem['id_asistencia']?.toString() ?? '';
+    final selectedFile = _selectedJustificationFiles[sessionId];
+    final isSubmitting = _isSubmittingJustification[sessionId] == true;
+
+    final String competencia =
+        (session['competencia'] as Map<String, dynamic>?)?['nombre_competencia']
+            ?.toString() ??
+        'Competencia no disponible';
+    final String ambiente =
+        (session['ambiente'] as Map<String, dynamic>?)?['nombre_ambiente']
+            ?.toString() ??
+        'Ambiente no disponible';
+    final String fechaRaw = session['fecha_clase']?.toString() ?? '';
+    String fechaLegible = 'Fecha no disponible';
+    if (fechaRaw.length >= 10) {
+      final parts = fechaRaw.substring(0, 10).split('-');
+      if (parts.length == 3) {
+        final meses = {
+          '01': 'enero',
+          '02': 'febrero',
+          '03': 'marzo',
+          '04': 'abril',
+          '05': 'mayo',
+          '06': 'junio',
+          '07': 'julio',
+          '08': 'agosto',
+          '09': 'septiembre',
+          '10': 'octubre',
+          '11': 'noviembre',
+          '12': 'diciembre',
+        };
+        fechaLegible = '${parts[2]} de ${meses[parts[1]] ?? ''} de ${parts[0]}';
+      }
+    }
+
+    final String horaInicio = session['hora_inicio']?.toString() ?? '';
+    final String horaFin = session['hora_fin']?.toString() ?? '';
+    final String horaTexto = (horaInicio.isNotEmpty && horaFin.isNotEmpty)
+        ? '${horaInicio.substring(0, 5)} - ${horaFin.substring(0, 5)}'
+        : 'Horario no disponible';
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withValues(alpha: 0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'SesiÃ³n activa disponible para justificar',
+                  style: TextStyle(
+                    color: Color(0xFF092444),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
                   ),
-                  const SizedBox(width: 8),
-                  InkWell(
-                    onTap: _showFilterPicker,
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: _selectedFilter == 'Todos'
-                              ? Colors.grey.shade300
-                              : const Color(0xFF39A900),
-                        ),
-                        color: _selectedFilter == 'Todos'
-                            ? Colors.transparent
-                            : const Color(0xFF39A900).withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
+                ),
+                const SizedBox(height: 14),
+                _buildDetailRow(Icons.calendar_today, 'Fecha', fechaLegible),
+                const SizedBox(height: 10),
+                _buildDetailRow(Icons.access_time, 'Horario', horaTexto),
+                const SizedBox(height: 10),
+                _buildDetailRow(Icons.school, 'Competencia', competencia),
+                const SizedBox(height: 10),
+                _buildDetailRow(Icons.location_on, 'Ambiente', ambiente),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Adjunta tu justificante',
+            style: TextStyle(
+              color: Color(0xFF092444),
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ElevatedButton.icon(
+            onPressed: () => _pickJustificationFile(sessionId),
+            icon: const Icon(Icons.attach_file_outlined),
+            label: const Text(
+              'Seleccionar archivo',
+              textAlign: TextAlign.center,
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF39A900),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+              alignment: Alignment.center,
+            ),
+          ),
+          if (selectedFile != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F8F4),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: const Color(0xFF39A900).withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.check_circle_outline,
+                    color: Color(0xFF39A900),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      selectedFile.name,
+                      style: const TextStyle(
+                        color: Color(0xFF092444),
+                        fontSize: 14,
                       ),
-                      child: Icon(
-                        Icons.filter_list,
-                        color: _selectedFilter == 'Todos'
-                            ? Colors.grey.shade600
-                            : const Color(0xFF39A900),
-                        size: 18,
-                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
               ),
-            ],
+            ),
+          ],
+          const SizedBox(height: 20),
+          const Text(
+            'DescripciÃ³n',
+            style: TextStyle(
+              color: Color(0xFF092444),
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-        ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _justificationDescriptionController,
+            maxLines: 5,
+            decoration: InputDecoration(
+              hintText: 'Describe el motivo de la falta o la justificaciÃ³n',
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.all(16),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () => _submitJustification(sessionId),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF39A900),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.center,
+                textStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
+                    )
+                  : const Text(
+                      'Enviar',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Formato aceptado: PDF, JPG, JPEG, PNG. TamaÃ±o mÃ¡ximo 5 MB.',
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
 
-        // Lista
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: const Color(0xFF39A900)),
+        const SizedBox(width: 10),
         Expanded(
-          child: filteredData.isEmpty
-              ? const Center(
-                  child: Text(
-                    'No hay registros de asistencia disponibles',
-                    style: TextStyle(color: Color(0xFF607086), fontSize: 15),
-                  ),
-                )
-              : ListView.builder(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-            itemCount: filteredData.length,
-            itemBuilder: (context, index) {
-              final item = filteredData[index];
-              final statusColor = _getStatusColor(item['status']);
-
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withValues(alpha: 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(color: Color(0xFF607086), fontSize: 13),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Color(0xFF092444),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        item['status'] == 'Presente'
-                            ? Icons.check_circle_outline
-                            : item['status'] == 'Ausente'
-                                ? Icons.cancel_outlined
-                                : Icons.access_time,
-                        color: statusColor,
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item['date'],
-                            style: const TextStyle(
-                              color: Color(0xFF092444),
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            item['time'],
-                            style: const TextStyle(
-                              color: Color(0xFF607086),
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        item['status'],
-                        style: TextStyle(
-                          color: statusColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
+              ),
+            ],
           ),
         ),
       ],
     );
   }
-}
 
-// ─────────────────────────────────────────────
-// Scanner Screen (QR y Geolocalización)
-// ─────────────────────────────────────────────
-class ScannerScreen extends StatefulWidget {
-  final int idSesionActiva;
+  // â”€â”€ Helpers de calendario â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  int get _firstWeekday => DateTime(_year, _monthIndex + 1, 1).weekday - 1;
+  int get _daysInMonth => DateTime(_year, _monthIndex + 2, 0).day;
 
-  const ScannerScreen({super.key, required this.idSesionActiva});
-
-  @override
-  State<ScannerScreen> createState() => _ScannerScreenState();
-}
-
-class _ScannerScreenState extends State<ScannerScreen> {
-  final MobileScannerController controller = MobileScannerController();
-  bool _isProcessing = false;
-
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
+  void _prevMonth() {
+    setState(() {
+      _selectedDay = 1;
+      _monthIndex == 0 ? (_monthIndex = 11, _year--) : _monthIndex--;
+    });
+    _fetchCalendar();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-        actions: [
-          IconButton(
-            icon: ValueListenableBuilder(
-              valueListenable: controller,
-              builder: (context, state, child) {
-                switch (state.torchState) {
-                  case TorchState.off:
-                  case TorchState.unavailable:
-                    return const Icon(Icons.flash_off, color: Colors.grey);
-                  case TorchState.on:
-                  case TorchState.auto:
-                    return const Icon(Icons.flash_on, color: Colors.yellow);
-                }
-              },
-            ),
-            onPressed: () => controller.toggleTorch(),
-          ),
-          IconButton(
-            color: Colors.white,
-            icon: ValueListenableBuilder(
-              valueListenable: controller,
-              builder: (context, state, child) {
-                switch (state.cameraDirection) {
-                  case CameraFacing.front:
-                    return const Icon(Icons.camera_front);
-                  case CameraFacing.back:
-                  case CameraFacing.unknown:
-                  case CameraFacing.external:
-                    return const Icon(Icons.camera_rear);
-                }
-              },
-            ),
-            onPressed: () => controller.switchCamera(),
-          ),
-        ],
+  void _nextMonth() {
+    setState(() {
+      _selectedDay = 1;
+      _monthIndex == 11 ? (_monthIndex = 0, _year++) : _monthIndex++;
+    });
+    _fetchCalendar();
+  }
+
+  String _dayName(int day) {
+    const n = [
+      "Lunes",
+      "Martes",
+      "MiÃ©rcoles",
+      "Jueves",
+      "Viernes",
+      "SÃ¡bado",
+      "Domingo",
+    ];
+    return n[DateTime(_year, _monthIndex + 1, day).weekday - 1];
+  }
+
+  // â”€â”€ Helpers de color/texto â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  Color _statusColor(String? s) {
+    switch (s) {
+      case 'presente':
+        return const Color(0xFF44C21E);
+      case 'tarde':
+        return const Color(0xFFF6A900);
+      case 'ausente':
+        return const Color(0xFFE53935);
+      case 'justificada':
+        return const Color(0xFFF6A900);
+      default:
+        return const Color(0xFFBDBDBD);
+    }
+  }
+
+  String _statusLabel(String? s) {
+    switch (s) {
+      case 'presente':
+        return 'Presente';
+      case 'tarde':
+        return 'Tarde';
+      case 'ausente':
+        return 'Ausente';
+      case 'justificada':
+        return 'Justificado';
+      default:
+        return 'Sin clase';
+    }
+  }
+
+  bool _canShowJustifyButton(String? status, String? justificationStatus) {
+    if (justificationStatus != null && justificationStatus.isNotEmpty) {
+      return false;
+    }
+    if (status != 'ausente' && status != 'tarde') {
+      return false;
+    }
+
+    final classDate = DateTime(_year, _monthIndex + 1, _selectedDay);
+    final now = DateTime.now();
+    final visibleUntil = classDate.add(const Duration(days: 3));
+    return !now.isBefore(classDate) && now.isBefore(visibleUntil);
+  }
+
+  void _goToJustificationsTab() {
+    _tabController.animateTo(2);
+    _fetchEligibleJustifications();
+  }
+
+  Color _justColor(String estado) {
+    switch (estado) {
+      case 'APROBADA':
+        return const Color(0xFF44C21E);
+      case 'RECHAZADA':
+        return const Color(0xFFE53935);
+      case 'PENDIENTE':
+        return const Color(0xFFF6A900);
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _justLabel(String estado) {
+    switch (estado) {
+      case 'APROBADA':
+        return 'JustificaciÃ³n aprobada';
+      case 'RECHAZADA':
+        return 'JustificaciÃ³n rechazada';
+      case 'PENDIENTE':
+        return 'JustificaciÃ³n pendiente de revisiÃ³n';
+      default:
+        return '';
+    }
+  }
+
+  IconData _justIcon(String estado) {
+    switch (estado) {
+      case 'APROBADA':
+        return Icons.check_circle_outline;
+      case 'RECHAZADA':
+        return Icons.cancel_outlined;
+      case 'PENDIENTE':
+        return Icons.hourglass_empty_rounded;
+      default:
+        return Icons.info_outline;
+    }
+  }
+
+  // â”€â”€ Widgets auxiliares â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  Widget _card({required Widget child}) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.05),
+          blurRadius: 12,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: child,
+  );
+
+  Widget _navBtn(IconData icon, VoidCallback onTap) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(10),
       ),
-      extendBodyBehindAppBar: true,
-      body: Stack(
+      child: Icon(icon, size: 20, color: const Color(0xFF6E7B8D)),
+    ),
+  );
+
+  Widget _dot6(Color color) => Container(
+    width: 6,
+    height: 6,
+    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+  );
+
+  Widget _legendDot(Color color, String label) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      _dot6(color),
+      const SizedBox(width: 5),
+      Text(
+        label,
+        style: const TextStyle(
+          fontSize: 12,
+          color: Color(0xFF607086),
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    ],
+  );
+
+  Widget _buildHistorialTab() {
+    if (_isLoadingCalendar) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF39A900)),
+      );
+    }
+
+    if (_calendarError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.wifi_off_rounded,
+                size: 52,
+                color: Color(0xFF607086),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                _calendarError!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFF607086), fontSize: 14),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: _fetchCalendar,
+                icon: const Icon(Icons.refresh, color: Colors.white),
+                label: const Text(
+                  'Reintentar',
+                  style: TextStyle(color: Colors.white),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF44C21E),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final int firstWeekday = _firstWeekday;
+    final int daysInMonth = _daysInMonth;
+    final int gridCells = (((firstWeekday + daysInMonth) / 7).ceil()) * 7;
+
+    final String? selStatus = _attendanceStatus[_selectedDay];
+    final Map<String, String>? selDetail = _dayDetails[_selectedDay];
+    final String? selComp = _competencia[_selectedDay];
+    final String? selJust = _justEstado[_selectedDay];
+    final String? selObs = _observacion[_selectedDay];
+    final bool canJustifySelected = _canShowJustifyButton(selStatus, selJust);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+      child: Column(
         children: [
-          MobileScanner(
-            controller: controller,
-            onDetect: (capture) async {
-              if (_isProcessing) return;
+          // â”€â”€ Card calendario â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+          _card(
+            child: Column(
+              children: [
+                // NavegaciÃ³n mes
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _navBtn(Icons.chevron_left, _prevMonth),
+                    Text(
+                      "${_monthNames[_monthIndex]} $_year",
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    _navBtn(Icons.chevron_right, _nextMonth),
+                  ],
+                ),
+                const SizedBox(height: 16),
 
-              final List<Barcode> barcodes = capture.barcodes;
-              if (barcodes.isNotEmpty) {
-                final barcode = barcodes.first;
-                if (barcode.rawValue != null) {
-                  setState(() => _isProcessing = true);
-                  controller.stop();
+                // Cabecera L M M J V S D
+                Row(
+                  children: ["L", "M", "M", "J", "V", "S", "D"]
+                      .map(
+                        (d) => Expanded(
+                          child: Center(
+                            child: Text(
+                              d,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF94A3B8),
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 10),
 
-                  // Mostrar modal de procesamiento
-                  showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (context) => const AlertDialog(
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
+                // Grid de dÃ­as
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: gridCells,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 7,
+                    mainAxisSpacing: 2,
+                    crossAxisSpacing: 0,
+                    childAspectRatio: 0.82,
+                  ),
+                  itemBuilder: (context, index) {
+                    if (index < firstWeekday ||
+                        index >= firstWeekday + daysInMonth) {
+                      return const SizedBox.shrink();
+                    }
+
+                    final int day = index - firstWeekday + 1;
+                    final bool isSelected = _selectedDay == day;
+                    final String? status = _attendanceStatus[day];
+                    final String? justDay = _justEstado[day];
+
+                    return GestureDetector(
+                      onTap: () => setState(() => _selectedDay = day),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          CircularProgressIndicator(color: Color(0xFF39A900)),
-                          SizedBox(height: 20),
-                          Text('Validando ubicación y seguridad...'),
+                          Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? const Color(0xFF44C21E)
+                                  : Colors.transparent,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: Text(
+                                '$day',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : const Color(0xFF334155),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          if (justDay == 'PENDIENTE')
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _dot6(
+                                  status != null
+                                      ? _statusColor(status)
+                                      : Colors.transparent,
+                                ),
+                                const SizedBox(width: 2),
+                                _dot6(const Color(0xFFF6A900)),
+                              ],
+                            )
+                          else
+                            _dot6(
+                              status != null
+                                  ? _statusColor(status)
+                                  : Colors.transparent,
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // â”€â”€ Card detalle del dÃ­a â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+          _card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Fila principal: fecha + badge estado
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "${_dayName(_selectedDay)}, $_selectedDay de ${_monthNames[_monthIndex].toLowerCase()}",
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1E293B),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.access_time_rounded,
+                                size: 14,
+                                color: Color(0xFF94A3B8),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                selDetail != null
+                                    ? "${selDetail['entrada']} - ${selDetail['salida']}"
+                                    : "Sin registro de horario",
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF607086),
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
-                  );
-
-                  try {
-                    // 1. Validar identidad local
-                    final authSuccess = await LocalAuthService.authenticate();
-                    if (!authSuccess) {
-                      throw Exception('Autenticación cancelada o fallida.');
-                    }
-
-                    // 2. Obtener ubicación
-                    final locationData = await LocationService.getCurrentLocation();
-
-                    // 3. Ensamblar payload (sin device_uuid por ser opcional)
-                    final payload = {
-                      'id_sesion_formacion': widget.idSesionActiva,
-                      'token_qr': barcode.rawValue!,
-                      'latitud': locationData['latitud'],
-                      'longitud': locationData['longitud'],
-                      'precision': locationData['precision'],
-                      'mocked': locationData['mocked'],
-                      'local_auth': true,
-                    };
-
-                    // 4. Enviar al backend
-                    await AttendanceService.registerQrAttendance(payload);
-
-                    // 5. Quitar loading y mostrar éxito
-                    if (context.mounted) {
-                      Navigator.of(context).pop(); // Quitar loading
-                      await showDialog(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (context) => AlertDialog(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          title: Row(
-                            children: const [
-                              Icon(Icons.check_circle, color: Color(0xFF39A900), size: 30),
-                              SizedBox(width: 10),
-                              Text('Éxito'),
-                            ],
-                          ),
-                          content: const Text('Asistencia registrada correctamente.'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(context).pop(),
-                              child: const Text('Aceptar', style: TextStyle(color: Color(0xFF39A900))),
-                            ),
-                          ],
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _statusColor(selStatus).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        _statusLabel(selStatus),
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: _statusColor(selStatus),
                         ),
-                      );
-                      // Cerrar ScannerScreen retornando true
-                      if (context.mounted) {
-                        Navigator.of(context).pop(true);
-                      }
-                    }
-                  } catch (e) {
-                    // Quitar loading y mostrar error
-                    if (context.mounted) {
-                      Navigator.of(context).pop(); // Quitar loading
-                      await showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Error de Registro'),
-                          content: Text(e.toString().replaceAll('Exception: ', '')),
-                          actions: [
-                            TextButton(
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                                setState(() => _isProcessing = false);
-                                controller.start(); // Reiniciar cámara para reintento
-                              },
-                              child: const Text('Reintentar', style: TextStyle(color: Color(0xFF39A900))),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                  }
-                }
-              }
-            },
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                const SizedBox(height: 60),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  child: const Text(
-                    'Busque un código',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-                const Spacer(),
-                Center(
-                  child: Container(
-                    width: 250,
-                    height: 250,
+
+                if (selComp != null) ...[
+                  const SizedBox(height: 12),
+                  const Divider(height: 1, color: Color(0xFFEEF0F3)),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.book_outlined,
+                        size: 16,
+                        color: Color(0xFF94A3B8),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Competencia: ',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          selComp,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF1E293B),
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+
+                if (selJust != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
+                      color: _justColor(selJust).withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                          color: const Color(0xFF39A900), width: 3),
-                      borderRadius: BorderRadius.circular(20),
+                        color: _justColor(selJust).withValues(alpha: 0.25),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _justIcon(selJust),
+                          size: 16,
+                          color: _justColor(selJust),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _justLabel(selJust),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: _justColor(selJust),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                const Spacer(),
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 40),
-                  child: Text(
-                    'Alinee el código QR dentro del marco',
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
+                ],
+
+                if (selObs != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8F9FB),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.info_outline,
+                          size: 16,
+                          color: Color(0xFF94A3B8),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            selObs,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF607086),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                ],
+
+                if (canJustifySelected) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _goToJustificationsTab,
+                      icon: const Icon(Icons.assignment_outlined, size: 18),
+                      label: const Text('Justificar'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF39A900),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+
+                if (selStatus == null) ...[
+                  const SizedBox(height: 10),
+                  const Center(
+                    child: Text(
+                      'Sin sesiÃ³n registrada este dÃ­a',
+                      style: TextStyle(fontSize: 13, color: Color(0xFFBDBDBD)),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // â”€â”€ Leyenda â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+          _card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Referencias',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 14,
+                  runSpacing: 10,
+                  children: [
+                    _legendDot(const Color(0xFF44C21E), 'Presente'),
+                    _legendDot(const Color(0xFFE53935), 'Ausente'),
+                    _legendDot(const Color(0xFF1565C0), 'Justificado'),
+                    _legendDot(const Color(0xFFF6A900), 'Tarde'),
+                  ],
                 ),
               ],
             ),
@@ -1735,8 +2816,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
     );
   }
 }
-
-// ─── Donut Chart Painter ────────────────────────────────────────────────────
+// Donut Chart Painter
 class _DonutChartPainter extends CustomPainter {
   final int presente;
   final int ausente;
@@ -1754,6 +2834,10 @@ class _DonutChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (total <= 0) {
+      return;
+    }
+
     final double strokeWidth = size.width * 0.18;
     final Rect rect = Rect.fromCircle(
       center: Offset(size.width / 2, size.height / 2),
@@ -1762,8 +2846,8 @@ class _DonutChartPainter extends CustomPainter {
 
     final List<Map<String, dynamic>> segments = [
       {'value': presente, 'color': const Color(0xFF39A900)},
-      {'value': ausente, 'color': const Color(0xFFE53935)},
       {'value': retardado, 'color': const Color(0xFFF6A900)},
+      {'value': ausente, 'color': const Color(0xFFE53935)},
       {'value': justificado, 'color': const Color(0xFF1565C0)},
     ];
 
@@ -1785,5 +2869,11 @@ class _DonutChartPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _DonutChartPainter oldDelegate) {
+    return oldDelegate.presente != presente ||
+        oldDelegate.ausente != ausente ||
+        oldDelegate.retardado != retardado ||
+        oldDelegate.justificado != justificado ||
+        oldDelegate.total != total;
+  }
 }

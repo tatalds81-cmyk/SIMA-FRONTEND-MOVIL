@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:sima_movil_froned/features/observatory/data/observations_repository.dart';
+import 'package:sima_movil_froned/features/observatory/models/observation.dart';
 import 'package:sima_movil_froned/features/observatory/observatory_page.dart';
 import 'package:sima_movil_froned/features/profile/data/profile_repository.dart';
 import 'package:sima_movil_froned/features/profile/profile_page.dart';
@@ -29,16 +30,105 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
 
-    expect(find.text('Mis observaciones'), findsOneWidget);
-    expect(find.text('Seguimiento registrado para Juan Perez'), findsOneWidget);
-    expect(find.text('Filtros de consulta'), findsOneWidget);
-    expect(find.text('Total: 3'), findsOneWidget);
-    expect(find.text('Abiertas: 3'), findsOneWidget);
-    expect(find.text('Requiere respuesta'), findsOneWidget);
+    expect(find.text('Observatorio'), findsOneWidget);
+    expect(
+      find.text('Consulta tus observaciones y alertas de seguimiento.'),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Mostrar filtros'), findsOneWidget);
+    expect(find.text('Buscar'), findsNothing);
+    expect(find.text('Total de observaciones: 3'), findsOneWidget);
+    expect(find.text('Abiertas: 2'), findsOneWidget);
     expect(find.text('Observaciones registradas'), findsOneWidget);
-    expect(find.text('Mostrando 3 de 3 observaciones'), findsOneWidget);
+    expect(find.text('Mostrando 3 observaciones'), findsOneWidget);
     expect(find.text('Asistencia por justificar'), findsOneWidget);
-    expect(find.text('Enviar soporte'), findsWidgets);
+
+    await tester.tap(find.byTooltip('Mostrar filtros'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Cerrar filtros'), findsOneWidget);
+    expect(find.text('Filtros'), findsOneWidget);
+    expect(find.text('Fecha'), findsWidgets);
+    expect(find.text('Severidad'), findsOneWidget);
+    expect(find.text('Estado'), findsOneWidget);
+    expect(find.text('Tipo'), findsOneWidget);
+    expect(find.text('Limpiar filtros'), findsOneWidget);
+    expect(find.text('Ver 3 resultados'), findsNothing);
+  });
+
+  testWidgets('Observatorio applies every selected filter and clears them', (
+    WidgetTester tester,
+  ) async {
+    useDesktopViewport(tester);
+    final repository = RecordingObservatoryRepository();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: ObservatoryPage(repository: repository)),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+
+    expect(repository.observationFilters.single.severidad, isNull);
+
+    await tester.tap(find.byTooltip('Mostrar filtros'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Desde: Todos'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hasta: Todos'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Severidad'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CRITICA'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Estado'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CERRADA').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Tipo'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Convivencia');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Cerrar filtros'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+
+    expect(repository.observationFilters.length, greaterThan(1));
+    final appliedFilters = repository.observationFilters.last;
+    expect(appliedFilters.fechaDesde, isNotNull);
+    expect(appliedFilters.fechaHasta, isNotNull);
+    expect(
+      appliedFilters.fechaHasta!.isBefore(appliedFilters.fechaDesde!),
+      isFalse,
+    );
+    expect(appliedFilters.severidad, 'CRITICA');
+    expect(appliedFilters.estado, 'CERRADA');
+    expect(appliedFilters.tipo, 'Convivencia');
+
+    await tester.tap(find.byTooltip('Mostrar filtros'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Limpiar filtros'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Cerrar filtros'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+
+    final clearedFilters = repository.observationFilters.last;
+    expect(clearedFilters.fechaDesde, isNull);
+    expect(clearedFilters.fechaHasta, isNull);
+    expect(clearedFilters.severidad, isNull);
+    expect(clearedFilters.estado, isNull);
+    expect(clearedFilters.tipo, isNull);
   });
 
   testWidgets('Perfil keeps details inside personal access', (
@@ -84,19 +174,15 @@ void main() {
     expect(find.text('Cerrar sesion'), findsNothing);
 
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Nombres'),
-      'Carlos',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Apellidos'),
-      'Lopez',
+      find.widgetWithText(TextFormField, 'Correo'),
+      'juan.actualizado@misena.edu.co',
     );
     await tester.tap(find.widgetWithText(FilledButton, 'Guardar cambios'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
 
-    expect(find.text('Carlos Lopez'), findsOneWidget);
+    expect(find.text('Datos personales actualizados.'), findsOneWidget);
   });
 
   testWidgets('Perfil opens personal form from access edit action', (
@@ -147,4 +233,23 @@ void main() {
     );
     expect(find.text('Cerrar sesion'), findsNWidgets(2));
   });
+}
+
+class RecordingObservatoryRepository extends MockObservationsRepository {
+  final observationFilters = <ObservatoryFilters>[];
+  final alertFilters = <ObservatoryFilters>[];
+
+  @override
+  Future<ObservatoryObservationResponse> fetchObservations(
+    ObservatoryFilters filters,
+  ) {
+    observationFilters.add(filters);
+    return super.fetchObservations(filters);
+  }
+
+  @override
+  Future<ObservatoryAlertResponse> fetchAlerts(ObservatoryFilters filters) {
+    alertFilters.add(filters);
+    return super.fetchAlerts(filters);
+  }
 }

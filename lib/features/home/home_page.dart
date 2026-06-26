@@ -2,21 +2,44 @@ import 'dart:math' as math;
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
+import 'package:sima_movil_froned/features/home/dashboard_qr_flow.dart';
+import 'package:sima_movil_froned/features/observatory/data/observations_repository.dart';
+import 'package:sima_movil_froned/features/observatory/models/observation.dart';
+import 'package:sima_movil_froned/services/auth_service.dart';
+import 'package:sima_movil_froned/services/attendance_service.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
-  //hola//
+  const HomePage({
+    super.key,
+    required this.hasActiveSession,
+    required this.hasVerifiedSession,
+    this.onNavigateToAttendance,
+    this.onNavigateToObservatory,
+  });
+
+  final bool hasActiveSession;
+  final bool hasVerifiedSession;
+  final Function(int)? onNavigateToAttendance;
+  final Function(int)? onNavigateToObservatory;
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  static const int _initialPage = 1000;
+  static const int _initialPage = 10000;
 
-  final PageController _controller = PageController(initialPage: _initialPage);
+  final PageController _controller = PageController(
+    initialPage: _initialPage,
+    viewportFraction: 0.92,
+  );
+  final ObservatoryRepository _observatoryRepository =
+      const BackendObservatoryRepository();
+  late Future<_DashboardData> _dashboardFuture;
   int _currentClass = 0;
+  bool _activeSessionPromptShown = false;
 
+  // ignore: unused_field
   final List<ClassItem> _classes = const [
     ClassItem(
       day: 'Lunes',
@@ -116,6 +139,282 @@ class _HomePageState extends State<HomePage> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _dashboardFuture = _fetchDashboardData();
+    _showActiveSessionPrompt();
+  }
+
+  Future<_DashboardData> _fetchDashboardData() async {
+    final results = await Future.wait<dynamic>([
+      AttendanceService.getDashboard(),
+      _observatoryRepository.fetchObservations(const ObservatoryFilters()),
+      _observatoryRepository.fetchAlerts(const ObservatoryFilters()),
+    ]);
+
+    final dashboard = results[0] as Map<String, dynamic>? ?? {};
+    final observations = results[1] as ObservatoryObservationResponse;
+    final alerts = results[2] as ObservatoryAlertResponse;
+
+    return _DashboardData.fromBackend(
+      dashboard: dashboard,
+      observations: observations,
+      alerts: alerts,
+    );
+  }
+
+  void _reloadDashboard() {
+    setState(() {
+      _dashboardFuture = _fetchDashboardData();
+    });
+  }
+
+  Future<void> _showActiveSessionPrompt() async {
+    try {
+      final data = await AttendanceService.getSessions();
+      if (!mounted || _activeSessionPromptShown) {
+        return;
+      }
+
+      final activeSession = data?['sesion_activa'] as Map<String, dynamic>?;
+      if (activeSession == null) {
+        return;
+      }
+
+      _activeSessionPromptShown = true;
+      final ficha = data?['ficha'] as Map<String, dynamic>? ?? {};
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _showActiveSessionBottomSheet(activeSession, ficha);
+      });
+    } catch (_) {
+      // The dashboard should still load normally if the active-session lookup fails.
+    }
+  }
+
+  Future<void> _showActiveSessionFromButton() async {
+    try {
+      final data = await AttendanceService.getSessions();
+      if (!mounted) {
+        return;
+      }
+
+      final activeSession = data?['sesion_activa'] as Map<String, dynamic>?;
+      if (activeSession == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No hay sesión activa en este momento'),
+              backgroundColor: Color(0xFFF4A900),
+            ),
+          );
+        }
+        return;
+      }
+
+      final ficha = data?['ficha'] as Map<String, dynamic>? ?? {};
+
+      if (mounted) {
+        _showActiveSessionBottomSheet(activeSession, ficha);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar la sesión: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showActiveSessionBottomSheet(
+    Map<String, dynamic> session,
+    Map<String, dynamic> ficha,
+  ) {
+    final program = ficha['programa'] as Map<String, dynamic>? ?? {};
+    final instructor = session['instructor'] as Map<String, dynamic>? ?? {};
+    final leader = ficha['instructor_lider'] as Map<String, dynamic>? ?? {};
+    final environment = session['ambiente'] as Map<String, dynamic>? ?? {};
+    final competency = session['competencia'] as Map<String, dynamic>? ?? {};
+    final block = session['bloque_jornada'] as Map<String, dynamic>? ?? {};
+
+    final instructorName = _firstString([
+      instructor['nombre_completo'],
+      leader['registrado'] == true ? leader['nombre_completo'] : null,
+      'Instructor por asignar',
+    ]);
+    final date = _formatDateLabel(_firstString([session['fecha_clase']]));
+    final startTime = _formatTime(
+      _firstString([session['hora_inicio'], block['hora_inicio']]),
+    );
+    final endTime = _formatTime(
+      _firstString([session['hora_fin'], block['hora_fin']]),
+    );
+    final place = _formatPlace(environment);
+    final group = _firstString([ficha['numero_ficha'], 'Grupo por asignar']);
+    final programName = _firstString([
+      program['nombre_programa'],
+      program['sigla'],
+      'Programa por asignar',
+    ]);
+    final programShortName = _programShortName(programName);
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 22),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD8DDE6),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Container(
+                    width: 68,
+                    height: 68,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF092444),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.person_rounded,
+                      color: Colors.white,
+                      size: 38,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Tienes una sesión activa',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(0xFF092444),
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF092444),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      children: [
+                        _ActiveSessionInfoRow(
+                          icon: Icons.description_outlined,
+                          label: 'Programa',
+                          value: programShortName,
+                        ),
+                        _ActiveSessionInfoRow(
+                          icon: Icons.adjust_rounded,
+                          label: 'Competencia',
+                          value: _firstString([
+                            competency['nombre_competencia'],
+                            'Clase programada',
+                          ]),
+                        ),
+                        _ActiveSessionInfoRow(
+                          icon: Icons.person_outline,
+                          label: 'Instructor',
+                          value: instructorName,
+                        ),
+                        _ActiveSessionInfoRow(
+                          icon: Icons.groups_outlined,
+                          label: 'Grupo',
+                          value: '$programShortName - $group',
+                        ),
+                        _ActiveSessionInfoRow(
+                          icon: Icons.science_outlined,
+                          label: 'Ambiente',
+                          value: place,
+                          showDivider: false,
+                        ),
+                        const SizedBox(height: 14),
+                        _ActiveSessionTimePanel(
+                          startTime: startTime.isEmpty
+                              ? 'Por definir'
+                              : startTime,
+                          endTime: endTime.isEmpty ? 'Por definir' : endTime,
+                          date: date,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: FilledButton.icon(
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        await startDashboardQrFlow(context);
+                      },
+                      icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
+                      label: const Text('Escanear QR de la sesión'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF28B000),
+                        foregroundColor: Colors.white,
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // const SizedBox(height: 16), // Espacio removido junto con los botones
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text(
+                      'Cancelar',
+                      style: TextStyle(
+                        color: Color(0xFF8B97A8),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     super.dispose();
@@ -126,17 +425,34 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF2F5FB),
       body: SafeArea(
-        child: LayoutBuilder(
+        child: FutureBuilder<_DashboardData>(
+          future: _dashboardFuture,
           builder: (context, constraints) {
+            final isLoading =
+                constraints.connectionState == ConnectionState.waiting;
+            final data = constraints.data ?? _DashboardData.empty();
+            final errorMessage = constraints.hasError
+                ? _cleanError(constraints.error)
+                : null;
             final bodyContent = Column(
               children: [
-                const _HomeHeader(),
+                _HomeHeader(
+                  notificationCount: 0,
+                  hasActiveSession: widget.hasActiveSession,
+                ),
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(24, 22, 24, 144),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        if (errorMessage != null) ...[
+                          _DashboardErrorBanner(
+                            message: errorMessage,
+                            onRetry: _reloadDashboard,
+                          ),
+                          const SizedBox(height: 14),
+                        ],
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(18),
@@ -195,21 +511,40 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ),
                         const SizedBox(height: 18),
+                        _DailyDonutSummary(
+                          metrics: data.metrics,
+                          isLoading: isLoading,
+                        ),
+                        const SizedBox(height: 18),
+                        _QuickAccessSection(
+                          onAttendanceTap: () {
+                            _showActiveSessionFromButton();
+                          },
+                          onJustifyTap: () {
+                            widget.onNavigateToAttendance?.call(0);
+                          },
+                          onObservationsTap: () {
+                            widget.onNavigateToAttendance?.call(2);
+                          },
+                          onAlertsTap: () {
+                            widget.onNavigateToObservatory?.call(0);
+                          },
+                        ),
+                        const SizedBox(height: 18),
                         LayoutBuilder(
                           builder: (context, constraints) {
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const _DailyDonutSummary(),
-                                const SizedBox(height: 18),
-                                _buildScheduleCarousel(),
-                                const SizedBox(height: 14),
-                                const _HistoryButton(),
-                                const SizedBox(height: 14),
-                                const Align(
-                                  alignment: Alignment.centerRight,
-                                  child: _QrScanButton(),
+                                _buildScheduleCarousel(
+                                  widget.hasActiveSession &&
+                                          data.classes.isEmpty
+                                      ? _classes
+                                      : data.classes,
+                                  isLoading: isLoading,
+                                  emptyMessage: data.scheduleMessage,
                                 ),
+                                const SizedBox(height: 18),
                               ],
                             );
                           },
@@ -228,7 +563,36 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildScheduleCarousel() {
+  static String _cleanError(Object? error) {
+    final raw = error.toString();
+    return raw.startsWith('Exception: ')
+        ? raw.replaceFirst('Exception: ', '')
+        : raw;
+  }
+
+  Widget _buildScheduleCarousel(
+    List<ClassItem> classes, {
+    required bool isLoading,
+    String? emptyMessage,
+  }) {
+    if (isLoading) {
+      return const _SchedulePlaceholder();
+    }
+
+    if (classes.isEmpty) {
+      return _EmptyScheduleCard(
+        message:
+            emptyMessage ??
+            'No hay horario disponible para la ficha seleccionada',
+        helperText: 'Cuando tengas una sesión agendada, aparecerá aquí.',
+      );
+    }
+
+    final activeIndex = _currentClass % classes.length;
+
+    final screenHeight = MediaQuery.of(context).size.height;
+    final carouselHeight = screenHeight < 720 ? 360.0 : 400.0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -240,20 +604,23 @@ class _HomePageState extends State<HomePage> {
         ),
         const SizedBox(height: 14),
         SizedBox(
-          height: 320,
+          height: carouselHeight,
           child: ScrollConfiguration(
             behavior: const _CarouselScrollBehavior(),
             child: PageView.builder(
               controller: _controller,
               onPageChanged: (index) {
                 setState(() {
-                  _currentClass = index % _classes.length;
+                  _currentClass = index % classes.length;
                 });
               },
               itemBuilder: (context, index) {
-                final item = _classes[index % _classes.length];
+                final item = classes[index % classes.length];
 
-                return _ClassCard(item: item);
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: _ClassCard(item: item),
+                );
               },
             ),
           ),
@@ -261,10 +628,10 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height: 14),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(_classes.length, (index) {
-            final isActive = index == _currentClass;
+          children: List.generate(classes.length, (index) {
+            final isActive = index == activeIndex;
             final dotColor = isActive
-                ? _classes[index].color
+                ? classes[index].color
                 : const Color(0xFFD4DCE7);
 
             return AnimatedContainer(
@@ -296,184 +663,173 @@ class _CarouselScrollBehavior extends MaterialScrollBehavior {
   };
 }
 
-class _HomeHeader extends StatelessWidget {
-  const _HomeHeader();
+class _ActiveSessionInfoRow extends StatelessWidget {
+  const _ActiveSessionInfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.showDivider = true,
+  });
 
-  void _showPhotoOptions(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.5,
-          minChildSize: 0.4,
-          maxChildSize: 0.8,
-          expand: false,
-          builder: (context, scrollController) {
-            return Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: SingleChildScrollView(
-                controller: scrollController,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 18,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Center(
-                        child: Container(
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE6EAF3),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Center(
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            Container(
-                              width: 96,
-                              height: 96,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFE7F3E3),
-                                borderRadius: BorderRadius.circular(24),
-                              ),
-                              child: const Icon(
-                                Icons.person_rounded,
-                                color: Color(0xFF052D4F),
-                                size: 48,
-                              ),
-                            ),
-                            Positioned(
-                              bottom: 8,
-                              right: 8,
-                              child: PopupMenuButton(
-                                onSelected: (value) {},
-                                itemBuilder: (BuildContext context) => [
-                                  const PopupMenuItem(
-                                    value: 1,
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.edit,
-                                          size: 18,
-                                          color: Color(0xFF052D4F),
-                                        ),
-                                        SizedBox(width: 10),
-                                        Text('Editar foto'),
-                                      ],
-                                    ),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 2,
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.photo_camera,
-                                          size: 18,
-                                          color: Color(0xFF052D4F),
-                                        ),
-                                        SizedBox(width: 10),
-                                        Text('Cambiar foto'),
-                                      ],
-                                    ),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 3,
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.photo_size_select_large,
-                                          size: 18,
-                                          color: Color(0xFF052D4F),
-                                        ),
-                                        SizedBox(width: 10),
-                                        Text('Ajustar foto'),
-                                      ],
-                                    ),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 4,
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.delete_outline,
-                                          size: 18,
-                                          color: Colors.red,
-                                        ),
-                                        SizedBox(width: 10),
-                                        Text('Eliminar foto'),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                                child: Container(
-                                  width: 28,
-                                  height: 28,
-                                  decoration: const BoxDecoration(
-                                    color: Colors.white,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.edit,
-                                    size: 16,
-                                    color: Color(0xFF052D4F),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        'Información básica',
-                        style: TextStyle(
-                          color: Color(0xFF092444),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      const _ReadOnlyFormField(
-                        label: 'Nombres y apellidos',
-                        value: 'Esteban Felipe Benavides Paz',
-                      ),
-                      const SizedBox(height: 12),
-                      const _ReadOnlyFormField(label: 'Rol', value: 'Aprendiz'),
-                      const SizedBox(height: 12),
-                      const _ReadOnlyFormField(
-                        label: 'Programa',
-                        value: 'Análisis y desarrollo de software',
-                      ),
-                      const SizedBox(height: 12),
-                      const _ReadOnlyFormField(
-                        label: 'Ficha',
-                        value: '3064975',
-                      ),
-                      const SizedBox(height: 12),
-                      const _ReadOnlyFormField(label: 'Trimestre', value: '4'),
-                      const SizedBox(height: 24),
-                    ],
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool showDivider;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: const Color(0xFFB8C6D8), size: 20),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 74,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF9EADC1),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
-            );
-          },
-        );
-      },
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  value.isEmpty ? 'Sin información' : value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (showDivider) Container(height: 1, color: const Color(0xFF244361)),
+      ],
     );
   }
+}
+
+class _ActiveSessionTimePanel extends StatelessWidget {
+  const _ActiveSessionTimePanel({
+    required this.startTime,
+    required this.endTime,
+    required this.date,
+  });
+
+  final String startTime;
+  final String endTime;
+  final String date;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF113A69),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          if (date.isNotEmpty) ...[
+            Text(
+              date,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFFB8C6D8),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          Row(
+            children: [
+              Expanded(
+                child: _ActiveSessionTimeValue(
+                  label: 'Hora inicio',
+                  value: startTime,
+                ),
+              ),
+              Container(height: 42, width: 1, color: const Color(0xFF446083)),
+              Expanded(
+                child: _ActiveSessionTimeValue(
+                  label: 'Hora fin',
+                  value: endTime,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActiveSessionTimeValue extends StatelessWidget {
+  const _ActiveSessionTimeValue({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(Icons.schedule_rounded, color: Colors.white, size: 18),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Color(0xFF2DCC35),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HomeHeader extends StatelessWidget {
+  const _HomeHeader({
+    required this.notificationCount,
+    required this.hasActiveSession,
+  });
+
+  final int notificationCount;
+  final bool hasActiveSession;
 
   @override
   Widget build(BuildContext context) {
@@ -483,20 +839,17 @@ class _HomeHeader extends StatelessWidget {
       decoration: const BoxDecoration(color: Color(0xFF052D4F)),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () => _showPhotoOptions(context),
-            child: Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE7F3E3),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: const Icon(
-                Icons.person_rounded,
-                color: Color(0xFF052D4F),
-                size: 28,
-              ),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE7F3E3),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Icon(
+              Icons.person_rounded,
+              color: Color(0xFF052D4F),
+              size: 28,
             ),
           ),
           const SizedBox(width: 14),
@@ -504,17 +857,27 @@ class _HomeHeader extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
-              children: const [
+              children: [
                 Text(
-                  'Hola Esteban',
-                  style: TextStyle(
+                  'Hola, ${_getCurrentUserGreetingName()}',
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                SizedBox(width: 8),
-                _ActiveDot(),
+                const SizedBox(width: 8),
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: hasActiveSession
+                        ? const Color(0xFF39A900)
+                        : const Color(0xFF9AA8B8),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                ),
               ],
             ),
           ),
@@ -527,34 +890,41 @@ class _HomeHeader extends StatelessWidget {
                 child: MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: IconButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const _NotificationsPage(),
+                        ),
+                      );
+                    },
                     icon: const Icon(Icons.notifications_none_rounded),
                     color: Colors.white,
                     tooltip: 'Notificaciones',
                   ),
                 ),
               ),
-              Positioned(
-                top: -5,
-                right: -5,
-                child: Container(
-                  width: 20,
-                  height: 20,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFE74935),
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: const Text(
-                    '3',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
+              if (notificationCount > 0)
+                Positioned(
+                  top: -5,
+                  right: -5,
+                  child: Container(
+                    width: 20,
+                    height: 20,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE74935),
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      notificationCount > 9 ? '9+' : '$notificationCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ],
@@ -563,8 +933,74 @@ class _HomeHeader extends StatelessWidget {
   }
 }
 
+class _NotificationsPage extends StatelessWidget {
+  const _NotificationsPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F5FB),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+              decoration: const BoxDecoration(
+                color: Color(0xFF052D4F),
+                border: Border(
+                  bottom: BorderSide(color: Color(0xFFE7EDF6)),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Tooltip(
+                    message: 'Volver',
+                    child: SizedBox(
+                      width: 56,
+                      height: 42,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Color(0xFF8FB4D3)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: EdgeInsets.zero,
+                        ),
+                        child: const Icon(Icons.arrow_back_rounded),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Notificaciones',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Expanded(child: SizedBox.expand()),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ActiveDot extends StatefulWidget {
-  const _ActiveDot();
+  const _ActiveDot({required this.isActive});
+
+  final bool isActive;
 
   @override
   State<_ActiveDot> createState() => _ActiveDotState();
@@ -575,6 +1011,10 @@ class _ActiveDotState extends State<_ActiveDot> {
 
   @override
   Widget build(BuildContext context) {
+    final dotColor = widget.isActive
+        ? const Color(0xFF39A900)
+        : const Color(0xFF9AA8B8);
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -590,13 +1030,13 @@ class _ActiveDotState extends State<_ActiveDot> {
           width: _isHovered ? 16 : 12,
           height: _isHovered ? 16 : 12,
           decoration: BoxDecoration(
-            color: const Color(0xFF39A900),
+            color: dotColor,
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: _isHovered ? 3 : 2),
             boxShadow: _isHovered
                 ? [
                     BoxShadow(
-                      color: const Color(0xFF39A900).withValues(alpha: 0.4),
+                      color: dotColor.withValues(alpha: 0.4),
                       blurRadius: 8,
                       spreadRadius: 2,
                     ),
@@ -609,50 +1049,93 @@ class _ActiveDotState extends State<_ActiveDot> {
   }
 }
 
-class _ReadOnlyFormField extends StatelessWidget {
-  const _ReadOnlyFormField({required this.label, required this.value});
-
-  final String label;
-  final String value;
+// ignore: unused_element
+class _NoScheduledSessionCard extends StatelessWidget {
+  const _NoScheduledSessionCard();
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFF607086),
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE7EDF6)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
-        ),
-        const SizedBox(height: 6),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF7F9FC),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE9EEF5)),
-          ),
-          child: Text(
-            value,
-            style: const TextStyle(
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Próxima sesión',
+            style: TextStyle(
               color: Color(0xFF092444),
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: 8),
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFEAF3FF),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.event_available_outlined,
+                    color: Color(0xFF1976D2),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'No tienes una sesión\nprogramada por ahora',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF092444),
+                    fontSize: 13,
+                    height: 1.16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Cuando tengas una sesión activa,\npodrás validar tu asistencia.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF607086),
+                    fontSize: 10,
+                    height: 1.25,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _DailyDonutSummary extends StatelessWidget {
-  const _DailyDonutSummary();
+  const _DailyDonutSummary({required this.metrics, required this.isLoading});
+
+  final _DashboardMetrics metrics;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -678,31 +1161,33 @@ class _DailyDonutSummary extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Row(
-          children: const [
+          children: [
             Expanded(
               child: _DonutMetric(
                 label: 'Alertas del día',
-                value: '3',
-                percent: 0.7,
-                color: Color(0xFFE74935),
+                value: isLoading ? '...' : '${metrics.alertsTotal}',
+                percent: isLoading ? 0 : metrics.alertsPercent,
+                color: const Color(0xFFE74935),
               ),
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: 10),
             Expanded(
               child: _DonutMetric(
                 label: 'Observaciones',
-                value: '5',
-                percent: 0.5,
-                color: Color(0xFFF4A900),
+                value: isLoading ? '...' : '${metrics.observationsTotal}',
+                percent: isLoading ? 0 : metrics.observationsPercent,
+                color: const Color(0xFFF4A900),
               ),
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: 10),
             Expanded(
               child: _DonutMetric(
                 label: 'Asistencia',
-                value: '92%',
-                percent: 0.92,
-                color: Color(0xFF39A900),
+                value: isLoading
+                    ? '...'
+                    : '${metrics.attendancePercent.round()}%',
+                percent: isLoading ? 0 : metrics.attendancePercent / 100,
+                color: const Color(0xFF39A900),
               ),
             ),
           ],
@@ -804,7 +1289,7 @@ class _DonutPainter extends CustomPainter {
 
     canvas.drawCircle(center, radius, backgroundPaint);
     final startAngle = -math.pi / 2;
-    final sweepAngle = 2 * math.pi * percent;
+    final sweepAngle = 2 * math.pi * percent.clamp(0, 1).toDouble();
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
       startAngle,
@@ -820,81 +1305,257 @@ class _DonutPainter extends CustomPainter {
   }
 }
 
-class _QrScanButton extends StatelessWidget {
-  const _QrScanButton();
+class _DashboardErrorBanner extends StatelessWidget {
+  const _DashboardErrorBanner({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4F2),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFFD2CB)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Color(0xFFE74935), size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF8F2E22),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          TextButton(onPressed: onRetry, child: const Text('Reintentar')),
+        ],
+      ),
+    );
+  }
+}
+
+class _SchedulePlaceholder extends StatelessWidget {
+  const _SchedulePlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 320,
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE9EEF5)),
+      ),
+      child: const Center(
+        child: CircularProgressIndicator(color: Color(0xFF39A900)),
+      ),
+    );
+  }
+}
+
+class _EmptyScheduleCard extends StatelessWidget {
+  const _EmptyScheduleCard({required this.message, this.helperText});
+
+  final String message;
+  final String? helperText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 190,
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE9EEF5)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.event_busy_rounded,
+            color: Color(0xFF607086),
+            size: 34,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF607086),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (helperText != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              helperText!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFF607086),
+                fontSize: 11,
+                height: 1.25,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickAccessSection extends StatelessWidget {
+  const _QuickAccessSection({
+    required this.onAttendanceTap,
+    required this.onJustifyTap,
+    required this.onObservationsTap,
+    required this.onAlertsTap,
+  });
+
+  final VoidCallback onAttendanceTap;
+  final VoidCallback onJustifyTap;
+  final VoidCallback onObservationsTap;
+  final VoidCallback onAlertsTap;
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 72,
-          height: 72,
-          decoration: const BoxDecoration(
-            color: Color(0xFF39A900),
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Color(0x29000000),
-                blurRadius: 12,
-                offset: Offset(0, 6),
-              ),
-            ],
-          ),
-          child: const Center(
-            child: Icon(Icons.qr_code_2, color: Colors.white, size: 32),
-          ),
-        ),
-        const SizedBox(height: 8),
         const Text(
-          'Escanear QR',
+          'Accesos rápidos',
           style: TextStyle(
-            color: Color(0xFF39A900),
-            fontSize: 13,
+            color: Color(0xFF092444),
+            fontSize: 15,
             fontWeight: FontWeight.w800,
           ),
+        ),
+        const SizedBox(height: 10),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final spacing = 10.0;
+            final cardWidth = (constraints.maxWidth - spacing) / 2;
+            return Wrap(
+              runSpacing: spacing,
+              spacing: spacing,
+              children: [
+                SizedBox(
+                  width: cardWidth,
+                  child: _QuickAccessCard(
+                    icon: Icons.assignment_turned_in_rounded,
+                    label: 'Registrar asistencia',
+                    color: const Color(0xFF062E4F),
+                    onTap: onAttendanceTap,
+                  ),
+                ),
+                SizedBox(
+                  width: cardWidth,
+                  child: _QuickAccessCard(
+                    icon: Icons.calendar_today_rounded,
+                    label: 'Mis asistencias',
+                    color: const Color(0xFF062E4F),
+                    onTap: onJustifyTap,
+                  ),
+                ),
+                SizedBox(
+                  width: cardWidth,
+                  child: _QuickAccessCard(
+                    icon: Icons.description_rounded,
+                    label: 'Justificaciones',
+                    color: const Color(0xFF062E4F),
+                    onTap: onObservationsTap,
+                  ),
+                ),
+                SizedBox(
+                  width: cardWidth,
+                  child: _QuickAccessCard(
+                    icon: Icons.notifications_active_rounded,
+                    label: 'Alertas y Observaciones',
+                    color: const Color(0xFF062E4F),
+                    onTap: onAlertsTap,
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ],
     );
   }
 }
 
-class _HistoryButton extends StatelessWidget {
-  const _HistoryButton();
+class _QuickAccessCard extends StatelessWidget {
+  const _QuickAccessCard({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: color,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: () {},
+        onTap: onTap,
         child: Container(
-          height: 54,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          constraints: const BoxConstraints(minHeight: 102),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
+            color: color,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFE9EEF5)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.18),
+                blurRadius: 14,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-          child: const Row(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.history_rounded, color: Color(0xFF092444), size: 20),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Ver historial de asistencias',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Color(0xFF092444),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                  ),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: Colors.white, size: 20),
+              ),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-              Icon(Icons.chevron_right_rounded, color: Color(0xFF092444)),
             ],
           ),
         ),
@@ -910,9 +1571,14 @@ class _ClassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.of(context).size.width < 380;
+    final titleFontSize = isCompact ? 18.0 : 20.0;
+    final blockTitleFontSize = isCompact ? 14.0 : 15.0;
+    final cardPadding = isCompact ? 16.0 : 20.0;
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(cardPadding),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
@@ -950,9 +1616,9 @@ class _ClassCard extends StatelessWidget {
                       'Jornada programada',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF092444),
-                        fontSize: 20,
+                      style: TextStyle(
+                        color: const Color(0xFF092444),
+                        fontSize: titleFontSize,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -979,19 +1645,21 @@ class _ClassCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          Expanded(
-            child: ListView.separated(
-              physics: const NeverScrollableScrollPhysics(),
-              padding: EdgeInsets.zero,
-              itemCount: item.blocks.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 10),
-              itemBuilder: (context, index) {
-                final block = item.blocks[index];
-
-                return _ClassBlockTile(block: block, color: item.color);
-              },
-            ),
+          const SizedBox(height: 16),
+          Column(
+            children: List.generate(item.blocks.length, (index) {
+              return Column(
+                children: [
+                  _ClassBlockTile(
+                    block: item.blocks[index],
+                    color: item.color,
+                    titleFontSize: blockTitleFontSize,
+                  ),
+                  if (index < item.blocks.length - 1)
+                    const SizedBox(height: 10),
+                ],
+              );
+            }),
           ),
         ],
       ),
@@ -1000,10 +1668,15 @@ class _ClassCard extends StatelessWidget {
 }
 
 class _ClassBlockTile extends StatelessWidget {
-  const _ClassBlockTile({required this.block, required this.color});
+  const _ClassBlockTile({
+    required this.block,
+    required this.color,
+    this.titleFontSize = 15,
+  });
 
   final ClassBlock block;
   final Color color;
+  final double titleFontSize;
 
   @override
   Widget build(BuildContext context) {
@@ -1037,9 +1710,9 @@ class _ClassBlockTile extends StatelessWidget {
                       block.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF092444),
-                        fontSize: 15,
+                      style: TextStyle(
+                        color: const Color(0xFF092444),
+                        fontSize: titleFontSize,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -1124,4 +1797,482 @@ class ClassBlock {
   final String time;
   final String place;
   final String instructor;
+}
+
+String _getCurrentUserFullName() {
+  final user = AuthService.currentUser ?? {};
+  final fullName = _firstString([
+    user['nombre_completo'],
+    user['nombreCompleto'],
+    user['full_name'],
+    user['name'],
+    user['nombre_usuario'],
+    user['nombreUsuario'],
+  ]);
+
+  if (fullName.isNotEmpty) {
+    return fullName;
+  }
+
+  final firstName = _firstString([
+    user['primer_nombre'],
+    user['primerNombre'],
+    user['nombre1'],
+    user['first_name'],
+    user['firstName'],
+    user['nombres'],
+    user['nombre'],
+  ]);
+  final lastName = _firstString([
+    user['primer_apellido'],
+    user['primerApellido'],
+    user['apellido1'],
+    user['last_name'],
+    user['lastName'],
+    user['apellidos'],
+    user['apellido'],
+    user['apellido_paterno'],
+    user['apellido_materno'],
+  ]);
+
+  final combined = [
+    firstName,
+    lastName,
+  ].where((part) => part.trim().isNotEmpty).join(' ');
+  return combined.isEmpty ? 'Aprendiz' : combined;
+}
+
+String _getCurrentUserGreetingName() {
+  final user = AuthService.currentUser ?? {};
+  final firstName = _firstWord(
+    _firstString([
+      user['primer_nombre'],
+      user['primerNombre'],
+      user['nombre1'],
+      user['first_name'],
+      user['firstName'],
+      user['nombres'],
+      user['nombre'],
+    ]),
+  );
+  final firstLastName = _firstWord(
+    _firstString([
+      user['primer_apellido'],
+      user['primerApellido'],
+      user['apellido1'],
+      user['last_name'],
+      user['lastName'],
+      user['apellidos'],
+      user['apellido'],
+      user['apellido_paterno'],
+      user['apellido_materno'],
+    ]),
+  );
+  final shortName = [
+    firstName,
+    firstLastName,
+  ].where((part) => part.isNotEmpty).join(' ');
+
+  if (shortName.isNotEmpty) {
+    return shortName;
+  }
+
+  final fullName = _getCurrentUserFullName();
+  if (fullName.isEmpty || fullName.toLowerCase() == 'aprendiz') {
+    return 'Aprendiz';
+  }
+
+  final parts = fullName
+      .split(RegExp(r'\s+'))
+      .where((part) => part.trim().isNotEmpty)
+      .toList();
+  if (parts.length >= 4) {
+    return '${parts.first} ${parts[2]}';
+  }
+  if (parts.length >= 2) {
+    return '${parts.first} ${parts[1]}';
+  }
+  return parts.isEmpty ? 'Aprendiz' : parts.first;
+}
+
+String _firstWord(String value) {
+  final parts = value
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((part) => part.isNotEmpty)
+      .toList();
+  return parts.isEmpty ? '' : parts.first;
+}
+
+String _getCurrentUserRole() {
+  final user = AuthService.currentUser ?? {};
+  return _firstString([user['rol'], user['role'], user['perfil'], 'Aprendiz']);
+}
+
+String _getCurrentUserProgram() {
+  final user = AuthService.currentUser ?? {};
+  return _firstString([
+    user['program'],
+    user['programa'],
+    user['nombre_programa'],
+    user['nombrePrograma'],
+    'No disponible',
+  ]);
+}
+
+String _getCurrentUserFicha() {
+  final user = AuthService.currentUser ?? {};
+  return _firstString([
+    user['ficha'],
+    user['numero_ficha'],
+    user['numeroFicha'],
+    user['codigo'],
+    'No disponible',
+  ]);
+}
+
+String _getCurrentUserTrimester() {
+  final user = AuthService.currentUser ?? {};
+  return _firstString([
+    user['trimestre'],
+    user['etapa'],
+    user['stage'],
+    'No disponible',
+  ]);
+}
+
+class _DashboardData {
+  const _DashboardData({
+    required this.metrics,
+    required this.classes,
+    required this.unreadNotifications,
+    this.scheduleMessage,
+  });
+
+  factory _DashboardData.empty() {
+    return const _DashboardData(
+      metrics: _DashboardMetrics.empty(),
+      classes: [],
+      unreadNotifications: 0,
+    );
+  }
+
+  factory _DashboardData.fromBackend({
+    required Map<String, dynamic> dashboard,
+    required ObservatoryObservationResponse observations,
+    required ObservatoryAlertResponse alerts,
+  }) {
+    final attendance = _firstMap([dashboard['asistencia_trimestre']]);
+    final schedule = _firstMap([dashboard['horario_semanal']]);
+    final news = _firstMap([dashboard['novedades']]);
+    final notifications = _firstList([news['notificaciones']]);
+    final sessions = _firstList([schedule['sesiones']]);
+    final scheduleMessage = _firstString([schedule['mensaje']]);
+
+    return _DashboardData(
+      metrics: _DashboardMetrics(
+        alertsTotal: alerts.metrics.total,
+        observationsTotal: observations.metrics.total,
+        attendancePercent: _attendancePercent(attendance),
+      ),
+      classes: _classItemsFromSessions(
+        sessions.whereType<Map<String, dynamic>>().toList(),
+      ),
+      unreadNotifications: notifications
+          .whereType<Map<String, dynamic>>()
+          .where((item) => item['leida'] != true)
+          .length,
+      scheduleMessage: scheduleMessage.isEmpty ? null : scheduleMessage,
+    );
+  }
+
+  final _DashboardMetrics metrics;
+  final List<ClassItem> classes;
+  final int unreadNotifications;
+  final String? scheduleMessage;
+}
+
+class _DashboardMetrics {
+  const _DashboardMetrics({
+    required this.alertsTotal,
+    required this.observationsTotal,
+    required this.attendancePercent,
+  });
+
+  const _DashboardMetrics.empty()
+    : alertsTotal = 0,
+      observationsTotal = 0,
+      attendancePercent = 0;
+
+  final int alertsTotal;
+  final int observationsTotal;
+  final double attendancePercent;
+
+  double get alertsPercent => (alertsTotal / 10).clamp(0, 1).toDouble();
+
+  double get observationsPercent =>
+      (observationsTotal / 10).clamp(0, 1).toDouble();
+}
+
+List<ClassItem> _classItemsFromSessions(List<Map<String, dynamic>> sessions) {
+  final now = DateTime.now();
+  final monday = now.subtract(Duration(days: now.weekday - 1));
+  final weekDays = List.generate(
+    5,
+    (index) => DateTime(monday.year, monday.month, monday.day + index),
+    growable: false,
+  );
+
+  final groupedByDate = <String, List<Map<String, dynamic>>>{};
+  for (final session in sessions) {
+    final fecha = _firstString([session['fecha_clase']]);
+    final date = DateTime.tryParse(fecha);
+    if (date == null) continue;
+
+    final dateKey = _dateKey(DateTime(date.year, date.month, date.day));
+    groupedByDate.putIfAbsent(dateKey, () => []).add(session);
+  }
+
+  return weekDays
+      .map((date) {
+        final dateKey = _dateKey(date);
+        final sessionsForDay = groupedByDate[dateKey];
+
+        if (sessionsForDay == null || sessionsForDay.isEmpty) {
+          return ClassItem(
+            day: _formatDay(date.toIso8601String()),
+            status: 'Cerrada',
+            color: const Color(0xFF607086),
+            blocks: const [
+              ClassBlock(
+                title: 'No hay jornada programada',
+                time: 'Horario por definir',
+                place: 'Jornada cerrada',
+                instructor: 'Sin instructor',
+              ),
+            ],
+          );
+        }
+
+        final status = _firstString([
+          sessionsForDay.first['estado'],
+          'PROGRAMADA',
+        ]);
+        final color = _sessionColor(status);
+        final blocks =
+            sessionsForDay.map(_classBlockFromSession).toList(growable: false)
+              ..sort(
+                (a, b) => _parseTimeForSort(
+                  a.time,
+                ).compareTo(_parseTimeForSort(b.time)),
+              );
+
+        return ClassItem(
+          day: _formatDay(date.toIso8601String()),
+          status: _statusLabel(status),
+          color: color,
+          blocks: blocks,
+        );
+      })
+      .toList(growable: false);
+}
+
+String _dateKey(DateTime date) {
+  final year = date.year.toString().padLeft(4, '0');
+  final month = date.month.toString().padLeft(2, '0');
+  final day = date.day.toString().padLeft(2, '0');
+  return '$year-$month-$day';
+}
+
+ClassBlock _classBlockFromSession(Map<String, dynamic> session) {
+  final competency = _firstMap([session['competencia']]);
+  final instructor = _firstMap([session['instructor']]);
+  final environment = _firstMap([session['ambiente']]);
+  final block = _firstMap([session['bloque_jornada']]);
+
+  return ClassBlock(
+    title: _firstString([competency['nombre_competencia'], 'Clase programada']),
+    time: _formatTimeRange(
+      _firstString([session['hora_inicio'], block['hora_inicio']]),
+      _firstString([session['hora_fin'], block['hora_fin']]),
+    ),
+    place: _formatPlace(environment),
+    instructor: _firstString([
+      instructor['nombre_completo'],
+      'Instructor por asignar',
+    ]),
+  );
+}
+
+int _parseTimeForSort(String timeRange) {
+  final parts = timeRange.split(' - ').first.split(' ');
+  if (parts.isEmpty) return 0;
+  final hm = parts.first.split(':');
+  if (hm.length < 2) return 0;
+  final hour = int.tryParse(hm[0]) ?? 0;
+  final minute = int.tryParse(hm[1]) ?? 0;
+  return hour * 100 + minute;
+}
+
+double _attendancePercent(Map<String, dynamic> attendance) {
+  final total = _toInt(attendance['total']);
+  final states = _firstList([attendance['estados']]);
+  if (total <= 0 || states.isEmpty) return 0;
+
+  var absencePercent = 0.0;
+  var presentPercent = 0.0;
+  for (final state in states.whereType<Map<String, dynamic>>()) {
+    final name = _firstString([state['estado']]).toUpperCase();
+    final percent = _toDouble(state['porcentaje']);
+    if (name == 'INASISTENCIA') absencePercent = percent;
+    if (name == 'PRESENTE') presentPercent = percent;
+  }
+
+  if (absencePercent > 0) {
+    return (100 - absencePercent).clamp(0, 100).toDouble();
+  }
+  return presentPercent.clamp(0, 100).toDouble();
+}
+
+String _formatDay(String value) {
+  final date = DateTime.tryParse(value);
+  if (date == null) return 'Programada';
+  const days = [
+    'Lunes',
+    'Martes',
+    'Miercoles',
+    'Jueves',
+    'Viernes',
+    'Sabado',
+    'Domingo',
+  ];
+  return days[date.weekday - 1];
+}
+
+String _formatDateLabel(String value) {
+  final date = DateTime.tryParse(value);
+  if (date == null) return 'Fecha por definir';
+  const months = [
+    'ene',
+    'feb',
+    'mar',
+    'abr',
+    'may',
+    'jun',
+    'jul',
+    'ago',
+    'sep',
+    'oct',
+    'nov',
+    'dic',
+  ];
+  return '${date.day} ${months[date.month - 1]} ${date.year}';
+}
+
+String _formatTimeRange(String start, String end) {
+  final startText = _formatTime(start);
+  final endText = _formatTime(end);
+  if (startText.isEmpty && endText.isEmpty) return 'Horario por definir';
+  if (endText.isEmpty) return startText;
+  return '$startText - $endText';
+}
+
+String _formatTime(String value) {
+  if (value.isEmpty) return '';
+  final parts = value.split(':');
+  final hour = int.tryParse(parts.first) ?? 0;
+  final minute = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
+  final suffix = hour >= 12 ? 'p. m.' : 'a. m.';
+  final displayHour = hour % 12 == 0 ? 12 : hour % 12;
+  return '$displayHour:${minute.toString().padLeft(2, '0')} $suffix';
+}
+
+String _formatPlace(Map<String, dynamic> environment) {
+  final name = _firstString([environment['nombre_ambiente']]);
+  final location = _firstString([environment['ubicacion']]);
+  if (name.isEmpty && location.isEmpty) return 'Ambiente por asignar';
+  if (location.isEmpty) return name;
+  if (name.isEmpty) return location;
+  return '$name - $location';
+}
+
+String _programShortName(String value) {
+  final text = value.trim();
+  if (text.isEmpty) return 'Programa';
+
+  final upperWords = RegExp(
+    r'\b[A-Z]{2,}\b',
+  ).allMatches(text).map((match) => match.group(0)!).toList(growable: false);
+  if (upperWords.isNotEmpty) {
+    return upperWords.first;
+  }
+
+  final initials = text
+      .split(RegExp(r'\s+'))
+      .where((word) => word.length > 2)
+      .map((word) => word[0].toUpperCase())
+      .take(5)
+      .join();
+  return initials.isEmpty ? text : initials;
+}
+
+String _statusLabel(String value) {
+  switch (value.toUpperCase()) {
+    case 'ABIERTA':
+      return 'En curso';
+    case 'FINALIZADA':
+      return 'Finalizada';
+    case 'CANCELADA':
+      return 'Cancelada';
+    default:
+      return 'Proxima';
+  }
+}
+
+Color _sessionColor(String value) {
+  switch (value.toUpperCase()) {
+    case 'ABIERTA':
+      return const Color(0xFF39A900);
+    case 'FINALIZADA':
+      return const Color(0xFF607086);
+    case 'CANCELADA':
+      return const Color(0xFFE74935);
+    default:
+      return const Color(0xFF052D4F);
+  }
+}
+
+Map<String, dynamic> _firstMap(List<dynamic> values) {
+  for (final value in values) {
+    if (value is Map<String, dynamic>) return value;
+  }
+  return {};
+}
+
+List<dynamic> _firstList(List<dynamic> values) {
+  for (final value in values) {
+    if (value is List) return value;
+  }
+  return const [];
+}
+
+String _firstString(List<dynamic> values) {
+  for (final value in values) {
+    if (value == null) continue;
+    final text = value.toString().trim();
+    if (text.isNotEmpty) return text;
+  }
+  return '';
+}
+
+int _toInt(dynamic value) {
+  if (value is int) return value;
+  if (value is num) return value.round();
+  return int.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+double _toDouble(dynamic value) {
+  if (value is double) return value;
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '') ?? 0;
 }
