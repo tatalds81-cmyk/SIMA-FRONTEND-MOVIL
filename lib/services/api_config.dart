@@ -14,7 +14,7 @@
 class ApiConfig {
   ApiConfig._(); // Clase no instanciable
 
-  static const String localWifiUrl = 'http://10.3.41.139:3000/api';
+  static const String localWifiUrl = 'http://10.3.45.250:3000/api';
 
   static const String baseUrl = String.fromEnvironment(
     'SIMA_API_URL',
@@ -47,4 +47,3 @@ class ApiConfig {
 
   static String observation(String id) => '$baseUrl/observations/$id';
 }
-/*hola/*

@@ -15,7 +15,7 @@ class LocalAuthService {
 
       final bool didAuthenticate = await _auth.authenticate(
         localizedReason: 'Por favor, autentícate para registrar tu asistencia',
-        biometricOnly: false, // Permite fallback a PIN/Patrón si la biometría falla o no existe
+        biometricOnly: true, // Exige biometría del dispositivo, sin fallback a PIN/Patrón
         persistAcrossBackgrounding: true,
       );
 
