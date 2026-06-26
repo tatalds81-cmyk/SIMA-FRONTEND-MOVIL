@@ -287,7 +287,6 @@ class _ProfileContent extends StatelessWidget {
       children: [
         _ProfileHero(
           profile: profile,
-          onBackTap: () => Navigator.of(context).maybePop(),
           onLogoutTap: onLogoutTap,
         ),
         Padding(
@@ -319,12 +318,10 @@ class _ProfileContent extends StatelessWidget {
 class _ProfileHero extends StatelessWidget {
   const _ProfileHero({
     required this.profile,
-    required this.onBackTap,
     required this.onLogoutTap,
   });
 
   final ApprenticeProfile profile;
-  final VoidCallback onBackTap;
   final VoidCallback onLogoutTap;
 
   @override
@@ -350,11 +347,7 @@ class _ProfileHero extends StatelessWidget {
             right: 14,
             child: Row(
               children: [
-                _HeaderIconButton(
-                  icon: Icons.arrow_back_ios_new_rounded,
-                  tooltip: 'Volver',
-                  onTap: onBackTap,
-                ),
+                const SizedBox(width: 40),
                 const Expanded(
                   child: Text(
                     'Mi perfil',
@@ -379,10 +372,58 @@ class _ProfileHero extends StatelessWidget {
             left: 0,
             right: 0,
             child: Center(
-              child: _ProfileAvatar(
-                size: 86,
-                initials: profile.initials,
-                showPhoto: true,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  _ProfileAvatar(
+                    size: 86,
+                    initials: profile.initials,
+                    showPhoto: true,
+                  ),
+                  Positioned(
+                    right: -2,
+                    bottom: -2,
+                    child: Tooltip(
+                      message: 'Editar foto',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'La edicion de foto estara disponible pronto.',
+                              ),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: _ProfileColors.headerBlue,
+                              width: 2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.12),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.edit_rounded,
+                            size: 16,
+                            color: _ProfileColors.green,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
