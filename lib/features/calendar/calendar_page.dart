@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sima_movil_froned/features/attendance/attendance_page.dart';
 import 'package:sima_movil_froned/services/attendance_service.dart';
 
 class CalendarPage extends StatefulWidget {
@@ -593,6 +594,49 @@ class _CalendarPageState extends State<CalendarPage> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                ],
+
+                if (selStatus == 'ausente') ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AttendancePage(
+                              initialTabIndex: 2,
+                              initialSelectedJustificationDate: DateTime(
+                                _year,
+                                _monthIndex + 1,
+                                _selectedDay,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF39A900),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 0,
+                          horizontal: 16,
+                        ),
+                      ),
+                      child: const Text(
+                        'Justificar asistencia',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
                   ),
                 ],

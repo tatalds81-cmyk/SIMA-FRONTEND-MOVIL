@@ -29,10 +29,8 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   static const int _initialPage = 10000;
 
-  final PageController _controller = PageController(
-    initialPage: _initialPage,
-    viewportFraction: 0.92,
-  );
+  late final PageController _controller;
+  bool _scheduleCarouselInitialized = false;
   final ObservatoryRepository _observatoryRepository =
       const BackendObservatoryRepository();
   late Future<_DashboardData> _dashboardFuture;
@@ -141,6 +139,10 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _controller = PageController(
+      initialPage: _initialPage,
+      viewportFraction: 0.92,
+    );
     _dashboardFuture = _fetchDashboardData();
     _showActiveSessionPrompt();
   }
@@ -588,6 +590,25 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
+    if (!_scheduleCarouselInitialized) {
+      final initialIndex = _findInitialScheduleIndex(classes);
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _scheduleCarouselInitialized) {
+          return;
+        }
+
+        if (_controller.hasClients) {
+          _controller.jumpToPage(_initialPage + initialIndex);
+        }
+
+        setState(() {
+          _currentClass = initialIndex;
+          _scheduleCarouselInitialized = true;
+        });
+      });
+    }
+
     final activeIndex = _currentClass % classes.length;
 
     final screenHeight = MediaQuery.of(context).size.height;
@@ -649,6 +670,29 @@ class _HomePageState extends State<HomePage> {
       ],
     );
   }
+}
+
+int _findInitialScheduleIndex(List<ClassItem> classes) {
+  if (classes.isEmpty) {
+    return 0;
+  }
+
+  final now = DateTime.now();
+  final todayIndex = (now.weekday - 1).clamp(0, classes.length - 1);
+
+  for (var index = todayIndex; index < classes.length; index++) {
+    if (classes[index].status.toLowerCase() != 'cerrada') {
+      return index;
+    }
+  }
+
+  for (var index = 0; index < todayIndex; index++) {
+    if (classes[index].status.toLowerCase() != 'cerrada') {
+      return index;
+    }
+  }
+
+  return todayIndex;
 }
 
 class _CarouselScrollBehavior extends MaterialScrollBehavior {
@@ -1822,6 +1866,7 @@ String _getCurrentUserFullName() {
     user['firstName'],
     user['nombres'],
     user['nombre'],
+    user['name'],
   ]);
   final lastName = _firstString([
     user['primer_apellido'],
@@ -1833,6 +1878,7 @@ String _getCurrentUserFullName() {
     user['apellido'],
     user['apellido_paterno'],
     user['apellido_materno'],
+    user['apellidos'],
   ]);
 
   final combined = [

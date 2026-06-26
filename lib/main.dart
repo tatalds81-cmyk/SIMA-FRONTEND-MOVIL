@@ -14,6 +14,7 @@ class SimaApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'SIMA',
       theme: ThemeData(
+        fontFamily: 'Roboto',
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF39A900), // Verde SENA
           primary: const Color(0xFF39A900),
