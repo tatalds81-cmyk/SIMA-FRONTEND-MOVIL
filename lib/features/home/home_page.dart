@@ -437,7 +437,7 @@ class _HomePageState extends State<HomePage> {
             final bodyContent = Column(
               children: [
                 _HomeHeader(
-                  notificationCount: data.unreadNotifications,
+                  notificationCount: 0,
                   hasActiveSession: widget.hasActiveSession,
                 ),
                 Expanded(
@@ -831,188 +831,6 @@ class _HomeHeader extends StatelessWidget {
   final int notificationCount;
   final bool hasActiveSession;
 
-  void _showPhotoOptions(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.5,
-          minChildSize: 0.4,
-          maxChildSize: 0.8,
-          expand: false,
-          builder: (context, scrollController) {
-            return Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: SingleChildScrollView(
-                controller: scrollController,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 18,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Center(
-                        child: Container(
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE6EAF3),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Center(
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            Container(
-                              width: 96,
-                              height: 96,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFE7F3E3),
-                                borderRadius: BorderRadius.circular(24),
-                              ),
-                              child: const Icon(
-                                Icons.person_rounded,
-                                color: Color(0xFF052D4F),
-                                size: 48,
-                              ),
-                            ),
-                            Positioned(
-                              bottom: 8,
-                              right: 8,
-                              child: PopupMenuButton(
-                                onSelected: (value) {},
-                                itemBuilder: (BuildContext context) => [
-                                  const PopupMenuItem(
-                                    value: 1,
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.edit,
-                                          size: 18,
-                                          color: Color(0xFF052D4F),
-                                        ),
-                                        SizedBox(width: 10),
-                                        Text('Editar foto'),
-                                      ],
-                                    ),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 2,
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.photo_camera,
-                                          size: 18,
-                                          color: Color(0xFF052D4F),
-                                        ),
-                                        SizedBox(width: 10),
-                                        Text('Cambiar foto'),
-                                      ],
-                                    ),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 3,
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.photo_size_select_large,
-                                          size: 18,
-                                          color: Color(0xFF052D4F),
-                                        ),
-                                        SizedBox(width: 10),
-                                        Text('Ajustar foto'),
-                                      ],
-                                    ),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 4,
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.delete_outline,
-                                          size: 18,
-                                          color: Colors.red,
-                                        ),
-                                        SizedBox(width: 10),
-                                        Text('Eliminar foto'),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                                child: Container(
-                                  width: 28,
-                                  height: 28,
-                                  decoration: const BoxDecoration(
-                                    color: Colors.white,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.edit,
-                                    size: 16,
-                                    color: Color(0xFF052D4F),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        'Información básica',
-                        style: TextStyle(
-                          color: Color(0xFF092444),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _ReadOnlyFormField(
-                        label: 'Nombres y apellidos',
-                        value: _getCurrentUserFullName(),
-                      ),
-                      const SizedBox(height: 12),
-                      _ReadOnlyFormField(
-                        label: 'Rol',
-                        value: _getCurrentUserRole(),
-                      ),
-                      const SizedBox(height: 12),
-                      _ReadOnlyFormField(
-                        label: 'Programa',
-                        value: _getCurrentUserProgram(),
-                      ),
-                      const SizedBox(height: 12),
-                      _ReadOnlyFormField(
-                        label: 'Ficha',
-                        value: _getCurrentUserFicha(),
-                      ),
-                      const SizedBox(height: 12),
-                      _ReadOnlyFormField(
-                        label: 'Trimestre',
-                        value: _getCurrentUserTrimester(),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1021,20 +839,17 @@ class _HomeHeader extends StatelessWidget {
       decoration: const BoxDecoration(color: Color(0xFF052D4F)),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () => _showPhotoOptions(context),
-            child: Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE7F3E3),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: const Icon(
-                Icons.person_rounded,
-                color: Color(0xFF052D4F),
-                size: 28,
-              ),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE7F3E3),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Icon(
+              Icons.person_rounded,
+              color: Color(0xFF052D4F),
+              size: 28,
             ),
           ),
           const SizedBox(width: 14),
@@ -1075,7 +890,13 @@ class _HomeHeader extends StatelessWidget {
                 child: MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: IconButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const _NotificationsPage(),
+                        ),
+                      );
+                    },
                     icon: const Icon(Icons.notifications_none_rounded),
                     color: Colors.white,
                     tooltip: 'Notificaciones',
@@ -1107,6 +928,70 @@ class _HomeHeader extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _NotificationsPage extends StatelessWidget {
+  const _NotificationsPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F5FB),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+              decoration: const BoxDecoration(
+                color: Color(0xFF052D4F),
+                border: Border(
+                  bottom: BorderSide(color: Color(0xFFE7EDF6)),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Tooltip(
+                    message: 'Volver',
+                    child: SizedBox(
+                      width: 56,
+                      height: 42,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Color(0xFF8FB4D3)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: EdgeInsets.zero,
+                        ),
+                        child: const Icon(Icons.arrow_back_rounded),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Notificaciones',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Expanded(child: SizedBox.expand()),
+          ],
+        ),
       ),
     );
   }
@@ -1160,48 +1045,6 @@ class _ActiveDotState extends State<_ActiveDot> {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _ReadOnlyFormField extends StatelessWidget {
-  const _ReadOnlyFormField({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFF607086),
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF7F9FC),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE9EEF5)),
-          ),
-          child: Text(
-            value,
-            style: const TextStyle(
-              color: Color(0xFF092444),
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1960,9 +1803,11 @@ String _getCurrentUserFullName() {
   final user = AuthService.currentUser ?? {};
   final fullName = _firstString([
     user['nombre_completo'],
+    user['nombreCompleto'],
     user['full_name'],
     user['name'],
-    user['nombre'],
+    user['nombre_usuario'],
+    user['nombreUsuario'],
   ]);
 
   if (fullName.isNotEmpty) {
@@ -1970,13 +1815,21 @@ String _getCurrentUserFullName() {
   }
 
   final firstName = _firstString([
+    user['primer_nombre'],
+    user['primerNombre'],
+    user['nombre1'],
     user['first_name'],
     user['firstName'],
+    user['nombres'],
     user['nombre'],
   ]);
   final lastName = _firstString([
+    user['primer_apellido'],
+    user['primerApellido'],
+    user['apellido1'],
     user['last_name'],
     user['lastName'],
+    user['apellidos'],
     user['apellido'],
     user['apellido_paterno'],
     user['apellido_materno'],
@@ -1990,11 +1843,65 @@ String _getCurrentUserFullName() {
 }
 
 String _getCurrentUserGreetingName() {
+  final user = AuthService.currentUser ?? {};
+  final firstName = _firstWord(
+    _firstString([
+      user['primer_nombre'],
+      user['primerNombre'],
+      user['nombre1'],
+      user['first_name'],
+      user['firstName'],
+      user['nombres'],
+      user['nombre'],
+    ]),
+  );
+  final firstLastName = _firstWord(
+    _firstString([
+      user['primer_apellido'],
+      user['primerApellido'],
+      user['apellido1'],
+      user['last_name'],
+      user['lastName'],
+      user['apellidos'],
+      user['apellido'],
+      user['apellido_paterno'],
+      user['apellido_materno'],
+    ]),
+  );
+  final shortName = [
+    firstName,
+    firstLastName,
+  ].where((part) => part.isNotEmpty).join(' ');
+
+  if (shortName.isNotEmpty) {
+    return shortName;
+  }
+
   final fullName = _getCurrentUserFullName();
-  if (fullName.isEmpty) {
+  if (fullName.isEmpty || fullName.toLowerCase() == 'aprendiz') {
     return 'Aprendiz';
   }
-  return fullName.split(' ').first;
+
+  final parts = fullName
+      .split(RegExp(r'\s+'))
+      .where((part) => part.trim().isNotEmpty)
+      .toList();
+  if (parts.length >= 4) {
+    return '${parts.first} ${parts[2]}';
+  }
+  if (parts.length >= 2) {
+    return '${parts.first} ${parts[1]}';
+  }
+  return parts.isEmpty ? 'Aprendiz' : parts.first;
+}
+
+String _firstWord(String value) {
+  final parts = value
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((part) => part.isNotEmpty)
+      .toList();
+  return parts.isEmpty ? '' : parts.first;
 }
 
 String _getCurrentUserRole() {

@@ -138,14 +138,16 @@ class _AttendancePageState extends State<AttendancePage>
           if (fecha.month != _monthIndex + 1 || fecha.year != _year) continue;
 
           final int day = fecha.day;
-          final String ep05 = (reg['estado_ep05'] ?? reg['estado_asistencia'] ?? '')
-              .toString()
-              .toUpperCase();
+          final String ep05 = _normalizeAttendanceState(
+            reg['estado_ep05'] ?? reg['estado_asistencia'] ?? reg['estado'],
+          );
 
           switch (ep05) {
             case 'PRESENTE':
-            case 'TARDE':
               statusMap[day] = 'presente';
+              break;
+            case 'TARDE':
+              statusMap[day] = 'tarde';
               break;
             case 'INASISTENTE':
             case 'INASISTENCIA':
@@ -729,15 +731,71 @@ class _AttendancePageState extends State<AttendancePage>
   }
 
   String _normalizeAttendanceState(Object? value) {
-    final state = value?.toString().trim().toUpperCase() ?? '';
+    final rawState = value?.toString().trim().toUpperCase() ?? '';
+    final state = rawState
+        .replaceAll('\u00C1', 'A')
+        .replaceAll('\u00C9', 'E')
+        .replaceAll('\u00CD', 'I')
+        .replaceAll('\u00D3', 'O')
+        .replaceAll('\u00DA', 'U');
     switch (state) {
+      case 'ASISTENCIA':
+      case 'ASISTENTE':
+      case 'ASISTIO':
+      case 'ASISTE':
+      case 'PRESENTE':
+        return 'PRESENTE';
       case 'INASISTENTE':
+      case 'AUSENTE':
+      case 'FALTA':
         return 'INASISTENCIA';
+      case 'RETARDO':
+      case 'RETARDADO':
+      case 'TARDANZA':
+      case 'LLEGO TARDE':
+        return 'TARDE';
       case 'JUSTIFICADA':
+      case 'JUSTIFICACION':
         return 'JUSTIFICADO';
       default:
         return state;
     }
+  }
+
+  int _toCount(Object? value) {
+    if (value is int) return value;
+    if (value is num) return value.round();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  String _firstText(List<Object?> values) {
+    for (final value in values) {
+      if (value == null) continue;
+      final text = value.toString().trim();
+      if (text.isNotEmpty) return text;
+    }
+    return '';
+  }
+
+  String _instructorNameFromSession(Map<String, dynamic> session) {
+    final instructor = session['instructor'] as Map<String, dynamic>?;
+    final leader = session['instructor_lider'] as Map<String, dynamic>?;
+    final ficha = session['ficha'] as Map<String, dynamic>?;
+    final fichaLeader = ficha?['instructor_lider'] as Map<String, dynamic>?;
+
+    return _firstText([
+      instructor?['nombre_completo'],
+      instructor?['nombreCompleto'],
+      instructor?['nombre'],
+      leader?['nombre_completo'],
+      leader?['nombreCompleto'],
+      leader?['nombre'],
+      fichaLeader?['nombre_completo'],
+      fichaLeader?['nombreCompleto'],
+      fichaLeader?['nombre'],
+      session['nombre_instructor'],
+      session['instructor_nombre'],
+    ]);
   }
 
   bool _sameAttendanceState(Object? item, String expected) {
@@ -752,7 +810,13 @@ class _AttendancePageState extends State<AttendancePage>
         .where((e) => _sameAttendanceState(e, apiEstado))
         .toList();
     final int count = data.length;
-    final String instructor = 'N/A';
+    final firstSession = data.isNotEmpty
+        ? (data.first['sesion'] as Map<String, dynamic>? ?? const {})
+        : const <String, dynamic>{};
+    final String instructor = _firstText([
+      _instructorNameFromSession(firstSession),
+      'No disponible',
+    ]);
     final String ultActualizacion = data.isNotEmpty
         ? (data.first['actualizado_en'] as String? ?? 'N/A')
         : 'N/A';
@@ -838,6 +902,10 @@ class _AttendancePageState extends State<AttendancePage>
                           final materia =
                               sesion['competencia']?['nombre_competencia'] ??
                               'Sin asignar';
+                          final instructorName = _firstText([
+                            _instructorNameFromSession(sesion),
+                            'No disponible',
+                          ]);
                           final diasFaltados =
                               _normalizeAttendanceState(apiEstado) == 'INASISTENCIA'
                               ? 1
@@ -904,7 +972,7 @@ class _AttendancePageState extends State<AttendancePage>
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
-                                      'Instructor: N/A',
+                                      'Instructor: $instructorName',
                                       style: TextStyle(
                                         color: Colors.grey.shade700,
                                         fontSize: 13,
@@ -1052,39 +1120,67 @@ class _AttendancePageState extends State<AttendancePage>
     final asistenciaTrimestre = _dashboardData?['asistencia_trimestre'];
     final int total = asistenciaTrimestre?['total'] ?? 0;
 
-    // Trimestre activo Ã¢â‚¬â€ leÃƒÂ­do directamente del dashboard, sin variables extra
+    // Fallback temporal hasta que el backend confirme el trimestre activo.
     final trimestreActivo =
         _dashboardData?['trimestre_activo'] as Map<String, dynamic>?;
     final bool trimestreRegistrado = trimestreActivo?['registrado'] == true;
-    final int? numeroTrimestre = trimestreRegistrado
-        ? (trimestreActivo?['numero_trimestre'] as int?)
-        : null;
+    final int numeroTrimestre = trimestreRegistrado
+        ? ((trimestreActivo?['numero_trimestre'] as int?) ?? 5)
+        : 5;
 
-    int pendiente = 0;
     int presente = 0;
     int ausente = 0;
     int retardado = 0;
     int justificado = 0;
 
     if (asistenciaTrimestre != null && asistenciaTrimestre['estados'] != null) {
-      final List<dynamic> estados = asistenciaTrimestre['estados'];
-      for (var estadoInfo in estados) {
-        final estado = _normalizeAttendanceState(estadoInfo['estado']);
-        final cantidad = estadoInfo['cantidad'] as int;
+      final estadosRaw = asistenciaTrimestre['estados'];
+      final estados = estadosRaw is Map
+          ? estadosRaw.entries
+              .map((entry) => {'estado': entry.key, 'cantidad': entry.value})
+              .toList()
+          : (estadosRaw as List<dynamic>? ?? []);
 
-        if (estado == 'PENDIENTE') {
-          pendiente = cantidad;
-        } else if (estado == 'PRESENTE') {
-          presente = cantidad;
+      for (var estadoInfo in estados) {
+        if (estadoInfo is! Map) continue;
+        final estado = _normalizeAttendanceState(estadoInfo['estado']);
+        final cantidad = _toCount(estadoInfo['cantidad']);
+
+        if (estado == 'PRESENTE') {
+          presente += cantidad;
         } else if (estado == 'INASISTENCIA') {
-          ausente = cantidad;
+          ausente += cantidad;
         } else if (estado == 'TARDE') {
-          retardado = cantidad;
+          retardado += cantidad;
         } else if (estado == 'JUSTIFICADO') {
-          justificado = cantidad;
+          justificado += cantidad;
         }
       }
     }
+
+    if (presente + ausente + retardado + justificado == 0) {
+      for (final item in _calendarData ?? const []) {
+        if (item is! Map<String, dynamic>) continue;
+        final estado = _normalizeAttendanceState(
+          item['estado_ep05'] ?? item['estado_asistencia'] ?? item['estado'],
+        );
+
+        if (estado == 'PRESENTE') {
+          presente += 1;
+        } else if (estado == 'INASISTENCIA') {
+          ausente += 1;
+        } else if (estado == 'TARDE') {
+          retardado += 1;
+        } else if (estado == 'JUSTIFICADO') {
+          justificado += 1;
+        }
+      }
+    }
+
+    final int chartTotal = presente + ausente + retardado + justificado;
+    final int attendancePercent = chartTotal == 0
+        ? 0
+        : (((presente + retardado) / chartTotal) * 100).round();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
@@ -1115,39 +1211,36 @@ class _AttendancePageState extends State<AttendancePage>
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                // Chip de trimestre Ã¢â‚¬â€ solo visible cuando el backend confirma
-                // trimestre_activo.registrado == true
-                if (numeroTrimestre != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Trimestre $numeroTrimestre',
-                          style: const TextStyle(
-                            color: Color(0xFF092444),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(
-                          Icons.keyboard_arrow_down,
-                          size: 16,
-                          color: Color(0xFF39A900),
-                        ),
-                      ],
-                    ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
                   ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Trimestre $numeroTrimestre',
+                        style: const TextStyle(
+                          color: Color(0xFF092444),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.keyboard_arrow_down,
+                        size: 16,
+                        color: Color(0xFF39A900),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 4),
@@ -1186,12 +1279,6 @@ class _AttendancePageState extends State<AttendancePage>
 
                             final segments = [
                               {
-                                'cat': 'PENDIENTE',
-                                'label': 'PENDIENTE',
-                                'value': pendiente,
-                                'color': Colors.grey.shade400,
-                              },
-                              {
                                 'cat': 'PRESENTE',
                                 'label': 'PRESENTE',
                                 'value': presente,
@@ -1225,7 +1312,7 @@ class _AttendancePageState extends State<AttendancePage>
                               if (val == 0) continue;
 
                               final double sweep =
-                                  (val / total) * 2 * math.pi - gap;
+                                  (val / chartTotal) * 2 * math.pi - gap;
                               if (adjustedAngle >= currentAngle &&
                                   adjustedAngle <= currentAngle + sweep) {
                                 setState(() {
@@ -1275,12 +1362,6 @@ class _AttendancePageState extends State<AttendancePage>
 
                               final segments = [
                                 {
-                                  'cat': 'PENDIENTE',
-                                  'label': 'PENDIENTE',
-                                  'value': pendiente,
-                                  'color': Colors.grey.shade400,
-                                },
-                                {
                                   'cat': 'PRESENTE',
                                   'label': 'PRESENTE',
                                   'value': presente,
@@ -1314,7 +1395,7 @@ class _AttendancePageState extends State<AttendancePage>
                                 if (val == 0) continue;
 
                                 final double sweep =
-                                    (val / total) * 2 * math.pi - gap;
+                                    (val / chartTotal) * 2 * math.pi - gap;
                                 if (adjustedAngle >= currentAngle &&
                                     adjustedAngle <= currentAngle + sweep) {
                                   _showDetailBottomSheet(
@@ -1330,19 +1411,18 @@ class _AttendancePageState extends State<AttendancePage>
                           },
                           child: CustomPaint(
                             painter: _DonutChartPainter(
-                              pendiente: pendiente,
                               presente: presente,
                               ausente: ausente,
                               retardado: retardado,
                               justificado: justificado,
-                              total: total,
+                              total: chartTotal,
                             ),
                             child: Center(
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    '${((presente / (total == 0 ? 1 : total)) * 100).round()}%',
+                                    '$attendancePercent%',
                                     style: const TextStyle(
                                       color: Color(0xFF092444),
                                       fontSize: 28,
@@ -1350,7 +1430,7 @@ class _AttendancePageState extends State<AttendancePage>
                                     ),
                                   ),
                                   const Text(
-                                    'PRESENTE',
+                                    'ASISTENCIA',
                                     style: TextStyle(
                                       color: Color(0xFF607086),
                                       fontSize: 13,
@@ -1403,7 +1483,7 @@ class _AttendancePageState extends State<AttendancePage>
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        '${_hoveredSegmentData!['label']}: ${_hoveredSegmentData!['value']} registros (${(((_hoveredSegmentData!['value'] as int) / total) * 100).round()}%)',
+                                        '${_hoveredSegmentData!['label']}: ${_hoveredSegmentData!['value']} registros (${chartTotal == 0 ? 0 : (((_hoveredSegmentData!['value'] as int) / chartTotal) * 100).round()}%)',
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 13,
@@ -1433,17 +1513,9 @@ class _AttendancePageState extends State<AttendancePage>
             const SizedBox(height: 28),
             // Leyendas
             _statRow(
-              'PENDIENTE',
-              pendiente,
-              total,
-              Colors.grey.shade400,
-              'PENDIENTE',
-            ),
-            const SizedBox(height: 16),
-            _statRow(
               'PRESENTE',
               presente,
-              total,
+              chartTotal,
               const Color(0xFF39A900),
               'PRESENTE',
             ),
@@ -1451,7 +1523,7 @@ class _AttendancePageState extends State<AttendancePage>
             _statRow(
               'TARDE',
               retardado,
-              total,
+              chartTotal,
               const Color(0xFFF6A900),
               'TARDE',
             ),
@@ -1459,7 +1531,7 @@ class _AttendancePageState extends State<AttendancePage>
             _statRow(
               'INASISTENTE',
               ausente,
-              total,
+              chartTotal,
               const Color(0xFFE53935),
               'INASISTENCIA',
             ),
@@ -1467,7 +1539,7 @@ class _AttendancePageState extends State<AttendancePage>
             _statRow(
               'JUSTIFICADA',
               justificado,
-              total,
+              chartTotal,
               const Color(0xFF1565C0),
               'JUSTIFICADO',
             ),
@@ -2182,6 +2254,8 @@ class _AttendancePageState extends State<AttendancePage>
     switch (s) {
       case 'presente':
         return const Color(0xFF44C21E);
+      case 'tarde':
+        return const Color(0xFFF6A900);
       case 'ausente':
         return const Color(0xFFE53935);
       case 'justificada':
@@ -2195,13 +2269,34 @@ class _AttendancePageState extends State<AttendancePage>
     switch (s) {
       case 'presente':
         return 'Presente';
+      case 'tarde':
+        return 'Tarde';
       case 'ausente':
         return 'Ausente';
       case 'justificada':
-        return 'Justificada';
+        return 'Justificado';
       default:
         return 'Sin clase';
     }
+  }
+
+  bool _canShowJustifyButton(String? status, String? justificationStatus) {
+    if (justificationStatus != null && justificationStatus.isNotEmpty) {
+      return false;
+    }
+    if (status != 'ausente' && status != 'tarde') {
+      return false;
+    }
+
+    final classDate = DateTime(_year, _monthIndex + 1, _selectedDay);
+    final now = DateTime.now();
+    final visibleUntil = classDate.add(const Duration(days: 3));
+    return !now.isBefore(classDate) && now.isBefore(visibleUntil);
+  }
+
+  void _goToJustificationsTab() {
+    _tabController.animateTo(2);
+    _fetchEligibleJustifications();
   }
 
   Color _justColor(String estado) {
@@ -2351,6 +2446,7 @@ class _AttendancePageState extends State<AttendancePage>
     final String? selComp = _competencia[_selectedDay];
     final String? selJust = _justEstado[_selectedDay];
     final String? selObs = _observacion[_selectedDay];
+    final bool canJustifySelected = _canShowJustifyButton(selStatus, selJust);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
@@ -2652,6 +2748,27 @@ class _AttendancePageState extends State<AttendancePage>
                   ),
                 ],
 
+                if (canJustifySelected) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _goToJustificationsTab,
+                      icon: const Icon(Icons.assignment_outlined, size: 18),
+                      label: const Text('Justificar'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF39A900),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+
                 if (selStatus == null) ...[
                   const SizedBox(height: 10),
                   const Center(
@@ -2681,26 +2798,14 @@ class _AttendancePageState extends State<AttendancePage>
                   ),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                Wrap(
+                  spacing: 14,
+                  runSpacing: 10,
                   children: [
-                    _legendDot(const Color(0xFF44C21E), "Presente"),
-                    _legendDot(const Color(0xFFE53935), "Ausente"),
-                    _legendDot(const Color(0xFFF6A900), "Justificada"),
-                    _legendDot(const Color(0xFFBDBDBD), "Sin clase"),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    _dot6(const Color(0xFFE53935)),
-                    const SizedBox(width: 2),
-                    _dot6(const Color(0xFFF6A900)),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Ausente con justificaciÃ³n pendiente',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF607086)),
-                    ),
+                    _legendDot(const Color(0xFF44C21E), 'Presente'),
+                    _legendDot(const Color(0xFFE53935), 'Ausente'),
+                    _legendDot(const Color(0xFF1565C0), 'Justificado'),
+                    _legendDot(const Color(0xFFF6A900), 'Tarde'),
                   ],
                 ),
               ],
@@ -2711,10 +2816,8 @@ class _AttendancePageState extends State<AttendancePage>
     );
   }
 }
-
 // Donut Chart Painter
 class _DonutChartPainter extends CustomPainter {
-  final int pendiente;
   final int presente;
   final int ausente;
   final int retardado;
@@ -2722,7 +2825,6 @@ class _DonutChartPainter extends CustomPainter {
   final int total;
 
   _DonutChartPainter({
-    required this.pendiente,
     required this.presente,
     required this.ausente,
     required this.retardado,
@@ -2732,6 +2834,10 @@ class _DonutChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (total <= 0) {
+      return;
+    }
+
     final double strokeWidth = size.width * 0.18;
     final Rect rect = Rect.fromCircle(
       center: Offset(size.width / 2, size.height / 2),
@@ -2739,7 +2845,6 @@ class _DonutChartPainter extends CustomPainter {
     );
 
     final List<Map<String, dynamic>> segments = [
-      {'value': pendiente, 'color': Colors.grey.shade400},
       {'value': presente, 'color': const Color(0xFF39A900)},
       {'value': retardado, 'color': const Color(0xFFF6A900)},
       {'value': ausente, 'color': const Color(0xFFE53935)},
@@ -2764,5 +2869,11 @@ class _DonutChartPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _DonutChartPainter oldDelegate) {
+    return oldDelegate.presente != presente ||
+        oldDelegate.ausente != ausente ||
+        oldDelegate.retardado != retardado ||
+        oldDelegate.justificado != justificado ||
+        oldDelegate.total != total;
+  }
 }
