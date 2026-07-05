@@ -317,7 +317,7 @@ class _CalendarPageState extends State<CalendarPage> {
     final String?              selObs    = _observacion[_selectedDay];
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       child: Column(
         children: [
           // ── Card calendario ──────────────────────────────────────────────

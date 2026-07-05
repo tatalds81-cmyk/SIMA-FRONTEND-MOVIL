@@ -240,7 +240,7 @@ class _ObservationsTab extends StatelessWidget {
         return _ScrollableTabBody(
           children: [
             _MetricsGrid(
-              title: 'Metricas de observaciones',
+              title: 'Métricas de observaciones',
               totalLabel: 'Total de observaciones',
               metrics: data.metrics,
             ),
@@ -327,7 +327,7 @@ class _AlertsTab extends StatelessWidget {
         return _ScrollableTabBody(
           children: [
             _MetricsGrid(
-              title: 'Metricas de alertas',
+              title: 'Métricas de alertas',
               totalLabel: 'Total de alertas',
               metrics: data.metrics,
             ),
@@ -373,7 +373,7 @@ class _ScrollableTabBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final isWide = MediaQuery.sizeOf(context).width >= _wideBreakpoint;
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(isWide ? 32 : 16, 0, isWide ? 32 : 16, 128),
+      padding: EdgeInsets.fromLTRB(isWide ? 32 : 16, 0, isWide ? 32 : 16, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: children,

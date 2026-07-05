@@ -278,7 +278,7 @@ class _LoginPageState extends State<LoginPage> {
                                     CustomInput(
                                       controller: _documentController,
                                       hintText:
-                                          'Ingresa tu numero de documento',
+                                          'Ingresa tu número de documento',
                                       keyboardType: TextInputType.number,
                                       prefixIcon: const Icon(
                                         Icons.mail_outline,
