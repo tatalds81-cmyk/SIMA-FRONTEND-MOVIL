@@ -53,28 +53,44 @@ class SimaBottomNavBar extends StatelessWidget {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(28),
                   onTap: () => onItemSelected(index),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        item.icon,
-                        color: isSelected ? _activeColor : _inactiveColor,
-                        size: 24,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        item.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: isSelected ? _activeColor : _inactiveColor,
-                          fontSize: 10,
-                          fontWeight: isSelected
-                              ? FontWeight.w700
-                              : FontWeight.w500,
+                  child: Semantics(
+                    selected: isSelected,
+                    button: true,
+                    label: item.label,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          width: isSelected ? 42 : 34,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? _activeColor.withValues(alpha: 0.14)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            item.icon,
+                            color: isSelected ? _activeColor : _inactiveColor,
+                            size: 23,
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 2),
+                        Text(
+                          item.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: isSelected ? _activeColor : _inactiveColor,
+                            fontSize: 11,
+                            fontWeight: isSelected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );

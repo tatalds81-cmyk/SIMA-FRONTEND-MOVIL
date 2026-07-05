@@ -79,7 +79,7 @@ class _AccessPageState extends State<AccessPage> {
     ];
 
     return Scaffold(
-      extendBody: true,
+      extendBody: false,
 
       body: IndexedStack(index: _currentIndex, children: pages),
       bottomNavigationBar: SimaBottomNavBar(
