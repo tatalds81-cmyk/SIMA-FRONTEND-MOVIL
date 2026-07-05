@@ -114,7 +114,7 @@ class _ProfilePageState extends State<ProfilePage> {
       backgroundColor: Colors.white,
       builder: (sheetContext) {
         return _ReadOnlySheet(
-          title: 'Academico',
+          title: 'Académico',
           actionText: 'Cerrar',
           onAction: () => Navigator.of(sheetContext).pop(),
           children: [
@@ -160,9 +160,9 @@ class _ProfilePageState extends State<ProfilePage> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Cerrar sesion'),
+          title: const Text('Cerrar sesión'),
           content: const Text(
-            'Quieres salir de tu cuenta en este dispositivo?',
+            '¿Quieres salir de tu cuenta en este dispositivo?',
           ),
           actions: [
             TextButton(
@@ -175,7 +175,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 backgroundColor: _ProfileColors.danger,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Cerrar sesion'),
+              child: const Text('Cerrar sesión'),
             ),
           ],
         );
@@ -230,7 +230,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   );
 
                   return SingleChildScrollView(
-                    padding: const EdgeInsets.only(bottom: 112),
+                    padding: const EdgeInsets.only(bottom: 24),
                     child: content,
                   );
                 }
@@ -240,7 +240,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     horizontalPadding,
                     22,
                     horizontalPadding,
-                    112,
+                    24,
                   ),
                   child: snapshot.hasError
                       ? _ProfileStatePanel(
@@ -361,7 +361,7 @@ class _ProfileHero extends StatelessWidget {
                 ),
                 _HeaderIconButton(
                   icon: Icons.logout_rounded,
-                  tooltip: 'Cerrar sesion',
+                  tooltip: 'Cerrar sesión',
                   onTap: onLogoutTap,
                 ),
               ],
@@ -391,7 +391,7 @@ class _ProfileHero extends StatelessWidget {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text(
-                                'La edicion de foto estara disponible pronto.',
+                                'La edición de foto estará disponible pronto.',
                               ),
                             ),
                           );
@@ -647,14 +647,14 @@ class _ProfileAccessCard extends StatelessWidget {
         _ProfileAccessTile(
           icon: Icons.person_outline_rounded,
           title: 'Datos personales',
-          subtitle: 'Documento, contacto y cierre de sesion',
+          subtitle: 'Documento, contacto y cierre de sesión',
           trailingIcon: Icons.edit_outlined,
           trailingTooltip: 'Editar datos personales',
           onTap: onPersonalTap,
         ),
         _ProfileAccessTile(
           icon: Icons.school_outlined,
-          title: 'Academico',
+          title: 'Académico',
           subtitle: 'Ficha, programa, etapa y horario',
           onTap: onAcademicTap,
         ),
@@ -669,7 +669,7 @@ class _ProfileAccessCard extends StatelessWidget {
         _ProfileAccessTile(
           icon: Icons.lock_outline_rounded,
           title: 'Seguridad',
-          subtitle: 'Clave y estado de la sesion',
+          subtitle: 'Clave y estado de la sesión',
           onTap: onSecurityTap,
         ),
       ],
@@ -1135,7 +1135,7 @@ class _PasswordFormState extends State<_PasswordForm> {
             const SizedBox(height: 14),
             const _StatusNotice(
               icon: Icons.info_outline_rounded,
-              text: 'Usa minimo 8 caracteres con letras y numeros.',
+              text: 'Usa mínimo 8 caracteres con letras y números.',
             ),
           ],
         ),
@@ -1549,7 +1549,7 @@ class _ProfileLoading extends StatelessWidget {
       children: [
         _SkeletonBox(width: 180, height: 30),
         SizedBox(height: 10),
-        _SkeletonBox(width: 320, height: 14),
+        _SkeletonBox(width: double.infinity, height: 14),
         SizedBox(height: 20),
         _SurfaceCard(
           child: Column(

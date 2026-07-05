@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sima_movil_froned/features/access.dart';
 import 'package:sima_movil_froned/services/auth_service.dart';
+import 'password_recovery_page.dart';
 import 'widgets/custom_input.dart';
 import 'widgets/custom_button.dart';
 
@@ -73,26 +74,29 @@ class _LoginPageState extends State<LoginPage> {
     final double height = mq.size.height;
 
     // --- Responsive breakpoints ---
-    final bool isSmallPhone = height < 700;
+    // El diseño se adapta al espacio real disponible, sin depender de un
+    // modelo de teléfono específico.
+    final bool isSmallPhone = height < 820 || width < 380;
     final bool isNarrow = width < 360;
+    final bool keyboardOpen = mq.viewInsets.bottom > 0;
 
     // --- Proportional values (same design, adaptive sizes) ---
     final double horizontalPad = (width * 0.06).clamp(16.0, 24.0);
 
     // Card
-    final double cardPadding = isSmallPhone || isNarrow ? 24.0 : 32.0;
+    final double cardPadding = isSmallPhone || isNarrow ? 20.0 : 32.0;
 
     // Font sizes (aumentados ligeramente)
-    final double titleFontSize = isNarrow ? 24.0 : 28.0;
-    final double subtitleFontSize = isNarrow ? 13.0 : 14.0;
+    final double titleFontSize = 28.0;
+    final double subtitleFontSize = 15.0;
     final double bodyFontSize = isNarrow ? 14.0 : 15.0;
     final double footerFontSize = isNarrow ? 11.0 : 12.0;
-    final double logoSize = isSmallPhone ? 40.0 : 45.0;
-    final double welcomeFontSize = isNarrow ? 14.0 : 16.0;
+    final double logoSize = isSmallPhone ? 50.0 : 56.0;
+    final double welcomeFontSize = 16.0;
 
     // Spacing (más ajustado en la parte superior)
-    final double fieldSpacing = isSmallPhone ? 14.0 : 18.0;
-    final double sectionSpacing = isSmallPhone ? 18.0 : 24.0;
+    final double fieldSpacing = isSmallPhone ? 10.0 : 18.0;
+    final double sectionSpacing = isSmallPhone ? 12.0 : 24.0;
 
     return Scaffold(
       // Se mantiene movible para que el teclado no dañe la vista,
@@ -110,7 +114,9 @@ class _LoginPageState extends State<LoginPage> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 return SingleChildScrollView(
-                  physics: const ClampingScrollPhysics(),
+                  physics: keyboardOpen
+                      ? const ClampingScrollPhysics()
+                      : const NeverScrollableScrollPhysics(),
                   child: ConstrainedBox(
                     constraints: BoxConstraints(
                       minHeight: constraints.maxHeight,
@@ -124,28 +130,51 @@ class _LoginPageState extends State<LoginPage> {
                             padding: EdgeInsets.only(
                               left: horizontalPad,
                               right: horizontalPad,
-                              top: isSmallPhone ? 16.0 : 24.0,
+                              top: isSmallPhone ? 12.0 : 24.0,
                               // Reducido para subir la tarjeta blanca
-                              bottom: isSmallPhone ? 12.0 : 20.0,
+                              bottom: isSmallPhone ? 10.0 : 20.0,
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Logo SENA alineado a la izquierda
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Image.asset(
-                                    'assets/images/logo-Sena.png',
-                                    height: logoSize,
-                                    width: logoSize,
-                                    fit: BoxFit.contain,
-                                    color: const Color(
-                                      0xFF39A900,
-                                    ), // verde SENA
-                                    colorBlendMode: BlendMode.srcIn,
+                                // Identidad institucional: SENA + SIMA.
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 7,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.transparent,
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Image.asset(
+                                        'assets/images/logo-Sena.png',
+                                        height: logoSize,
+                                        width: logoSize,
+                                        fit: BoxFit.contain,
+                                        color: const Color(0xFF39A900),
+                                        colorBlendMode: BlendMode.srcIn,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Container(
+                                        width: 1,
+                                        height: logoSize * 0.7,
+                                        color: Colors.white38,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Image.asset(
+                                        'assets/images/sima_logo.png',
+                                        height: logoSize,
+                                        width: logoSize,
+                                        fit: BoxFit.contain,
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                SizedBox(height: isSmallPhone ? 12.0 : 18.0),
+                                SizedBox(height: isSmallPhone ? 10.0 : 18.0),
 
                                 // Welcome Text Section
                                 Text(
@@ -168,7 +197,7 @@ class _LoginPageState extends State<LoginPage> {
                                     height: 1.15,
                                   ),
                                 ),
-                                const SizedBox(height: 10.0),
+                                SizedBox(height: isSmallPhone ? 8.0 : 10.0),
 
                                 // Subtitle
                                 Text(
@@ -190,7 +219,7 @@ class _LoginPageState extends State<LoginPage> {
                               horizontalPad * 0.55,
                               0,
                               horizontalPad * 0.55,
-                              mq.padding.bottom + 18,
+                              mq.padding.bottom + (isSmallPhone ? 8 : 18),
                             ),
                             child: Container(
                               width: double.infinity,
@@ -199,7 +228,7 @@ class _LoginPageState extends State<LoginPage> {
                                 horizontalPad,
                                 cardPadding * 0.82,
                                 horizontalPad,
-                                18.0,
+                                isSmallPhone ? 12.0 : 18.0,
                               ),
                               decoration: BoxDecoration(
                                 color: Colors.white,
@@ -249,7 +278,7 @@ class _LoginPageState extends State<LoginPage> {
                                     CustomInput(
                                       controller: _documentController,
                                       hintText:
-                                          'Ingresa tu numero de documento',
+                                          'Ingresa tu número de documento',
                                       keyboardType: TextInputType.number,
                                       prefixIcon: const Icon(
                                         Icons.mail_outline,
@@ -311,7 +340,15 @@ class _LoginPageState extends State<LoginPage> {
                                     Align(
                                       alignment: Alignment.centerRight,
                                       child: TextButton(
-                                        onPressed: () {},
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  const PasswordRecoveryPage(),
+                                            ),
+                                          );
+                                        },
                                         style: TextButton.styleFrom(
                                           padding: EdgeInsets.zero,
                                           minimumSize: Size.zero,
@@ -340,6 +377,7 @@ class _LoginPageState extends State<LoginPage> {
                                       text: _isLoading
                                           ? 'Verificando...'
                                           : 'Iniciar sesión',
+                                      height: isSmallPhone ? 48 : 54,
                                       gradient: const LinearGradient(
                                         colors: [
                                           Color(0xFF39A900),
