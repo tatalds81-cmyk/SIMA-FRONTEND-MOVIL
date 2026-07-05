@@ -14,7 +14,9 @@
 class ApiConfig {
   ApiConfig._(); // Clase no instanciable
 
-  static const String localWifiUrl = 'http://172.20.10.7/api';
+  // IP Wi-Fi actual del equipo que ejecuta el backend.
+  // El puerto 3000 es el puerto local predeterminado del backend SIMA.
+  static const String localWifiUrl = 'http://192.168.101.9:3000/api';
 
   static const String baseUrl = String.fromEnvironment(
     'SIMA_API_URL',

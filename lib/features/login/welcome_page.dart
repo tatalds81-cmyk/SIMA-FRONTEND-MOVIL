@@ -58,7 +58,7 @@ class _WelcomePageState extends State<WelcomePage> {
     // Proportional values
     final double horizontalPad = (width * 0.06).clamp(16.0, 24.0);
     final double verticalPad = isSmallPhone ? 16.0 : 24.0;
-    final double logoSize = isSmallPhone ? 44.0 : 60.0;
+    final double logoSize = isSmallPhone ? 58.0 : 68.0;
     final double welcomeFontSize = isNarrow ? 15.0 : 18.0;
     final double titleFontSize = isSmallPhone ? 26.0 : 32.0;
     final double subtitleFontSize = isNarrow ? 12.0 : 14.0;
@@ -99,34 +99,32 @@ class _WelcomePageState extends State<WelcomePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Top-left SENA Logo (Green)
-                      Image.asset(
-                        'assets/images/logo-Sena.png',
-                        height: logoSize,
-                        width: logoSize,
-                        fit: BoxFit.contain,
-                        color: const Color(0xFF39A900), // verde SENA
-                        colorBlendMode: BlendMode.srcIn,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            width: logoSize,
+                      // Identidad institucional: SENA + SIMA.
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Image.asset(
+                            'assets/images/logo-Sena.png',
                             height: logoSize,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFE0E0E0),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Center(
-                              child: Text(
-                                'SENA',
-                                style: TextStyle(
-                                  color: Color(0xFF39A900),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
+                            width: logoSize,
+                            fit: BoxFit.contain,
+                            color: const Color(0xFF39A900),
+                            colorBlendMode: BlendMode.srcIn,
+                          ),
+                          const SizedBox(width: 14),
+                          Container(
+                            width: 1,
+                            height: logoSize * 0.72,
+                            color: const Color(0xFFD8E0E9),
+                          ),
+                          const SizedBox(width: 14),
+                          Image.asset(
+                            'assets/images/sima_logo.png',
+                            height: logoSize,
+                            width: logoSize,
+                            fit: BoxFit.contain,
+                          ),
+                        ],
                       ),
                       SizedBox(height: logoToWelcome),
 

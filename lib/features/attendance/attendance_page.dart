@@ -35,6 +35,7 @@ class _AttendancePageState extends State<AttendancePage>
   Map<int, String> _competencia = {};
   Map<int, String> _justEstado = {};
   Map<int, String> _observacion = {};
+  final Set<String> _expandedAgendaRecords = {};
 
   static const List<String> _monthNames = [
     "Enero",
@@ -434,9 +435,8 @@ class _AttendancePageState extends State<AttendancePage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildSessionBanner(),
                     Container(
-                      margin: const EdgeInsets.fromLTRB(16, 2, 16, 10),
+                      margin: const EdgeInsets.fromLTRB(16, 14, 16, 10),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(10),
@@ -467,8 +467,8 @@ class _AttendancePageState extends State<AttendancePage>
                       child: TabBarView(
                         controller: _tabController,
                         children: [
-                          _buildResumenTab(),
-                          _buildHistorialTab(),
+                          _buildTabWithSessionBanner(_buildResumenTab()),
+                          _buildAgendaTab(),
                           _buildJustificarTabBackend(),
                         ],
                       ),
@@ -484,7 +484,174 @@ class _AttendancePageState extends State<AttendancePage>
   }
 
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Banner "Control de Asistencia de Aprendices" Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  Widget _buildTabWithSessionBanner(Widget content) {
+    return Column(
+      children: [
+        _buildSessionBanner(),
+        Expanded(child: content),
+      ],
+    );
+  }
+
   Widget _buildSessionBanner() {
+    final sheet = _sessionsData?['ficha'] as Map<String, dynamic>?;
+    final session = _sessionsData?['sesion_activa'] as Map<String, dynamic>?;
+    final program = sheet?['programa'] as Map<String, dynamic>?;
+    final leader = sheet?['instructor_lider'] as Map<String, dynamic>?;
+    final sheetNumber = sheet?['numero_ficha']?.toString() ?? 'No disponible';
+    final programName =
+        program?['nombre_programa']?.toString() ?? 'Programa no disponible';
+    final instructor =
+        leader?['nombre_completo']?.toString() ?? 'Instructor no disponible';
+    final journey = sheet?['jornada']?.toString() ?? 'Sin jornada';
+    final hasSession = session != null;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 2, 16, 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE1E7EF)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF092444).withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Control de Asistencia de Aprendices',
+            style: TextStyle(
+              color: Color(0xFF092444),
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_isLoadingSessions)
+            const LinearProgressIndicator(
+              minHeight: 3,
+              color: Color(0xFF39A900),
+              backgroundColor: Color(0xFFE8EEF5),
+            )
+          else if (_sessionsError != null)
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'No fue posible cargar la ficha',
+                    style: TextStyle(color: Color(0xFF607086), fontSize: 12),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _fetchSessions,
+                  child: const Text('Reintentar'),
+                ),
+              ],
+            )
+          else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF092F4F),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: const Icon(
+                    Icons.school_outlined,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Ficha $sheetNumber',
+                            style: const TextStyle(
+                              color: Color(0xFF092444),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 6),
+                            child: Text(
+                              '·',
+                              style: TextStyle(color: Color(0xFF94A3B8)),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              programName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFF607086),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.person_outline_rounded,
+                            size: 14,
+                            color: Color(0xFF607086),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              instructor,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFF607086),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            journey,
+                            style: const TextStyle(
+                              color: Color(0xFF092444),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _sessionStatusChip(hasSession),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ignore: unused_element
+  Widget _buildSessionBannerLegacy() {
     // Ã¢â€â‚¬Ã¢â€â‚¬ Extraer datos de la respuesta real del backend Ã¢â€â‚¬Ã¢â€â‚¬
     final ficha = _sessionsData?['ficha'] as Map<String, dynamic>?;
     final sesion = _sessionsData?['sesion_activa'] as Map<String, dynamic>?;
@@ -723,13 +890,15 @@ class _AttendancePageState extends State<AttendancePage>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: isActive ? const Color(0xFF39A900) : Colors.grey.shade400,
+        color: isActive
+            ? const Color(0xFF39A900).withValues(alpha: 0.13)
+            : const Color(0xFFF6A900).withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         isActive ? 'Activa' : 'Sin sesión',
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: isActive ? const Color(0xFF2B8A00) : const Color(0xFF9A6500),
           fontSize: 12,
           fontWeight: FontWeight.bold,
         ),
@@ -1125,8 +1294,6 @@ class _AttendancePageState extends State<AttendancePage>
 
     // Mapeo de datos reales desde el backend
     final asistenciaTrimestre = _dashboardData?['asistencia_trimestre'];
-    final int total = asistenciaTrimestre?['total'] ?? 0;
-
     // Fallback temporal hasta que el backend confirme el trimestre activo.
     final trimestreActivo =
         _dashboardData?['trimestre_activo'] as Map<String, dynamic>?;
@@ -1192,7 +1359,7 @@ class _AttendancePageState extends State<AttendancePage>
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -1210,12 +1377,12 @@ class _AttendancePageState extends State<AttendancePage>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Resumen',
-                  style: TextStyle(
+                Text(
+                  'Resumen · $chartTotal ${chartTotal == 1 ? 'sesión' : 'sesiones'}',
+                  style: const TextStyle(
                     color: Color(0xFF092444),
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
                 Container(
@@ -1232,7 +1399,7 @@ class _AttendancePageState extends State<AttendancePage>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Trimestre $numeroTrimestre',
+                        'Trim. $numeroTrimestre',
                         style: const TextStyle(
                           color: Color(0xFF092444),
                           fontSize: 13,
@@ -1250,32 +1417,27 @@ class _AttendancePageState extends State<AttendancePage>
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Total sesiones: $total',
-              style: const TextStyle(color: Color(0xFF607086), fontSize: 13),
-            ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             // Dona centrada
             Center(
               child: SizedBox(
-                width: 180,
+                width: 150,
                 child: Stack(
                   clipBehavior: Clip.none,
                   alignment: Alignment.center,
                   children: [
                     SizedBox(
-                      width: 180,
-                      height: 180,
+                      width: 150,
+                      height: 150,
                       child: MouseRegion(
                         onHover: (event) {
-                          final center = const Offset(90, 90);
+                          final center = const Offset(75, 75);
                           final dx = event.localPosition.dx - center.dx;
                           final dy = event.localPosition.dy - center.dy;
                           final distance = math.sqrt(dx * dx + dy * dy);
 
-                          const double strokeWidth = 180 * 0.18;
-                          const double outerRadius = 90;
+                          const double strokeWidth = 150 * 0.18;
+                          const double outerRadius = 75;
                           const double innerRadius = outerRadius - strokeWidth;
 
                           if (distance >= innerRadius &&
@@ -1349,13 +1511,13 @@ class _AttendancePageState extends State<AttendancePage>
                         child: GestureDetector(
                           behavior: HitTestBehavior.opaque,
                           onTapUp: (details) {
-                            final center = const Offset(90, 90);
+                            final center = const Offset(75, 75);
                             final dx = details.localPosition.dx - center.dx;
                             final dy = details.localPosition.dy - center.dy;
                             final distance = math.sqrt(dx * dx + dy * dy);
 
-                            const double strokeWidth = 180 * 0.18;
-                            const double outerRadius = 90;
+                            const double strokeWidth = 150 * 0.18;
+                            const double outerRadius = 75;
                             const double innerRadius =
                                 outerRadius - strokeWidth;
 
@@ -1595,17 +1757,8 @@ class _AttendancePageState extends State<AttendancePage>
                     ),
                   ),
                 ),
-                Text(
-                  '$count',
-                  style: const TextStyle(
-                    color: Color(0xFF092444),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(width: 8),
                 SizedBox(
-                  width: 40,
+                  width: 46,
                   child: Text(
                     '$pctInt%',
                     textAlign: TextAlign.right,
@@ -2049,7 +2202,7 @@ class _AttendancePageState extends State<AttendancePage>
       case 'tarde':
         return 'Tarde';
       case 'ausente':
-        return 'Ausente';
+        return 'Inasistente';
       case 'justificada':
         return 'Justificado';
       default:
@@ -2168,6 +2321,657 @@ class _AttendancePageState extends State<AttendancePage>
     ],
   );
 
+  DateTime get _agendaSelectedDate =>
+      DateTime(_year, _monthIndex + 1, _selectedDay);
+
+  List<DateTime> get _agendaWeek {
+    final selected = _agendaSelectedDate;
+    final sunday = selected.subtract(Duration(days: selected.weekday % 7));
+    return List.generate(7, (index) => sunday.add(Duration(days: index)));
+  }
+
+  Future<void> _selectAgendaDate(DateTime date) async {
+    final changesMonth = date.month != _monthIndex + 1 || date.year != _year;
+    setState(() {
+      _selectedDay = date.day;
+      _monthIndex = date.month - 1;
+      _year = date.year;
+    });
+    if (changesMonth) await _fetchCalendar();
+  }
+
+  void _changeAgendaWeek(int direction) {
+    _selectAgendaDate(
+      _agendaSelectedDate.add(Duration(days: direction * 7)),
+    );
+  }
+
+  String? _agendaStatusForDate(DateTime date) {
+    if (date.year != _year || date.month != _monthIndex + 1) return null;
+    return _attendanceStatus[date.day];
+  }
+
+  List<Map<String, dynamic>> _agendaRecords() {
+    final result = <Map<String, dynamic>>[];
+    for (final raw in _calendarData ?? const <dynamic>[]) {
+      if (raw is! Map) continue;
+      final record = Map<String, dynamic>.from(raw);
+      final session = record['sesion'];
+      if (session is! Map) continue;
+      final date = DateTime.tryParse(session['fecha_clase']?.toString() ?? '');
+      if (date != null &&
+          date.year == _year &&
+          date.month == _monthIndex + 1 &&
+          date.day == _selectedDay) {
+        result.add(record);
+      }
+    }
+    result.sort((a, b) {
+      final aSession = a['sesion'] as Map?;
+      final bSession = b['sesion'] as Map?;
+      return (aSession?['hora_inicio_programada']?.toString() ?? '').compareTo(
+        bSession?['hora_inicio_programada']?.toString() ?? '',
+      );
+    });
+    return result;
+  }
+
+  String _agendaText(List<dynamic> values, [String fallback = '']) {
+    for (final value in values) {
+      final text = value?.toString().trim() ?? '';
+      if (text.isNotEmpty && text.toLowerCase() != 'null') return text;
+    }
+    return fallback;
+  }
+
+  String _agendaTime(dynamic value) {
+    final text = value?.toString() ?? '';
+    return text.length >= 5 ? text.substring(0, 5) : text;
+  }
+
+  String _latestJustification(Map<String, dynamic> record) {
+    final raw = record['justificaciones'];
+    if (raw is! List || raw.isEmpty) return '';
+    final items = raw.whereType<Map>().toList()
+      ..sort(
+        (a, b) => (b['fecha_envio']?.toString() ?? '').compareTo(
+          a['fecha_envio']?.toString() ?? '',
+        ),
+      );
+    return items.isEmpty
+        ? ''
+        : items.first['estado']?.toString().toUpperCase() ?? '';
+  }
+
+  ({String label, Color color}) _agendaStatus(
+    Map<String, dynamic> record,
+  ) {
+    final justification = _latestJustification(record);
+    if (justification == 'APROBADA') {
+      return (label: 'Justificado', color: const Color(0xFF1565C0));
+    }
+    if (justification == 'PENDIENTE') {
+      return (label: 'En revisión', color: const Color(0xFFF6A900));
+    }
+    final state = _normalizeAttendanceState(
+      record['estado_ep05'] ?? record['estado_asistencia'] ?? record['estado'],
+    );
+    switch (state) {
+      case 'PRESENTE':
+        return (label: 'Presente', color: const Color(0xFF39A900));
+      case 'TARDE':
+        return (label: 'Tarde', color: const Color(0xFFF6A900));
+      case 'JUSTIFICADA':
+      case 'JUSTIFICADO':
+        return (label: 'Justificado', color: const Color(0xFF1565C0));
+      case 'INASISTENTE':
+      case 'INASISTENCIA':
+        return (label: 'Inasistente', color: const Color(0xFFE53935));
+      default:
+        return (label: 'Pendiente', color: const Color(0xFF607086));
+    }
+  }
+
+  String _agendaRecordKey(
+    Map<String, dynamic> record,
+    Map<String, dynamic> session,
+  ) {
+    return _agendaText([
+      record['id_asistencia'],
+      session['id_sesion'],
+      session['id'],
+      '${session['fecha_clase']}-${session['hora_inicio_programada']}',
+    ]);
+  }
+
+  Widget _agendaDetailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFF39A900)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: const TextStyle(
+                  color: Color(0xFF607086),
+                  fontSize: 12.5,
+                  height: 1.3,
+                ),
+                children: [
+                  TextSpan(
+                    text: '$label: ',
+                    style: const TextStyle(
+                      color: Color(0xFF092444),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  TextSpan(text: value),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAgendaRecord(Map<String, dynamic> record) {
+    final session = Map<String, dynamic>.from(
+      record['sesion'] as Map? ?? const {},
+    );
+    final competence = session['competencia'] as Map?;
+    final environment = session['ambiente'] as Map?;
+    final status = _agendaStatus(record);
+    final justification = _latestJustification(record);
+    final title = _agendaText([
+      competence?['nombre_competencia'],
+      session['nombre_competencia'],
+      session['nombre'],
+    ], 'Sesión programada');
+    final instructor = _agendaText([
+      _instructorNameFromSession(session),
+    ], 'Sin instructor');
+    final room = _agendaText([
+      environment?['nombre_ambiente'],
+      environment?['nombre'],
+      session['ambiente_nombre'],
+    ], 'Ambiente por definir');
+    final start = _agendaTime(session['hora_inicio_programada']);
+    final end = _agendaTime(session['hora_fin_programada']);
+    final observation = _agendaText([
+      record['observacion'],
+      justification == 'RECHAZADA'
+          ? 'Soporte rechazado. Puedes enviarlo nuevamente.'
+          : null,
+    ]);
+    final state = _normalizeAttendanceState(
+      record['estado_ep05'] ?? record['estado_asistencia'] ?? record['estado'],
+    );
+    final canJustify = justification == 'RECHAZADA' ||
+        _canShowJustifyButton(
+          state == 'TARDE'
+              ? 'tarde'
+              : (state == 'INASISTENTE' || state == 'INASISTENCIA')
+                  ? 'ausente'
+                  : null,
+          justification,
+        );
+    final recordKey = _agendaRecordKey(record, session);
+    final isExpanded = _expandedAgendaRecords.contains(recordKey);
+    final sessionSheet = session['ficha'] as Map?;
+    final activeSheet = _sessionsData?['ficha'] as Map?;
+    final sheetNumber = _agendaText([
+      sessionSheet?['numero_ficha'],
+      activeSheet?['numero_ficha'],
+    ], 'No disponible');
+    final program = _agendaText([
+      (sessionSheet?['programa'] as Map?)?['nombre_programa'],
+      (activeSheet?['programa'] as Map?)?['nombre_programa'],
+      session['programa_nombre'],
+    ], 'No disponible');
+    final date = _agendaText([session['fecha_clase']], 'No disponible');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE4EAF2)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF092444).withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(width: 5, color: status.color),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.schedule_rounded,
+                            size: 15,
+                            color: Color(0xFF607086),
+                          ),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              start.isEmpty
+                                  ? 'Horario por definir'
+                                  : '$start${end.isEmpty ? '' : ' - $end'}',
+                              style: const TextStyle(
+                                color: Color(0xFF607086),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: status.color.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              status.label,
+                              style: TextStyle(
+                                color: status.color,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: Color(0xFF092444),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        '$instructor · $room',
+                        style: const TextStyle(
+                          color: Color(0xFF607086),
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (observation.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          observation,
+                          style: TextStyle(
+                            color: status.color,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            if (isExpanded) {
+                              _expandedAgendaRecords.remove(recordKey);
+                            } else {
+                              _expandedAgendaRecords.add(recordKey);
+                            }
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 5),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                isExpanded ? 'Ver menos' : 'Ver más información',
+                                style: const TextStyle(
+                                  color: Color(0xFF092444),
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              AnimatedRotation(
+                                turns: isExpanded ? 0.5 : 0,
+                                duration: const Duration(milliseconds: 180),
+                                child: const Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  size: 19,
+                                  color: Color(0xFF39A900),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      AnimatedCrossFade(
+                        duration: const Duration(milliseconds: 220),
+                        crossFadeState: isExpanded
+                            ? CrossFadeState.showSecond
+                            : CrossFadeState.showFirst,
+                        firstChild: const SizedBox(width: double.infinity),
+                        secondChild: Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(top: 8),
+                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5F8FC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE1E7EF)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _agendaDetailRow(
+                                Icons.calendar_today_outlined,
+                                'Fecha',
+                                date,
+                              ),
+                              _agendaDetailRow(
+                                Icons.badge_outlined,
+                                'Ficha',
+                                sheetNumber,
+                              ),
+                              _agendaDetailRow(
+                                Icons.school_outlined,
+                                'Programa',
+                                program,
+                              ),
+                              _agendaDetailRow(
+                                Icons.menu_book_outlined,
+                                'Competencia',
+                                title,
+                              ),
+                              _agendaDetailRow(
+                                Icons.person_outline_rounded,
+                                'Instructor',
+                                instructor,
+                              ),
+                              _agendaDetailRow(
+                                Icons.place_outlined,
+                                'Ambiente',
+                                room,
+                              ),
+                              _agendaDetailRow(
+                                Icons.verified_outlined,
+                                'Estado',
+                                status.label,
+                              ),
+                              if (justification.isNotEmpty)
+                                _agendaDetailRow(
+                                  Icons.description_outlined,
+                                  'Justificación',
+                                  _justLabel(justification),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (canJustify) ...[
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: OutlinedButton.icon(
+                            onPressed: _goToJustificationsTab,
+                            icon: const Icon(Icons.upload_file_rounded, size: 16),
+                            label: Text(
+                              justification == 'RECHAZADA'
+                                  ? 'Reintentar'
+                                  : 'Justificar',
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF092444),
+                              visualDensity: VisualDensity.compact,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAgendaTab() {
+    if (_isLoadingCalendar) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF39A900)),
+      );
+    }
+    if (_calendarError != null) {
+      return Center(
+        child: ElevatedButton.icon(
+          onPressed: _fetchCalendar,
+          icon: const Icon(Icons.refresh_rounded),
+          label: const Text('Reintentar'),
+        ),
+      );
+    }
+
+    const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    final selected = _agendaSelectedDate;
+    final today = DateUtils.dateOnly(DateTime.now());
+    final records = _agendaRecords();
+    final isToday = DateUtils.isSameDay(selected, today);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isToday ? 'Hoy' : _dayName(_selectedDay),
+                      style: const TextStyle(
+                        color: Color(0xFF092444),
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '$_selectedDay de ${_monthNames[_monthIndex].toLowerCase()} de $_year',
+                      style: const TextStyle(
+                        color: Color(0xFF607086),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _navBtn(
+                Icons.chevron_left_rounded,
+                () => _changeAgendaWeek(-1),
+              ),
+              const SizedBox(width: 8),
+              _navBtn(
+                Icons.chevron_right_rounded,
+                () => _changeAgendaWeek(1),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFE4EAF2)),
+            ),
+            child: Row(
+              children: _agendaWeek.map((date) {
+                final active = DateUtils.isSameDay(date, selected);
+                final current = DateUtils.isSameDay(date, today);
+                final dateStatus = _agendaStatusForDate(date);
+                return Expanded(
+                  child: InkWell(
+                    onTap: () => _selectAgendaDate(date),
+                    borderRadius: BorderRadius.circular(14),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(vertical: 9),
+                      decoration: BoxDecoration(
+                        color: active
+                            ? const Color(0xFF092F4F)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(14),
+                        border: current && !active
+                            ? Border.all(color: const Color(0xFF39A900))
+                            : null,
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            dayNames[date.weekday % 7],
+                            style: TextStyle(
+                              color: active
+                                  ? Colors.white70
+                                  : const Color(0xFF607086),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            '${date.day}',
+                            style: TextStyle(
+                              color: active
+                                  ? Colors.white
+                                  : const Color(0xFF092444),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          if (dateStatus != null) ...[
+                            const SizedBox(height: 4),
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: _statusColor(dateStatus),
+                                shape: BoxShape.circle,
+                                border: active
+                                    ? Border.all(color: Colors.white, width: 1)
+                                    : null,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE4EAF2)),
+            ),
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 12,
+              runSpacing: 7,
+              children: [
+                _legendDot(const Color(0xFF44C21E), 'Presente'),
+                _legendDot(const Color(0xFFE53935), 'Inasistente'),
+                _legendDot(const Color(0xFF1565C0), 'Justificado'),
+                _legendDot(const Color(0xFFF6A900), 'Tarde'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            records.isEmpty
+                ? 'Agenda del día'
+                : '${records.length} ${records.length == 1 ? 'sesión' : 'sesiones'}',
+            style: const TextStyle(
+              color: Color(0xFF092444),
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (records.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 34),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE4EAF2)),
+              ),
+              child: const Column(
+                children: [
+                  Icon(
+                    Icons.event_available_rounded,
+                    color: Color(0xFF39A900),
+                    size: 34,
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    'No hay sesiones registradas este día',
+                    style: TextStyle(
+                      color: Color(0xFF607086),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            ...records.map(_buildAgendaRecord),
+        ],
+      ),
+    );
+  }
+
+  // Se conserva como respaldo durante la transición a la agenda semanal.
+  // ignore: unused_element
   Widget _buildHistorialTab() {
     if (_isLoadingCalendar) {
       return const Center(
@@ -2580,7 +3384,7 @@ class _AttendancePageState extends State<AttendancePage>
                   runSpacing: 10,
                   children: [
                     _legendDot(const Color(0xFF44C21E), 'Presente'),
-                    _legendDot(const Color(0xFFE53935), 'Ausente'),
+                    _legendDot(const Color(0xFFE53935), 'Inasistente'),
                     _legendDot(const Color(0xFF1565C0), 'Justificado'),
                     _legendDot(const Color(0xFFF6A900), 'Tarde'),
                   ],
