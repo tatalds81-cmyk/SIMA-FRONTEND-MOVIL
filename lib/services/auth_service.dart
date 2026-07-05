@@ -113,7 +113,9 @@ class AuthService {
       final rawMessage = e.toString();
       final cleanMessage = rawMessage.startsWith('Exception: ')
           ? rawMessage.replaceFirst('Exception: ', '')
-          : 'Error de conexión. Verifica que el backend esté corriendo en ${ApiConfig.baseUrl}';
+          : 'No fue posible conectar con ${ApiConfig.baseUrl}. '
+              'Verifica que el backend esté iniciado y que el celular y el PC '
+              'estén en la misma red Wi-Fi.';
       return LoginResult(ok: false, message: cleanMessage);
     }
   }

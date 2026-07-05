@@ -444,7 +444,7 @@ class _HomePageState extends State<HomePage> {
                 ),
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(24, 22, 24, 144),
+                    padding: const EdgeInsets.fromLTRB(24, 22, 24, 12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -546,7 +546,6 @@ class _HomePageState extends State<HomePage> {
                                   isLoading: isLoading,
                                   emptyMessage: data.scheduleMessage,
                                 ),
-                                const SizedBox(height: 18),
                               ],
                             );
                           },
