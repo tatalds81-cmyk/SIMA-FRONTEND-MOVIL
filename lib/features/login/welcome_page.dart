@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+
 import 'login_page.dart';
 
 class WelcomePage extends StatefulWidget {
@@ -10,31 +12,23 @@ class WelcomePage extends StatefulWidget {
 }
 
 class _WelcomePageState extends State<WelcomePage> {
-  int _counter = 3; // Solicitado: 3 segundos
+  int _counter = 3;
   Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    _startTimer();
-  }
-
-  void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_counter > 1) {
-        setState(() {
-          _counter--;
-        });
-      } else {
-        _timer?.cancel();
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const LoginPage(),
-            ),
-          );
-        }
+        setState(() => _counter--);
+        return;
+      }
+      timer.cancel();
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginPage()),
+        );
       }
     });
   }
@@ -47,197 +41,111 @@ class _WelcomePageState extends State<WelcomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final mq = MediaQuery.of(context);
-    final double height = mq.size.height;
-    final double width = mq.size.width;
-
-    // Responsive breakpoints
-    final bool isSmallPhone = height < 700;
-    final bool isNarrow = width < 360;
-
-    // Proportional values
-    final double horizontalPad = (width * 0.06).clamp(16.0, 24.0);
-    final double verticalPad = isSmallPhone ? 16.0 : 24.0;
-    final double logoSize = isSmallPhone ? 58.0 : 68.0;
-    final double welcomeFontSize = isNarrow ? 15.0 : 18.0;
-    final double titleFontSize = isSmallPhone ? 26.0 : 32.0;
-    final double subtitleFontSize = isNarrow ? 12.0 : 14.0;
-    final double countdownFontSize = isNarrow ? 12.0 : 14.0;
-
-    // Spacing
-    final double logoToWelcome = isSmallPhone ? 16.0 : 24.0;
-    final double welcomeToTitle = isSmallPhone ? 8.0 : 12.0;
-    final double titleToSubtitle = isSmallPhone ? 10.0 : 16.0;
-    final double subtitleToImage = isSmallPhone ? 12.0 : 20.0;
+    final size = MediaQuery.sizeOf(context);
+    final compact = size.height < 700;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF092444), // Azul oscuro institucional homologado con el login
+      backgroundColor: const Color(0xFF092444),
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
-            // El espacio azul que queda visible 
-            SizedBox(height: isSmallPhone ? 35.0 : 50.0),
-            
-            // Tarjeta blanca principal interna con bordes redondeados
+            SizedBox(height: compact ? 22 : 38),
             Expanded(
               child: Container(
                 width: double.infinity,
+                padding: EdgeInsets.fromLTRB(
+                  (size.width * .07).clamp(20.0, 30.0),
+                  compact ? 20 : 28,
+                  (size.width * .07).clamp(20.0, 30.0),
+                  0,
+                ),
                 decoration: const BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(30),
-                    topRight: Radius.circular(30),
-                  ),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
                 ),
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    left: horizontalPad,
-                    right: horizontalPad,
-                    top: verticalPad,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Identidad institucional: SENA + SIMA.
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Image.asset(
-                            'assets/images/logo-Sena.png',
-                            height: logoSize,
-                            width: logoSize,
-                            fit: BoxFit.contain,
-                            color: const Color(0xFF39A900),
-                            colorBlendMode: BlendMode.srcIn,
-                          ),
-                          const SizedBox(width: 14),
-                          Container(
-                            width: 1,
-                            height: logoSize * 0.72,
-                            color: const Color(0xFFD8E0E9),
-                          ),
-                          const SizedBox(width: 14),
-                          Image.asset(
-                            'assets/images/sima_logo.png',
-                            height: logoSize,
-                            width: logoSize,
-                            fit: BoxFit.contain,
-                          ),
-                        ],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Image.asset(
+                        'assets/images/logo-Sena.png',
+                        width: compact ? 62 : 72,
+                        height: compact ? 62 : 72,
+                        fit: BoxFit.contain,
+                        color: const Color(0xFF39A900),
+                        colorBlendMode: BlendMode.srcIn,
                       ),
-                      SizedBox(height: logoToWelcome),
-
-                      // Welcome text (Light Blue)
-                      Text(
-                        'Bienvenido a SIMA',
-                        style: TextStyle(
-                          fontSize: welcomeFontSize,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF00A4E4),
+                    ),
+                    SizedBox(height: compact ? 10 : 15),
+                    Text(
+                      'Bienvenido a SIMA',
+                      style: TextStyle(
+                        color: const Color(0xFF00A4E4),
+                        fontSize: compact ? 16 : 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Sistema Integral\nde Monitoreo del\nAprendiz',
+                      style: TextStyle(
+                        color: const Color(0xFF052D4F),
+                        fontSize: compact ? 27 : 32,
+                        height: 1.12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: compact ? 9 : 14),
+                    const Text(
+                      'Herramienta dise\u00f1ada para el seguimiento acad\u00e9mico de los aprendices.',
+                      style: TextStyle(
+                        color: Color(0xFF596879),
+                        fontSize: 14,
+                        height: 1.4,
+                      ),
+                    ),
+                    SizedBox(height: compact ? 6 : 10),
+                    Expanded(
+                      child: Center(
+                        child: Image.asset(
+                          'assets/images/aprendices_sena.png',
+                          fit: BoxFit.contain,
+                          alignment: Alignment.center,
                         ),
                       ),
-                      SizedBox(height: welcomeToTitle),
-                      
-                      // Title (Azul Oscuro sobre fondo blanco)
-                      Text(
-                        'Sistema Integral\nde Monitoreo del\nAprendiz',
-                        style: TextStyle(
-                          fontSize: titleFontSize,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF052D4F), // Color ajustado para fondo blanco
-                          height: 1.15,
-                        ),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.only(
+                        top: 10,
+                        bottom: MediaQuery.paddingOf(context).bottom + 18,
                       ),
-                      SizedBox(height: titleToSubtitle),
-
-                      // Subtitle (Gris oscuro sobre fondo blanco)
-                      Text(
-                        'Herramienta diseñada para el\nseguimiento academico de los\naprendices.',
-                        style: TextStyle(
-                          fontSize: subtitleFontSize,
-                          color: const Color(0xFF596879), // Color ajustado para fondo blanco
-                          height: 1.5,
-                        ),
-                      ),
-
-                      // Spacer to push image down a bit if needed
-                      SizedBox(height: subtitleToImage),
-
-                      // Image of Apprentices
-                      Expanded(
-                        child: Center(
-                          child: Image.asset(
-                            'assets/images/aprendices_sena.png',
-                            fit: BoxFit.contain,
-                            alignment: Alignment.bottomCenter,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                height: height * 0.2,
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF052D4F).withValues(alpha: 0.05),
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: const Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.people_outline,
-                                      color: Color(0xFF052D4F),
-                                      size: 64,
-                                    ),
-                                    SizedBox(height: 12),
-                                    Text(
-                                      '[Imagen de Aprendices SENA]',
-                                      style: TextStyle(
-                                        color: Color(0xFF596879),
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                      
-                      // Bottom part with the countdown in the white area
-                      Padding(
-                        padding: EdgeInsets.only(
-                          bottom: isSmallPhone ? 20.0 : 32.0,
-                          top: isSmallPhone ? 10.0 : 16.0,
-                        ),
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(
-                                height: isSmallPhone ? 20.0 : 24.0,
-                                width: isSmallPhone ? 20.0 : 24.0,
-                                child: const CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF39A900)),
-                                ),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Color(0xFF39A900),
                               ),
-                              SizedBox(height: isSmallPhone ? 8.0 : 12.0),
-                              Text(
-                                'Redirigiendo en $_counter...',
-                                style: TextStyle(
-                                  fontSize: countdownFontSize,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF052D4F),
-                                ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Redirigiendo en $_counter...',
+                              style: const TextStyle(
+                                color: Color(0xFF052D4F),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
                               ),
-                              // Agregado un poco de padding bottom extra debido al safearea bottom=false
-                              SizedBox(height: mq.padding.bottom),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
