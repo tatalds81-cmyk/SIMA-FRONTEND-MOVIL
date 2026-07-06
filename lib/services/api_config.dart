@@ -14,19 +14,18 @@
 class ApiConfig {
   ApiConfig._(); // Clase no instanciable
 
-  // IP Wi-Fi actual del equipo que ejecuta el backend.
-  // El puerto 3000 es el puerto local predeterminado del backend SIMA.
-  static const String localWifiUrl = 'http://192.168.101.9:3000/api';
+  // Backend local de la PC. En Android fisico se accede mediante:
+  // adb reverse tcp:3000 tcp:3000
+  static const String localUsbUrl = 'http://127.0.0.1:3000/api';
 
   static const String baseUrl = String.fromEnvironment(
     'SIMA_API_URL',
-    defaultValue: localWifiUrl,
+    defaultValue: localUsbUrl,
   );
 
-
   // Endpoints de autenticación
-    static const String login = '$baseUrl/auth/login';
-    static const String me = '$baseUrl/auth/me';
+  static const String login = '$baseUrl/auth/login';
+  static const String me = '$baseUrl/auth/me';
 
   // Endpoints de aprendiz
   static const String apprenticeDashboard =

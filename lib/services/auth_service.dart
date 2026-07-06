@@ -1,122 +1,142 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+
 import 'package:http/http.dart' as http;
+
 import 'api_config.dart';
 
-/// Resultado del intento de login.
-/// Encapsula éxito, token, datos de usuario o mensaje de error.
 class LoginResult {
-  final bool ok;
-  final String message;
-  final String? token;
-  final Map<String, dynamic>? user;
-
   const LoginResult({
     required this.ok,
     required this.message,
     this.token,
     this.user,
   });
+
+  final bool ok;
+  final String message;
+  final String? token;
+  final Map<String, dynamic>? user;
 }
 
-/// Servicio de autenticación que se comunica con el backend SIMA.
 class AuthService {
-  AuthService._(); // Clase no instanciable
+  AuthService._();
 
-  /// Token de sesión en memoria
   static String? currentToken;
-  
-  /// Usuario autenticado en memoria
   static Map<String, dynamic>? currentUser;
 
-  /// Realiza POST /api/auth/login con [documento] y [password].
-  ///
-  /// El backend acepta tanto `documento` como `numero_documento`.
-  /// Usamos `documento` como campo principal.
-  ///
-  /// Respuesta exitosa del backend:
-  /// ```json
-  /// {
-  ///   "ok": true,
-  ///   "message": "Inicio de sesión exitoso",
-  ///   "data": {
-  ///     "token": "JWT...",
-  ///     "user": { "id_usuario": 1, "rol": "aprendiz", ... }
-  ///   }
-  /// }
-  /// ```
   static Future<LoginResult> login({
     required String documento,
     required String password,
   }) async {
     try {
-      final uri = Uri.parse(ApiConfig.login);
+      final response = await _postLogin(
+        documento: documento.trim(),
+        password: password,
+      );
 
-      final response = await http
-          .post(
-            uri,
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: jsonEncode({
-              'documento': documento.trim(),
-              'password': password,
-            }),
-          )
-          .timeout(
-            const Duration(seconds: 15),
-            onTimeout: () => throw Exception(
-              'El servidor no respondió. Verifica tu conexión o que el backend esté en línea.',
-            ),
-          );
-
-      // Intentar decodificar la respuesta como JSON
-      Map<String, dynamic> responseBody;
+      final Map<String, dynamic> body;
       try {
-        responseBody = jsonDecode(response.body) as Map<String, dynamic>;
+        body =
+            jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
       } catch (_) {
         return const LoginResult(
           ok: false,
-          message: 'El servidor devolvió una respuesta inesperada.',
+          message: 'El servidor devolvi\u00f3 una respuesta inesperada.',
         );
       }
 
-      final bool serverOk = responseBody['ok'] == true;
-      final String serverMessage =
-          responseBody['message'] as String? ?? 'Sin mensaje del servidor';
+      final serverMessage =
+          body['message'] as String? ??
+          'El servidor no devolvi\u00f3 ning\u00fan mensaje.';
+      final success =
+          response.statusCode >= 200 &&
+          response.statusCode < 300 &&
+          body['ok'] == true;
 
-      if (response.statusCode == 200 && serverOk) {
-        // Éxito: extraer token y user desde response.data.data
-        final data = responseBody['data'] as Map<String, dynamic>?;
-        final token = data?['token'] as String?;
-        final user = data?['user'] as Map<String, dynamic>?;
+      if (!success) {
+        return LoginResult(ok: false, message: serverMessage);
+      }
 
-        // Guardar temporalmente en memoria
-        currentToken = token;
-        currentUser = user;
-
-        return LoginResult(
-          ok: true,
-          message: serverMessage,
-          token: token,
-          user: user,
-        );
-      } else {
-        // Error del servidor (401, 403, 400, etc.) con mensaje real
-        return LoginResult(
+      final data = body['data'] as Map<String, dynamic>?;
+      final token = data?['token'] as String?;
+      final user = data?['user'] as Map<String, dynamic>?;
+      if (token == null || token.isEmpty || user == null) {
+        return const LoginResult(
           ok: false,
-          message: serverMessage,
+          message: 'La sesi\u00f3n recibida no es v\u00e1lida.',
         );
       }
-    } on Exception catch (e) {
-      // Error de red, timeout u otro error inesperado
-      final rawMessage = e.toString();
-      final cleanMessage = rawMessage.startsWith('Exception: ')
-          ? rawMessage.replaceFirst('Exception: ', '')
-          : 'No fue posible conectar con ${ApiConfig.baseUrl}. '
-              'Verifica que el backend esté iniciado y que el celular y el PC '
-              'estén en la misma red Wi-Fi.';
-      return LoginResult(ok: false, message: cleanMessage);
+
+      currentToken = token;
+      currentUser = user;
+      return LoginResult(
+        ok: true,
+        message: serverMessage,
+        token: token,
+        user: user,
+      );
+    } on TimeoutException {
+      return const LoginResult(
+        ok: false,
+        message:
+            'El servidor est\u00e1 tardando en responder. Intenta nuevamente en unos segundos.',
+      );
+    } on SocketException {
+      return const LoginResult(
+        ok: false,
+        message:
+            'No hay conexi\u00f3n con el servidor. Revisa el internet del celular.',
+      );
+    } on http.ClientException {
+      return const LoginResult(
+        ok: false,
+        message:
+            'No fue posible establecer una conexi\u00f3n segura con el servidor.',
+      );
+    } catch (_) {
+      return const LoginResult(
+        ok: false,
+        message: 'Ocurri\u00f3 un error inesperado al iniciar sesi\u00f3n.',
+      );
     }
+  }
+
+  static Future<http.Response> _postLogin({
+    required String documento,
+    required String password,
+  }) async {
+    Object? lastError;
+
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await http
+            .post(
+              Uri.parse(ApiConfig.login),
+              headers: const {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: jsonEncode({'documento': documento, 'password': password}),
+            )
+            .timeout(const Duration(seconds: 35));
+      } on TimeoutException catch (error) {
+        lastError = error;
+      } on SocketException catch (error) {
+        lastError = error;
+      } on http.ClientException catch (error) {
+        lastError = error;
+      }
+
+      if (attempt == 0) {
+        await Future<void>.delayed(const Duration(seconds: 2));
+      }
+    }
+
+    if (lastError is TimeoutException) throw lastError;
+    if (lastError is SocketException) throw lastError;
+    if (lastError is http.ClientException) throw lastError;
+    throw http.ClientException('No fue posible conectar con el servidor.');
   }
 }

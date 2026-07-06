@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "sima_movil_froned" "\0"
+            VALUE "FileDescription", "SIMA" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "sima_movil_froned" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
             VALUE "OriginalFilename", "sima_movil_froned.exe" "\0"
-            VALUE "ProductName", "sima_movil_froned" "\0"
+            VALUE "ProductName", "SIMA" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
