@@ -6,6 +6,9 @@ import 'package:sima_movil_froned/services/attendance_service.dart';
 import 'package:sima_movil_froned/services/hardware/local_auth_service.dart';
 import 'package:sima_movil_froned/services/hardware/location_service.dart';
 
+final String _dashboardDeviceUuid =
+    'sima-mobile-mvp-${DateTime.now().millisecondsSinceEpoch}';
+
 Future<bool> startDashboardQrFlow(BuildContext context) async {
   final result = await Navigator.of(context).push<bool>(
     MaterialPageRoute(builder: (_) => const _DashboardQrScannerScreen()),
@@ -43,6 +46,8 @@ class _DashboardQrScannerScreenState extends State<_DashboardQrScannerScreen> {
         throw Exception('El código QR no coincide con tu sesión activa.');
       }
 
+      final idSesionActiva = await _getActiveSessionId();
+
       if (!mounted) return;
 
       final selectedMethod = await Navigator.of(context)
@@ -60,23 +65,46 @@ class _DashboardQrScannerScreenState extends State<_DashboardQrScannerScreen> {
 
       if (!mounted) return;
 
-      final biometricSuccess = await Navigator.of(context).push<bool>(
+      final challenge = await AttendanceService.requestMobileBiometricChallenge({
+        'id_sesion_formacion': idSesionActiva,
+        'token_qr': value,
+        'device_uuid': _dashboardDeviceUuid,
+        'metodo_solicitado': selectedMethod.biometricMethod,
+      });
+
+      final locationData = await LocationService.getCurrentLocation();
+
+      if (!mounted) return;
+
+      var biometricOutcome =
+          await Navigator.of(context).push<_DashboardBiometricOutcome?>(
         MaterialPageRoute(
           builder: (_) => _DashboardBiometricStep(type: selectedMethod),
         ),
       );
-      if (biometricSuccess != true) {
-        throw Exception(
-          selectedMethod == _DashboardStepType.face
-              ? 'No se pudo validar tu rostro. Inténtalo nuevamente.'
-              : 'No se pudo verificar tu huella. Inténtalo nuevamente.',
+
+      if (selectedMethod == _DashboardStepType.face &&
+          (biometricOutcome == null || !biometricOutcome.approved)) {
+        if (!mounted) return;
+        await _showFacialFallbackMessage(biometricOutcome);
+        if (!mounted) return;
+        biometricOutcome =
+            await Navigator.of(context).push<_DashboardBiometricOutcome?>(
+          MaterialPageRoute(
+            builder: (_) => const _DashboardBiometricStep(
+              type: _DashboardStepType.fingerprint,
+            ),
+          ),
         );
       }
 
-      if (!mounted) return;
-
-      final idSesionActiva = await _getActiveSessionId();
-      final locationData = await LocationService.getCurrentLocation();
+      if (biometricOutcome == null || !biometricOutcome.approved) {
+        throw Exception(
+          selectedMethod == _DashboardStepType.face
+              ? 'No se pudo validar la biometria facial ni la biometria del dispositivo. Solicita apoyo al instructor.'
+              : 'No se pudo verificar tu huella. Inténtalo nuevamente.',
+        );
+      }
 
       await AttendanceService.registerQrAttendance({
         'id_sesion_formacion': idSesionActiva,
@@ -86,6 +114,16 @@ class _DashboardQrScannerScreenState extends State<_DashboardQrScannerScreen> {
         'precision': locationData['precision'],
         'mocked': locationData['mocked'],
         'local_auth': true,
+        'device_uuid': _dashboardDeviceUuid,
+        'biometric_method': biometricOutcome.method,
+        'biometric_result': 'APROBADO',
+        'biometric_challenge_token': challenge['challenge_token'],
+        'biometric_metadata': {
+          'provider': biometricOutcome.provider,
+          'attempt_number': biometricOutcome.attemptNumber,
+          'duration_ms': biometricOutcome.durationMs,
+          'reason': biometricOutcome.reason,
+        },
       });
 
       if (!mounted) return;
@@ -114,6 +152,29 @@ class _DashboardQrScannerScreenState extends State<_DashboardQrScannerScreen> {
         ),
       );
     }
+  }
+
+  Future<void> _showFacialFallbackMessage(
+    _DashboardBiometricOutcome? outcome,
+  ) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Facial SIMA no disponible'),
+        content: Text(
+          outcome?.reason == 'RECHAZADO'
+              ? 'No se pudo aprobar Facial SIMA en los intentos permitidos. Ahora valida con la biometria personal del telefono.'
+              : 'En este momento Facial SIMA no esta disponible. Valida con la biometria personal del telefono.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Continuar'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<int> _getActiveSessionId() async {
@@ -217,6 +278,29 @@ class _DashboardQrScannerScreenState extends State<_DashboardQrScannerScreen> {
 }
 
 enum _DashboardStepType { face, fingerprint }
+
+extension _DashboardStepTypeBackend on _DashboardStepType {
+  String get biometricMethod =>
+      this == _DashboardStepType.face ? 'FACIAL_SIMA' : 'BIOMETRIA_MOVIL';
+}
+
+class _DashboardBiometricOutcome {
+  const _DashboardBiometricOutcome({
+    required this.method,
+    required this.approved,
+    required this.provider,
+    required this.attemptNumber,
+    required this.durationMs,
+    required this.reason,
+  });
+
+  final String method;
+  final bool approved;
+  final String provider;
+  final int attemptNumber;
+  final int durationMs;
+  final String reason;
+}
 
 class _DashboardMethodChoiceStep extends StatelessWidget {
   const _DashboardMethodChoiceStep();
@@ -375,21 +459,52 @@ class _DashboardBiometricStepState extends State<_DashboardBiometricStep> {
   bool get _isFace => widget.type == _DashboardStepType.face;
 
   Future<void> _authenticate() async {
+    final startedAt = DateTime.now();
     try {
-      final success = await LocalAuthService.authenticate(
-        localizedReason: _isFace
-            ? 'Usa el reconocimiento facial para registrar tu asistencia'
-            : 'Usa tu huella dactilar para registrar tu asistencia',
-      );
+      var attempt = 1;
+      var success = false;
+
+      while (attempt <= (_isFace ? 3 : 1)) {
+        success = await LocalAuthService.authenticate(
+          localizedReason: _isFace
+              ? 'Usa Facial SIMA para registrar tu asistencia. Intento $attempt de 3'
+              : 'Usa la biometria personal de tu telefono para registrar tu asistencia',
+        );
+        if (success) break;
+        attempt += 1;
+      }
+
       if (!mounted) return;
-      Navigator.of(context).pop(success);
+      Navigator.of(context).pop(
+        _DashboardBiometricOutcome(
+          method: widget.type.biometricMethod,
+          approved: success,
+          provider: _isFace ? 'facial_sima_mvp' : 'local_auth_device',
+          attemptNumber: attempt.clamp(1, 3).toInt(),
+          durationMs: DateTime.now().difference(startedAt).inMilliseconds,
+          reason: success ? 'OK' : 'RECHAZADO',
+        ),
+      );
     } catch (error) {
       if (!mounted) return;
+      if (_isFace) {
+        Navigator.of(context).pop(
+          _DashboardBiometricOutcome(
+            method: 'FACIAL_SIMA',
+            approved: false,
+            provider: 'facial_sima_mvp',
+            attemptNumber: 1,
+            durationMs: DateTime.now().difference(startedAt).inMilliseconds,
+            reason: 'NO_DISPONIBLE',
+          ),
+        );
+        return;
+      }
       await showDialog(
         context: context,
         barrierDismissible: false,
         builder: (_) => AlertDialog(
-          title: const Text('Error de Biometría'),
+          title: const Text('Error de Biometria'),
           content: Text(error.toString()),
           actions: [
             TextButton(
@@ -400,7 +515,16 @@ class _DashboardBiometricStepState extends State<_DashboardBiometricStep> {
         ),
       );
       if (!mounted) return;
-      Navigator.of(context).pop(false);
+      Navigator.of(context).pop(
+        _DashboardBiometricOutcome(
+          method: 'BIOMETRIA_MOVIL',
+          approved: false,
+          provider: 'local_auth_device',
+          attemptNumber: 1,
+          durationMs: DateTime.now().difference(startedAt).inMilliseconds,
+          reason: 'RECHAZADO',
+        ),
+      );
     }
   }
 

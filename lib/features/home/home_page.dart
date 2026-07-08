@@ -488,17 +488,17 @@ class _HomePageState extends State<HomePage> {
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: const [
+                                  children: [
                                     Text(
-                                      'Bienvenido Aprendiz',
-                                      style: TextStyle(
+                                      'Bienvenido ${_getCurrentUserGreetingName()}',
+                                      style: const TextStyle(
                                         color: Color(0xFF092444),
                                         fontSize: 15,
                                         fontWeight: FontWeight.w800,
                                       ),
                                     ),
-                                    SizedBox(height: 4),
-                                    Text(
+                                    const SizedBox(height: 4),
+                                    const Text(
                                       'Consulta tus próximas clases y mantente al día con tus asistencias.',
                                       style: TextStyle(
                                         color: Color(0xFF607086),
@@ -876,6 +876,9 @@ class _HomeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final photoUrl = _getCurrentUserPhotoUrl();
+    final initials = _getCurrentUserInitials();
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(24, 14, 24, 14),
@@ -889,41 +892,45 @@ class _HomeHeader extends StatelessWidget {
               color: const Color(0xFFE7F3E3),
               borderRadius: BorderRadius.circular(18),
             ),
-            child: const Icon(
-              Icons.person_rounded,
-              color: Color(0xFF052D4F),
-              size: 28,
-            ),
+            clipBehavior: Clip.antiAlias,
+            child: photoUrl.isNotEmpty
+                ? Image.network(
+                    photoUrl,
+                    width: 52,
+                    height: 52,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return _HomeHeaderAvatarFallback(initials: initials);
+                    },
+                  )
+                : _HomeHeaderAvatarFallback(initials: initials),
           ),
           const SizedBox(width: 14),
           Expanded(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text(
-                  'Hola, ${_getCurrentUserGreetingName()}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: hasActiveSession
-                        ? const Color(0xFF39A900)
-                        : const Color(0xFF9AA8B8),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: Colors.white, width: 2),
-                  ),
-                ),
-              ],
+            child: Text(
+              'Hola, ${_getCurrentUserGreetingName()}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
+          const SizedBox(width: 8),
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: hasActiveSession
+                  ? const Color(0xFF39A900)
+                  : const Color(0xFF9AA8B8),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Colors.white, width: 2),
+            ),
+          ),
+          const SizedBox(width: 8),
           Stack(
             clipBehavior: Clip.none,
             alignment: Alignment.topRight,
@@ -971,6 +978,34 @@ class _HomeHeader extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _HomeHeaderAvatarFallback extends StatelessWidget {
+  const _HomeHeaderAvatarFallback({required this.initials});
+
+  final String initials;
+
+  @override
+  Widget build(BuildContext context) {
+    if (initials.isEmpty) {
+      return const Icon(
+        Icons.person_rounded,
+        color: Color(0xFF052D4F),
+        size: 28,
+      );
+    }
+
+    return Center(
+      child: Text(
+        initials,
+        style: const TextStyle(
+          color: Color(0xFF052D4F),
+          fontSize: 15,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }
@@ -1844,7 +1879,12 @@ class ClassBlock {
 
 String _getCurrentUserFullName() {
   final user = AuthService.currentUser ?? {};
+  final persona = _currentUserPersona();
   final fullName = _firstString([
+    persona['nombre_completo'],
+    persona['nombreCompleto'],
+    persona['full_name'],
+    persona['name'],
     user['nombre_completo'],
     user['nombreCompleto'],
     user['full_name'],
@@ -1858,6 +1898,13 @@ String _getCurrentUserFullName() {
   }
 
   final firstName = _firstString([
+    persona['primer_nombre'],
+    persona['primerNombre'],
+    persona['nombre1'],
+    persona['first_name'],
+    persona['firstName'],
+    persona['nombres'],
+    persona['nombre'],
     user['primer_nombre'],
     user['primerNombre'],
     user['nombre1'],
@@ -1868,6 +1915,13 @@ String _getCurrentUserFullName() {
     user['name'],
   ]);
   final lastName = _firstString([
+    persona['primer_apellido'],
+    persona['primerApellido'],
+    persona['apellido1'],
+    persona['last_name'],
+    persona['lastName'],
+    persona['apellidos'],
+    persona['apellido'],
     user['primer_apellido'],
     user['primerApellido'],
     user['apellido1'],
@@ -1889,8 +1943,16 @@ String _getCurrentUserFullName() {
 
 String _getCurrentUserGreetingName() {
   final user = AuthService.currentUser ?? {};
+  final persona = _currentUserPersona();
   final firstName = _firstWord(
     _firstString([
+      persona['primer_nombre'],
+      persona['primerNombre'],
+      persona['nombre1'],
+      persona['first_name'],
+      persona['firstName'],
+      persona['nombres'],
+      persona['nombre'],
       user['primer_nombre'],
       user['primerNombre'],
       user['nombre1'],
@@ -1902,6 +1964,13 @@ String _getCurrentUserGreetingName() {
   );
   final firstLastName = _firstWord(
     _firstString([
+      persona['primer_apellido'],
+      persona['primerApellido'],
+      persona['apellido1'],
+      persona['last_name'],
+      persona['lastName'],
+      persona['apellidos'],
+      persona['apellido'],
       user['primer_apellido'],
       user['primerApellido'],
       user['apellido1'],
@@ -1938,6 +2007,39 @@ String _getCurrentUserGreetingName() {
     return '${parts.first} ${parts[1]}';
   }
   return parts.isEmpty ? 'Aprendiz' : parts.first;
+}
+
+String _getCurrentUserPhotoUrl() {
+  final user = AuthService.currentUser ?? {};
+  final persona = _currentUserPersona();
+  return _firstString([
+    persona['foto_perfil_url'],
+    persona['photo_url'],
+    persona['profile_photo_url'],
+    user['foto_perfil_url'],
+    user['photo_url'],
+    user['profile_photo_url'],
+  ]);
+}
+
+String _getCurrentUserInitials() {
+  final fullName = _getCurrentUserFullName();
+  if (fullName.isEmpty || fullName.toLowerCase() == 'aprendiz') {
+    return '';
+  }
+
+  final parts = fullName
+      .split(RegExp(r'\s+'))
+      .where((part) => part.trim().isNotEmpty)
+      .toList();
+  if (parts.isEmpty) return '';
+  if (parts.length == 1) return parts.first[0].toUpperCase();
+  return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+}
+
+Map<String, dynamic> _currentUserPersona() {
+  final user = AuthService.currentUser ?? {};
+  return _firstMap([user['persona'], user['person'], user['profile']]);
 }
 
 String _firstWord(String value) {

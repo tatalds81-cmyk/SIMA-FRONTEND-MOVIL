@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart' as file_picker;
 import 'package:sima_movil_froned/features/login/login_page.dart';
 import 'package:sima_movil_froned/features/profile/data/profile_repository.dart';
 import 'package:sima_movil_froned/features/profile/models/apprentice_profile.dart';
@@ -20,6 +21,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   late Future<ApprenticeProfile> _profileFuture;
   ApprenticeProfile? _profile;
+  bool _uploadingPhoto = false;
 
   @override
   void initState() {
@@ -73,6 +75,81 @@ class _ProfilePageState extends State<ProfilePage> {
 
     _setProfile(profile.copyWith(emergencyContact: savedContact));
     _showMessage('Contacto de emergencia actualizado.');
+  }
+
+  String _mimeTypeForFile(String fileName) {
+    final extension = fileName.split('.').last.toLowerCase();
+    switch (extension) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      default:
+        return '';
+    }
+  }
+
+  Future<void> _changeProfilePhoto() async {
+    if (_uploadingPhoto) return;
+
+    final result = await file_picker.FilePicker.pickFiles(
+      type: file_picker.FileType.image,
+      allowMultiple: false,
+      withData: true,
+    );
+    final file = result?.files.single;
+    if (file == null) return;
+
+    final bytes = file.bytes;
+    final mimeType = _mimeTypeForFile(file.name);
+
+    if (bytes == null) {
+      _showMessage(
+        'No fue posible leer la imagen seleccionada.',
+        isError: true,
+      );
+      return;
+    }
+    if (mimeType.isEmpty) {
+      _showMessage('Formato no permitido. Usa JPG, PNG o WEBP.', isError: true);
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      _showMessage('La imagen de perfil no puede superar 2 MB.', isError: true);
+      return;
+    }
+
+    setState(() {
+      _uploadingPhoto = true;
+    });
+
+    try {
+      final photoUrl = await widget.repository.updateProfilePhoto(
+        fileName: file.name,
+        bytes: bytes,
+        mimeType: mimeType,
+      );
+      final profile = _profile;
+      if (!mounted || profile == null) return;
+
+      _setProfile(profile.copyWith(photoUrl: photoUrl));
+      _showMessage('Foto de perfil actualizada.');
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage(
+        error.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _uploadingPhoto = false;
+        });
+      }
+    }
   }
 
   Future<void> _changePassword({
@@ -192,12 +269,12 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  void _showMessage(String message) {
+  void _showMessage(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
         behavior: SnackBarBehavior.floating,
-        backgroundColor: _ProfileColors.navy,
+        backgroundColor: isError ? Colors.red.shade700 : _ProfileColors.navy,
       ),
     );
   }
@@ -226,6 +303,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     onAcademicTap: () => _showAcademicInformationSheet(profile),
                     onEmergencyTap: () => _showEmergencyContactSheet(profile),
                     onLogoutTap: _confirmLogout,
+                    onPhotoTap: _changeProfilePhoto,
                     onSecurityTap: _showChangePasswordSheet,
                   );
 
@@ -269,6 +347,7 @@ class _ProfileContent extends StatelessWidget {
     required this.onAcademicTap,
     required this.onEmergencyTap,
     required this.onLogoutTap,
+    required this.onPhotoTap,
     required this.onSecurityTap,
   });
 
@@ -278,6 +357,7 @@ class _ProfileContent extends StatelessWidget {
   final VoidCallback onAcademicTap;
   final VoidCallback onEmergencyTap;
   final VoidCallback onLogoutTap;
+  final VoidCallback onPhotoTap;
   final VoidCallback onSecurityTap;
 
   @override
@@ -288,6 +368,7 @@ class _ProfileContent extends StatelessWidget {
         _ProfileHero(
           profile: profile,
           onLogoutTap: onLogoutTap,
+          onPhotoTap: onPhotoTap,
         ),
         Padding(
           padding: EdgeInsets.fromLTRB(
@@ -319,10 +400,12 @@ class _ProfileHero extends StatelessWidget {
   const _ProfileHero({
     required this.profile,
     required this.onLogoutTap,
+    required this.onPhotoTap,
   });
 
   final ApprenticeProfile profile;
   final VoidCallback onLogoutTap;
+  final VoidCallback onPhotoTap;
 
   @override
   Widget build(BuildContext context) {
@@ -378,7 +461,7 @@ class _ProfileHero extends StatelessWidget {
                   _ProfileAvatar(
                     size: 86,
                     initials: profile.initials,
-                    showPhoto: true,
+                    photoUrl: profile.photoUrl,
                   ),
                   Positioned(
                     right: -2,
@@ -387,15 +470,7 @@ class _ProfileHero extends StatelessWidget {
                       message: 'Editar foto',
                       child: InkWell(
                         borderRadius: BorderRadius.circular(18),
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'La edición de foto estará disponible pronto.',
-                              ),
-                            ),
-                          );
-                        },
+                        onTap: onPhotoTap,
                         child: Container(
                           width: 30,
                           height: 30,
@@ -1335,12 +1410,12 @@ class _ProfileAvatar extends StatelessWidget {
   const _ProfileAvatar({
     required this.size,
     required this.initials,
-    this.showPhoto = false,
+    this.photoUrl = '',
   });
 
   final double size;
   final String initials;
-  final bool showPhoto;
+  final String photoUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -1363,33 +1438,25 @@ class _ProfileAvatar extends StatelessWidget {
             ],
           ),
           alignment: Alignment.center,
-          child: showPhoto
+          child: photoUrl.isNotEmpty
               ? ClipOval(
-                  child: Transform.translate(
-                    offset: Offset(size * 0.11, 0),
-                    child: Transform.scale(
-                      scale: 2.52,
-                      alignment: Alignment.topCenter,
-                      child: Image.asset(
-                        'assets/images/aprendices_sena.png',
-                        width: size,
-                        height: size,
-                        fit: BoxFit.cover,
-                        alignment: Alignment.topCenter,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Center(
-                            child: Text(
-                              initials,
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(
-                                    color: _ProfileColors.navy,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
+                  child: Image.network(
+                    photoUrl,
+                    width: size,
+                    height: size,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Center(
+                        child: Text(
+                          initials,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: _ProfileColors.navy,
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                      );
+                    },
                   ),
                 )
               : Text(

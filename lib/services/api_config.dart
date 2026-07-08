@@ -14,13 +14,18 @@
 class ApiConfig {
   ApiConfig._(); // Clase no instanciable
 
+  // Backend desplegado para APK de pruebas.
+  // Para desarrollo local usa --dart-define=SIMA_API_URL=http://<IP_LOCAL>:3000/api.
+  static const String railwayUrl =
+      'https://sima-backend-monitoreo-production.up.railway.app/api';
+
   // Backend local de la PC. En Android fisico se accede mediante:
   // adb reverse tcp:3000 tcp:3000
   static const String localUsbUrl = 'http://127.0.0.1:3000/api';
 
   static const String baseUrl = String.fromEnvironment(
     'SIMA_API_URL',
-    defaultValue: localUsbUrl,
+    defaultValue: railwayUrl,
   );
 
   // Endpoints de autenticación
@@ -33,6 +38,8 @@ class ApiConfig {
   static const String myCalendar = '$baseUrl/attendances/my-calendar';
   static const String sessions = '$baseUrl/apprentice-portal/sessions';
   static const String qrAttendance = '$baseUrl/attendances/qr';
+  static const String mobileBiometricChallenge =
+      '$baseUrl/attendances/mobile-biometric-challenge';
   static const String submitJustification =
       '$baseUrl/attendances/justifications';
   static const String eligibleJustifications =
@@ -40,6 +47,7 @@ class ApiConfig {
   static const String myJustifications =
       '$baseUrl/attendances/justifications/my';
   static const String profileOverview = '$baseUrl/profile/overview';
+  static const String profilePhoto = '$baseUrl/profile/photo';
   static const String myObservations = '$baseUrl/observations/my';
   static const String apprenticeObservatoryObservations =
       '$baseUrl/apprentice-portal/observatory/observations';

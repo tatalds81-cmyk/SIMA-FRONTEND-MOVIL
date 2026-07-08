@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:sima_movil_froned/features/home/dashboard_qr_flow.dart';
 import 'package:sima_movil_froned/services/attendance_service.dart';
 import 'package:sima_movil_froned/services/hardware/local_auth_service.dart';
 import 'package:sima_movil_froned/services/hardware/location_service.dart';
 
 Future<bool> startQrAttendanceFlow(BuildContext context) async {
+  return startDashboardQrFlow(context);
+}
+
+@Deprecated('Usar startDashboardQrFlow, que incluye reto biometrico movil.')
+Future<bool> startQrAttendanceFlowLegacy(BuildContext context) async {
   final scaffold = ScaffoldMessenger.of(context);
 
   _showLoadingDialog(context, 'Validando sesión activa...');
