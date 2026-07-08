@@ -14,19 +14,19 @@
 class ApiConfig {
   ApiConfig._(); // Clase no instanciable
 
-  // IP Wi-Fi actual del equipo que ejecuta el backend.
-  // El puerto 3000 es el puerto local predeterminado del backend SIMA.
-  static const String localWifiUrl = 'http://192.168.101.9:3000/api';
+  // Backend desplegado para APK de pruebas.
+  // Para desarrollo local usa --dart-define=SIMA_API_URL=http://<IP_LOCAL>:3000/api.
+  static const String railwayUrl =
+      'https://sima-backend-monitoreo-production.up.railway.app/api';
 
   static const String baseUrl = String.fromEnvironment(
     'SIMA_API_URL',
-    defaultValue: localWifiUrl,
+    defaultValue: railwayUrl,
   );
 
-
   // Endpoints de autenticación
-    static const String login = '$baseUrl/auth/login';
-    static const String me = '$baseUrl/auth/me';
+  static const String login = '$baseUrl/auth/login';
+  static const String me = '$baseUrl/auth/me';
 
   // Endpoints de aprendiz
   static const String apprenticeDashboard =
@@ -34,6 +34,8 @@ class ApiConfig {
   static const String myCalendar = '$baseUrl/attendances/my-calendar';
   static const String sessions = '$baseUrl/apprentice-portal/sessions';
   static const String qrAttendance = '$baseUrl/attendances/qr';
+  static const String mobileBiometricChallenge =
+      '$baseUrl/attendances/mobile-biometric-challenge';
   static const String submitJustification =
       '$baseUrl/attendances/justifications';
   static const String eligibleJustifications =
@@ -41,6 +43,7 @@ class ApiConfig {
   static const String myJustifications =
       '$baseUrl/attendances/justifications/my';
   static const String profileOverview = '$baseUrl/profile/overview';
+  static const String profilePhoto = '$baseUrl/profile/photo';
   static const String myObservations = '$baseUrl/observations/my';
   static const String apprenticeObservatoryObservations =
       '$baseUrl/apprentice-portal/observatory/observations';

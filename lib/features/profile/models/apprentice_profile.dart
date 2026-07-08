@@ -12,6 +12,7 @@ class ApprenticeProfile {
     required this.stage,
     required this.schedule,
     required this.statusLabel,
+    required this.photoUrl,
     required this.emergencyContact,
   });
 
@@ -32,6 +33,7 @@ class ApprenticeProfile {
       stage: (json['stage'] ?? '').toString(),
       schedule: (json['schedule'] ?? '').toString(),
       statusLabel: (json['status_label'] ?? 'Activo').toString(),
+      photoUrl: (json['photo_url'] ?? json['foto_perfil_url'] ?? '').toString(),
       emergencyContact: EmergencyContact.fromJson(emergencyContactJson),
     );
   }
@@ -48,6 +50,7 @@ class ApprenticeProfile {
   final String stage;
   final String schedule;
   final String statusLabel;
+  final String photoUrl;
   final EmergencyContact emergencyContact;
 
   String get fullName => '$firstName $lastName'.trim();
@@ -80,6 +83,7 @@ class ApprenticeProfile {
     String? stage,
     String? schedule,
     String? statusLabel,
+    String? photoUrl,
     EmergencyContact? emergencyContact,
   }) {
     return ApprenticeProfile(
@@ -95,6 +99,7 @@ class ApprenticeProfile {
       stage: stage ?? this.stage,
       schedule: schedule ?? this.schedule,
       statusLabel: statusLabel ?? this.statusLabel,
+      photoUrl: photoUrl ?? this.photoUrl,
       emergencyContact: emergencyContact ?? this.emergencyContact,
     );
   }
@@ -113,6 +118,7 @@ class ApprenticeProfile {
       'stage': stage,
       'schedule': schedule,
       'status_label': statusLabel,
+      'photo_url': photoUrl,
       'emergency_contact': emergencyContact.toJson(),
     };
   }

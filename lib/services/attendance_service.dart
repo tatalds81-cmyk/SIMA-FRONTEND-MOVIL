@@ -150,6 +150,51 @@ class AttendanceService {
       throw Exception(cleanMessage);
     }
   }
+  static Future<Map<String, dynamic>> requestMobileBiometricChallenge(
+    Map<String, dynamic> payload,
+  ) async {
+    final token = AuthService.currentToken;
+    if (token == null || token.isEmpty) {
+      throw Exception('No hay sesión activa. Por favor, inicia sesión nuevamente.');
+    }
+
+    try {
+      final uri = Uri.parse(ApiConfig.mobileBiometricChallenge);
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(payload),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final Map<String, dynamic> body = jsonDecode(response.body);
+        if (body['ok'] == true && body['data'] is Map<String, dynamic>) {
+          return body['data'] as Map<String, dynamic>;
+        }
+        throw Exception(body['message'] ?? 'Error desconocido del servidor');
+      }
+
+      String errorMessage = 'Error ${response.statusCode}';
+      try {
+        final body = jsonDecode(response.body);
+        if (body['message'] != null) {
+          errorMessage = body['message'];
+        }
+      } catch (_) {}
+      throw Exception(errorMessage);
+    } on Exception catch (e) {
+      final rawMessage = e.toString();
+      final cleanMessage = rawMessage.startsWith('Exception: ')
+          ? rawMessage.replaceFirst('Exception: ', '')
+          : 'Error de red al conectar con el servidor.';
+      throw Exception(cleanMessage);
+    }
+  }
+
   /// Registra la asistencia mediante código QR usando coordenadas y biometría
   static Future<void> registerQrAttendance(Map<String, dynamic> payload) async {
     final token = AuthService.currentToken;

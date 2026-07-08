@@ -20,7 +20,7 @@ class LocalAuthService {
         localizedReason:
             localizedReason ??
             'Por favor, autentícate para registrar tu asistencia',
-        biometricOnly: true, // Exige biometría del dispositivo, sin fallback a PIN/Patrón
+        biometricOnly: false,
         persistAcrossBackgrounding: true,
       );
 

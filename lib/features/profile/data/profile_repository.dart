@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:sima_movil_froned/features/profile/models/apprentice_profile.dart';
 import 'package:sima_movil_froned/services/api_config.dart';
 import 'package:sima_movil_froned/services/auth_service.dart';
@@ -17,6 +19,12 @@ abstract class ProfileRepository {
   Future<void> changePassword({
     required String currentPassword,
     required String newPassword,
+  });
+
+  Future<String> updateProfilePhoto({
+    required String fileName,
+    required Uint8List bytes,
+    required String mimeType,
   });
 }
 
@@ -51,6 +59,16 @@ class MockProfileRepository implements ProfileRepository {
     required String newPassword,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 220));
+  }
+
+  @override
+  Future<String> updateProfilePhoto({
+    required String fileName,
+    required Uint8List bytes,
+    required String mimeType,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 220));
+    return '';
   }
 }
 
@@ -97,10 +115,7 @@ class BackendProfileRepository implements ProfileRepository {
     await _sendJson(
       method: 'PUT',
       url: ApiConfig.profileOverview,
-      payload: {
-        'email': profile.email,
-        'telefono': profile.phone,
-      },
+      payload: {'email': profile.email, 'telefono': profile.phone},
     );
 
     return profile;
@@ -145,6 +160,75 @@ class BackendProfileRepository implements ProfileRepository {
       },
     );
   }
+
+  @override
+  Future<String> updateProfilePhoto({
+    required String fileName,
+    required Uint8List bytes,
+    required String mimeType,
+  }) async {
+    final data = await _sendMultipartImage(
+      url: ApiConfig.profilePhoto,
+      fieldName: 'foto',
+      fileName: fileName,
+      bytes: bytes,
+      mimeType: mimeType,
+    );
+
+    final photoUrl = _firstString([
+      data['foto_perfil_url'],
+      data['photo_url'],
+      data['url'],
+    ]);
+
+    final currentUser = AuthService.currentUser;
+    if (currentUser != null) {
+      final persona = Map<String, dynamic>.from(
+        currentUser['persona'] as Map? ?? const {},
+      );
+      persona['foto_perfil_url'] = photoUrl;
+      currentUser['persona'] = persona;
+      currentUser['foto_perfil_url'] = photoUrl;
+    }
+
+    return photoUrl;
+  }
+}
+
+Future<Map<String, dynamic>> _sendMultipartImage({
+  required String url,
+  required String fieldName,
+  required String fileName,
+  required Uint8List bytes,
+  required String mimeType,
+}) async {
+  final token = AuthService.currentToken;
+  if (token == null || token.isEmpty) {
+    throw Exception(
+      'No hay sesion activa. Por favor, inicia sesion nuevamente.',
+    );
+  }
+
+  final mediaParts = mimeType.split('/');
+  final request = http.MultipartRequest('PATCH', Uri.parse(url))
+    ..headers.addAll({
+      'Accept': 'application/json',
+      'Authorization': 'Bearer $token',
+    })
+    ..files.add(
+      http.MultipartFile.fromBytes(
+        fieldName,
+        bytes,
+        filename: fileName,
+        contentType: mediaParts.length == 2
+            ? MediaType(mediaParts[0], mediaParts[1])
+            : null,
+      ),
+    );
+
+  final streamed = await request.send().timeout(const Duration(seconds: 30));
+  final response = await http.Response.fromStream(streamed);
+  return _decodeResponse(response);
 }
 
 Future<Map<String, dynamic>> _getMap(String url) {
@@ -564,6 +648,16 @@ Map<String, dynamic> _normalizeProfileResponse({
         profileData['status_label'],
       ]),
     ),
+    'photo_url': _firstString([
+      profileData['foto_perfil_url'],
+      profileData['photo_url'],
+      user['foto_perfil_url'],
+      user['photo_url'],
+      sessionUser['foto_perfil_url'],
+      sessionUser['photo_url'],
+      authData['foto_perfil_url'],
+      userData['foto_perfil_url'],
+    ]),
     'emergency_contact': {
       'name': _firstString([
         emergencyContact['name'],
