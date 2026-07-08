@@ -1537,7 +1537,7 @@ class _QuickAccessSection extends StatelessWidget {
                   child: _QuickAccessCard(
                     icon: Icons.assignment_turned_in_rounded,
                     label: 'Registrar asistencia',
-                    color: const Color(0xFF062E4F),
+                    color: const Color(0xFF39A900),
                     onTap: onAttendanceTap,
                   ),
                 ),
@@ -1546,7 +1546,7 @@ class _QuickAccessSection extends StatelessWidget {
                   child: _QuickAccessCard(
                     icon: Icons.calendar_today_rounded,
                     label: 'Mis asistencias',
-                    color: const Color(0xFF062E4F),
+                    color: const Color(0xFF1565C0),
                     onTap: onJustifyTap,
                   ),
                 ),
@@ -1555,7 +1555,7 @@ class _QuickAccessSection extends StatelessWidget {
                   child: _QuickAccessCard(
                     icon: Icons.description_rounded,
                     label: 'Justificaciones',
-                    color: const Color(0xFF062E4F),
+                    color: const Color(0xFFF4A900),
                     onTap: onObservationsTap,
                   ),
                 ),
@@ -1564,7 +1564,7 @@ class _QuickAccessSection extends StatelessWidget {
                   child: _QuickAccessCard(
                     icon: Icons.notifications_active_rounded,
                     label: 'Alertas y Observaciones',
-                    color: const Color(0xFF062E4F),
+                    color: const Color(0xFFE53935),
                     onTap: onAlertsTap,
                   ),
                 ),
@@ -1593,7 +1593,7 @@ class _QuickAccessCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: color,
+      color: Colors.white,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -1602,12 +1602,12 @@ class _QuickAccessCard extends StatelessWidget {
           constraints: const BoxConstraints(minHeight: 102),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: color,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            border: Border.all(color: color.withValues(alpha: 0.28)),
             boxShadow: [
               BoxShadow(
-                color: color.withValues(alpha: 0.18),
+                color: const Color(0xFF092444).withValues(alpha: 0.07),
                 blurRadius: 14,
                 offset: const Offset(0, 8),
               ),
@@ -1621,15 +1621,15 @@ class _QuickAccessCard extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.14),
+                  color: color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: Colors.white, size: 20),
+                child: Icon(icon, color: color, size: 20),
               ),
               Text(
                 label,
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: Color(0xFF092444),
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
                 ),

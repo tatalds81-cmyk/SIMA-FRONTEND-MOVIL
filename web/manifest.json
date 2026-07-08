@@ -1,6 +1,6 @@
 {
-    "name": "sima_movil_froned",
-    "short_name": "sima_movil_froned",
+    "name": "SIMA",
+    "short_name": "SIMA",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

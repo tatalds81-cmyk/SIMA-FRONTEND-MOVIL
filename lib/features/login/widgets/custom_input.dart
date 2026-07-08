@@ -33,7 +33,7 @@ class CustomInput extends StatelessWidget {
             style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF092444), // Labels
+              color: Color(0xFF092444),
             ),
           ),
           const SizedBox(height: 8),
@@ -43,48 +43,39 @@ class CustomInput extends StatelessWidget {
           obscureText: obscureText,
           keyboardType: keyboardType,
           validator: validator,
-          style: const TextStyle(
-            color: Color(0xFF092444),
-            fontSize: 15,
-          ),
+          style: const TextStyle(color: Color(0xFF092444), fontSize: 15),
           decoration: InputDecoration(
             hintText: hintText,
-            hintStyle: const TextStyle(
-              color: Color(0xFF8A95A3), // Placeholder
-              fontSize: 14,
-            ),
+            hintStyle: const TextStyle(color: Color(0xFF8A95A3), fontSize: 14),
             prefixIcon: prefixIcon,
             suffixIcon: suffixIcon,
             filled: true,
             fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 15,
+            ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(
-                color: Color(0xFFCFD6DF), // Borde de inputs
+                color: Color(0xFFCFD6DF),
                 width: 1.0,
               ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(
-                color: Color(0xFF39A900), // Verde SENA
+                color: Color(0xFF39A900),
                 width: 1.5,
               ),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: Colors.red,
-                width: 1.0,
-              ),
+              borderSide: const BorderSide(color: Colors.red, width: 1.0),
             ),
             focusedErrorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: Colors.red,
-                width: 1.5,
-              ),
+              borderSide: const BorderSide(color: Colors.red, width: 1.5),
             ),
           ),
         ),

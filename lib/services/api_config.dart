@@ -19,6 +19,10 @@ class ApiConfig {
   static const String railwayUrl =
       'https://sima-backend-monitoreo-production.up.railway.app/api';
 
+  // Backend local de la PC. En Android fisico se accede mediante:
+  // adb reverse tcp:3000 tcp:3000
+  static const String localUsbUrl = 'http://127.0.0.1:3000/api';
+
   static const String baseUrl = String.fromEnvironment(
     'SIMA_API_URL',
     defaultValue: railwayUrl,
