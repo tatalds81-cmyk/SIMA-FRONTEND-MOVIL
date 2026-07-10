@@ -1,7 +1,24 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 allprojects {
     repositories {
         google()
         mavenCentral()
+    }
+}
+
+subprojects {
+    tasks.withType<KotlinCompile>().configureEach {
+        compilerOptions {
+            jvmTarget.set(
+                if (project.name == "tflite_flutter") {
+                    JvmTarget.JVM_1_8
+                } else {
+                    JvmTarget.JVM_17
+                }
+            )
+        }
     }
 }
 

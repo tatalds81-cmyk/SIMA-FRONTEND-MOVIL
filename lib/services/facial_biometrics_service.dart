@@ -1,49 +1,13 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:sima_movil_froned/models/facial_biometrics_models.dart';
 import 'package:sima_movil_froned/services/api_config.dart';
 import 'package:sima_movil_froned/services/auth_service.dart';
+import 'package:sima_movil_froned/services/facial_embedding_engine.dart';
 
-class FacialSimaUnavailableException implements Exception {
-  const FacialSimaUnavailableException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
-}
-
-class FacialEmbeddingCapture {
-  const FacialEmbeddingCapture({
-    required this.embedding,
-    required this.quality,
-    required this.livenessResult,
-    this.livenessScore,
-    this.provider = 'sima_mobile_face_engine',
-    this.modelVersion = 'SIMA_FACE_EMBEDDING_V1',
-  });
-
-  final List<double> embedding;
-  final int quality;
-  final String livenessResult;
-  final double? livenessScore;
-  final String provider;
-  final String modelVersion;
-}
-
-abstract final class FacialEmbeddingEngine {
-  static Future<FacialEmbeddingCapture> captureForEnrollment() async {
-    throw const FacialSimaUnavailableException(
-      'Facial SIMA requiere conectar un motor de captura y embedding facial en la APK.',
-    );
-  }
-
-  static Future<FacialEmbeddingCapture> captureForValidation() async {
-    throw const FacialSimaUnavailableException(
-      'Facial SIMA no esta disponible en este dispositivo. Usa la biometria personal del telefono.',
-    );
-  }
-}
+export 'package:sima_movil_froned/models/facial_biometrics_models.dart';
+export 'package:sima_movil_froned/services/facial_embedding_engine.dart';
 
 class FacialBiometricsService {
   FacialBiometricsService._();

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:sima_movil_froned/services/attendance_service.dart';
@@ -66,13 +67,6 @@ class _DashboardQrScannerScreenState extends State<_DashboardQrScannerScreen> {
 
       if (!mounted) return;
 
-      final challenge = await AttendanceService.requestMobileBiometricChallenge({
-        'id_sesion_formacion': idSesionActiva,
-        'token_qr': value,
-        'device_uuid': _dashboardDeviceUuid,
-        'metodo_solicitado': selectedMethod.biometricMethod,
-      });
-
       final locationData = await LocationService.getCurrentLocation();
 
       if (!mounted) return;
@@ -107,6 +101,13 @@ class _DashboardQrScannerScreenState extends State<_DashboardQrScannerScreen> {
               : 'No se pudo verificar tu huella. Inténtalo nuevamente.',
         );
       }
+
+      final challenge = await AttendanceService.requestMobileBiometricChallenge({
+        'id_sesion_formacion': idSesionActiva,
+        'token_qr': value,
+        'device_uuid': _dashboardDeviceUuid,
+        'metodo_solicitado': biometricOutcome.method,
+      });
 
       await AttendanceService.registerQrAttendance({
         'id_sesion_formacion': idSesionActiva,
@@ -216,28 +217,53 @@ class _DashboardQrScannerScreenState extends State<_DashboardQrScannerScreen> {
         );
       }
 
-      final challenge = await FacialBiometricsService.requestValidationChallenge(
-        sessionId: sessionId,
-        deviceUuid: _dashboardDeviceUuid,
-      );
-      final capture = await FacialEmbeddingEngine.captureForValidation();
-      final validation = await FacialBiometricsService.validateAttempt(
-        sessionId: sessionId,
-        deviceUuid: _dashboardDeviceUuid,
-        challengeToken: challenge['challenge_token']?.toString() ?? '',
-        capture: capture,
-      );
+      String lastReason = 'RECHAZADO';
+      for (var attempt = 1; attempt <= 3; attempt++) {
+        final capture = await _showFacialValidationPreview(attempt);
+        if (capture == null) {
+          lastReason = 'CANCELADO';
+          break;
+        }
 
-      final approved = validation['aprobado'] == true;
+        final challenge = await FacialBiometricsService.requestValidationChallenge(
+          sessionId: sessionId,
+          deviceUuid: _dashboardDeviceUuid,
+        );
+        final validation = await FacialBiometricsService.validateAttempt(
+          sessionId: sessionId,
+          deviceUuid: _dashboardDeviceUuid,
+          challengeToken: challenge['challenge_token']?.toString() ?? '',
+          capture: capture,
+        );
+
+        final approved = validation['aprobado'] == true;
+        if (approved) {
+          return _DashboardBiometricOutcome(
+            method: 'FACIAL_SIMA',
+            approved: true,
+            provider: capture.provider,
+            attemptNumber: attempt,
+            durationMs: DateTime.now().difference(startedAt).inMilliseconds,
+            reason: 'OK',
+            facialValidationToken:
+                validation['facial_validation_token']?.toString(),
+          );
+        }
+
+        lastReason = validation['motivo']?.toString() ?? 'RECHAZADO';
+        if (!mounted) break;
+        if (attempt < 3) {
+          await _showFacialRetryMessage(attempt, lastReason);
+        }
+      }
+
       return _DashboardBiometricOutcome(
         method: 'FACIAL_SIMA',
-        approved: approved,
-        provider: capture.provider,
-        attemptNumber: 1,
+        approved: false,
+        provider: 'facial_sima_identity',
+        attemptNumber: 3,
         durationMs: DateTime.now().difference(startedAt).inMilliseconds,
-        reason: approved ? 'OK' : (validation['motivo']?.toString() ?? 'RECHAZADO'),
-        facialValidationToken:
-            approved ? validation['facial_validation_token']?.toString() : null,
+        reason: lastReason,
       );
     } on FacialSimaUnavailableException catch (error) {
       return _DashboardBiometricOutcome(
@@ -260,6 +286,33 @@ class _DashboardQrScannerScreenState extends State<_DashboardQrScannerScreen> {
         reason: 'ERROR',
       );
     }
+  }
+
+  Future<FacialEmbeddingCapture?> _showFacialValidationPreview(int attempt) {
+    return Navigator.of(context).push<FacialEmbeddingCapture>(
+      MaterialPageRoute(
+        builder: (_) => _DashboardFacialValidationStep(attempt: attempt),
+      ),
+    );
+  }
+
+  Future<void> _showFacialRetryMessage(int attempt, String reason) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Rostro no validado'),
+        content: Text(
+          'Intento $attempt de 3 no aprobado. Motivo: $reason. Puedes intentarlo nuevamente.',
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Reintentar'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<bool> _confirmFacialConsent() async {
@@ -714,6 +767,308 @@ class _DashboardBiometricStepState extends State<_DashboardBiometricStep> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashboardFacialValidationStep extends StatefulWidget {
+  const _DashboardFacialValidationStep({required this.attempt});
+
+  final int attempt;
+
+  @override
+  State<_DashboardFacialValidationStep> createState() =>
+      _DashboardFacialValidationStepState();
+}
+
+class _DashboardFacialValidationStepState
+    extends State<_DashboardFacialValidationStep> {
+  late Future<CameraController> _controllerFuture;
+  CameraController? _controller;
+  String? _errorMessage;
+  bool _capturing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllerFuture = _initCamera();
+  }
+
+  Future<CameraController> _initCamera() async {
+    final previousController = _controller;
+    _controller = null;
+    await previousController?.dispose();
+
+    final controller = await FacialEmbeddingEngine.createPreviewController();
+    _controller = controller;
+    return controller;
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _capture() async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) {
+      setState(() {
+        _errorMessage = 'La camara aun no esta lista. Intenta nuevamente.';
+      });
+      return;
+    }
+
+    setState(() {
+      _capturing = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final capture =
+          await FacialEmbeddingEngine.captureForValidationWithPreview(controller);
+      if (!mounted) return;
+      Navigator.of(context).pop(capture);
+    } on FacialSimaUnavailableException catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = error.message);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = _cleanErrorMessage(error));
+    } finally {
+      if (mounted) {
+        setState(() => _capturing = false);
+      }
+    }
+  }
+
+  String _cleanErrorMessage(Object? error) {
+    if (error == null) return 'Revisa la camara e intenta nuevamente.';
+    final raw = error.toString();
+    final clean = raw.startsWith('Exception: ')
+        ? raw.replaceFirst('Exception: ', '')
+        : raw;
+    return clean.trim().isEmpty ? 'Revisa la camara e intenta nuevamente.' : clean;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF052D4F),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF052D4F),
+        elevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          onPressed: _capturing ? null : () => Navigator.of(context).pop(),
+          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+        ),
+        title: Text(
+          'Facial SIMA ${widget.attempt}/3',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+          child: Column(
+            children: [
+              const _StepProgress(activeStep: 3, thirdLabel: 'Facial SIMA'),
+              const SizedBox(height: 18),
+              const Text(
+                'Centra tu rostro, mira de frente y presiona capturar.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Expanded(
+                child: FutureBuilder<CameraController>(
+                  future: _controllerFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(color: Colors.white),
+                      );
+                    }
+
+                    if (snapshot.hasError || !snapshot.hasData) {
+                      return _DashboardCameraError(
+                        message: _cleanErrorMessage(snapshot.error),
+                        onRetry: () {
+                          setState(() {
+                            _errorMessage = null;
+                            _controllerFuture = _initCamera();
+                          });
+                        },
+                      );
+                    }
+
+                    final controller = snapshot.data!;
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(22),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          FittedBox(
+                            fit: BoxFit.cover,
+                            child: SizedBox(
+                              width: controller.value.previewSize?.height ?? 720,
+                              height: controller.value.previewSize?.width ?? 960,
+                              child: CameraPreview(controller),
+                            ),
+                          ),
+                          Align(
+                            alignment: Alignment.center,
+                            child: Container(
+                              width: 230,
+                              height: 290,
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: const Color(0xFF7FDB64),
+                                  width: 3,
+                                ),
+                                borderRadius: BorderRadius.circular(150),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              if (_errorMessage != null) ...[
+                const SizedBox(height: 12),
+                _DashboardInlineError(message: _errorMessage!),
+              ],
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton.icon(
+                  onPressed: _capturing ? null : _capture,
+                  icon: _capturing
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.camera_alt_outlined),
+                  label: Text(_capturing ? 'Validando rostro' : 'Capturar rostro'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF39A900),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashboardCameraError extends StatelessWidget {
+  const _DashboardCameraError({
+    required this.message,
+    required this.onRetry,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: const Color(0xFF07375F),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.no_photography_outlined,
+              color: Color(0xFF7FDB64),
+              size: 42,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'No se pudo abrir la camara',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DashboardInlineError extends StatelessWidget {
+  const _DashboardInlineError({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFB3262E).withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFB3262E)),
+      ),
+      child: Text(
+        message,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
