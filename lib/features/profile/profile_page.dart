@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:camera/camera.dart';
 import 'package:file_picker/file_picker.dart' as file_picker;
 import 'package:sima_movil_froned/features/login/login_page.dart';
 import 'package:sima_movil_froned/features/profile/data/profile_repository.dart';
@@ -1327,16 +1328,22 @@ class _FacialBiometricsSheetState extends State<_FacialBiometricsSheet> {
   }
 
   Future<void> _enrollFace() async {
-    setState(() {
-      _isWorking = true;
-      _message = null;
-    });
+    setState(() => _message = null);
 
     try {
+      final capture = await _showFacialEnrollmentPreview(context);
+      if (capture == null) {
+        if (!mounted) return;
+        return;
+      }
+
+      setState(() {
+        _isWorking = true;
+      });
+
       final challenge = await FacialBiometricsService.requestEnrollmentChallenge(
         deviceUuid: FacialBiometricsService.deviceUuid,
       );
-      final capture = await FacialEmbeddingEngine.captureForEnrollment();
       await FacialBiometricsService.enroll(
         deviceUuid: FacialBiometricsService.deviceUuid,
         challengeToken: challenge['challenge_token']?.toString() ?? '',
@@ -1362,6 +1369,21 @@ class _FacialBiometricsSheetState extends State<_FacialBiometricsSheet> {
         });
       }
     }
+  }
+
+  Future<FacialEmbeddingCapture?> _showFacialEnrollmentPreview(
+    BuildContext context,
+  ) {
+    return showModalBottomSheet<FacialEmbeddingCapture>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (_) => const _FacialEnrollmentPreviewSheet(),
+    );
   }
 
   Future<void> _revokeConsent() async {
@@ -1945,6 +1967,232 @@ class _SkeletonBox extends StatelessWidget {
       decoration: BoxDecoration(
         color: _ProfileColors.line,
         borderRadius: BorderRadius.circular(8),
+      ),
+    );
+  }
+}
+
+class _FacialEnrollmentPreviewSheet extends StatefulWidget {
+  const _FacialEnrollmentPreviewSheet();
+
+  @override
+  State<_FacialEnrollmentPreviewSheet> createState() =>
+      _FacialEnrollmentPreviewSheetState();
+}
+
+class _FacialEnrollmentPreviewSheetState
+    extends State<_FacialEnrollmentPreviewSheet> {
+  late Future<CameraController> _controllerFuture;
+  CameraController? _controller;
+  String? _errorMessage;
+  bool _capturing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllerFuture = _initCamera();
+  }
+
+  Future<CameraController> _initCamera() async {
+    final previousController = _controller;
+    _controller = null;
+    await previousController?.dispose();
+
+    final controller = await FacialEmbeddingEngine.createPreviewController();
+    _controller = controller;
+    return controller;
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _capture() async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) {
+      setState(() {
+        _errorMessage = 'La camara aun no esta lista. Intenta nuevamente.';
+      });
+      return;
+    }
+
+    setState(() {
+      _capturing = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final capture =
+          await FacialEmbeddingEngine.captureForEnrollmentWithPreview(controller);
+      if (!mounted) return;
+      Navigator.of(context).pop(capture);
+    } on FacialSimaUnavailableException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error.message;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = _cleanErrorMessage(error);
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _capturing = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          22,
+          0,
+          22,
+          MediaQuery.viewInsetsOf(context).bottom + 22,
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.88,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Enrolar rostro',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: _ProfileColors.navy,
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Cerrar',
+                    onPressed:
+                        _capturing ? null : () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              const _StatusNotice(
+                icon: Icons.face_retouching_natural_outlined,
+                text:
+                    'Centra tu rostro, mira de frente y mantente en buena iluminacion. La imagen no se guarda.',
+              ),
+              const SizedBox(height: 14),
+              Flexible(
+                child: FutureBuilder<CameraController>(
+                  future: _controllerFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const AspectRatio(
+                        aspectRatio: 3 / 4,
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+
+                    if (snapshot.hasError || !snapshot.hasData) {
+                      return _ProfileStatePanel(
+                        icon: Icons.no_photography_outlined,
+                        title: 'No se pudo abrir la camara',
+                        message: _cleanErrorMessage(snapshot.error),
+                        actionLabel: 'Reintentar',
+                        onAction: () {
+                          setState(() {
+                            _errorMessage = null;
+                            _controllerFuture = _initCamera();
+                          });
+                        },
+                      );
+                    }
+
+                    final controller = snapshot.data!;
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: AspectRatio(
+                        aspectRatio: 3 / 4,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            FittedBox(
+                              fit: BoxFit.cover,
+                              child: SizedBox(
+                                width: controller.value.previewSize?.height ??
+                                    720,
+                                height: controller.value.previewSize?.width ??
+                                    960,
+                                child: CameraPreview(controller),
+                              ),
+                            ),
+                            IgnorePointer(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.74),
+                                    width: 3,
+                                  ),
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                              ),
+                            ),
+                            Align(
+                              alignment: Alignment.center,
+                              child: Container(
+                                width: 220,
+                                height: 280,
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: _ProfileColors.green,
+                                    width: 3,
+                                  ),
+                                  borderRadius: BorderRadius.circular(140),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              if (_errorMessage != null) ...[
+                const SizedBox(height: 12),
+                _StatusNotice(
+                  icon: Icons.error_outline_rounded,
+                  text: _errorMessage!,
+                  color: _ProfileColors.danger,
+                ),
+              ],
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: _capturing ? null : _capture,
+                icon: _capturing
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.camera_alt_outlined),
+                label: Text(_capturing ? 'Procesando rostro' : 'Capturar y enrolar'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
