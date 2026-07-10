@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart' as file_picker;
 import 'package:sima_movil_froned/features/login/login_page.dart';
 import 'package:sima_movil_froned/features/profile/data/profile_repository.dart';
 import 'package:sima_movil_froned/features/profile/models/apprentice_profile.dart';
+import 'package:sima_movil_froned/services/facial_biometrics_service.dart';
 
 const _wideBreakpoint = 760.0;
 
@@ -232,6 +233,18 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  void _showFacialBiometricsSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (sheetContext) {
+        return const _FacialBiometricsSheet();
+      },
+    );
+  }
+
   Future<void> _confirmLogout() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -305,6 +318,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     onLogoutTap: _confirmLogout,
                     onPhotoTap: _changeProfilePhoto,
                     onSecurityTap: _showChangePasswordSheet,
+                    onFacialBiometricsTap: _showFacialBiometricsSheet,
                   );
 
                   return SingleChildScrollView(
@@ -349,6 +363,7 @@ class _ProfileContent extends StatelessWidget {
     required this.onLogoutTap,
     required this.onPhotoTap,
     required this.onSecurityTap,
+    required this.onFacialBiometricsTap,
   });
 
   final ApprenticeProfile profile;
@@ -359,6 +374,7 @@ class _ProfileContent extends StatelessWidget {
   final VoidCallback onLogoutTap;
   final VoidCallback onPhotoTap;
   final VoidCallback onSecurityTap;
+  final VoidCallback onFacialBiometricsTap;
 
   @override
   Widget build(BuildContext context) {
@@ -387,6 +403,7 @@ class _ProfileContent extends StatelessWidget {
                 onAcademicTap: onAcademicTap,
                 onEmergencyTap: onEmergencyTap,
                 onSecurityTap: onSecurityTap,
+                onFacialBiometricsTap: onFacialBiometricsTap,
               ),
             ],
           ),
@@ -698,12 +715,14 @@ class _ProfileAccessCard extends StatelessWidget {
     required this.onAcademicTap,
     required this.onEmergencyTap,
     required this.onSecurityTap,
+    required this.onFacialBiometricsTap,
   });
 
   final VoidCallback onPersonalTap;
   final VoidCallback onAcademicTap;
   final VoidCallback onEmergencyTap;
   final VoidCallback onSecurityTap;
+  final VoidCallback onFacialBiometricsTap;
 
   @override
   Widget build(BuildContext context) {
@@ -746,6 +765,12 @@ class _ProfileAccessCard extends StatelessWidget {
           title: 'Seguridad',
           subtitle: 'Clave y estado de la sesión',
           onTap: onSecurityTap,
+        ),
+        _ProfileAccessTile(
+          icon: Icons.face_retouching_natural_outlined,
+          title: 'Facial SIMA',
+          subtitle: 'Consentimiento y enrolamiento facial',
+          onTap: onFacialBiometricsTap,
         ),
       ],
     );
@@ -1243,6 +1268,219 @@ class _ReadOnlySheet extends StatelessWidget {
   }
 }
 
+class _FacialBiometricsSheet extends StatefulWidget {
+  const _FacialBiometricsSheet();
+
+  @override
+  State<_FacialBiometricsSheet> createState() => _FacialBiometricsSheetState();
+}
+
+class _FacialBiometricsSheetState extends State<_FacialBiometricsSheet> {
+  late Future<Map<String, dynamic>> _statusFuture;
+  bool _isWorking = false;
+  String? _message;
+  bool _messageIsError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _statusFuture = FacialBiometricsService.getStatus();
+  }
+
+  void _reload() {
+    setState(() {
+      _statusFuture = FacialBiometricsService.getStatus();
+    });
+  }
+
+  void _setMessage(String message, {bool isError = false}) {
+    setState(() {
+      _message = message;
+      _messageIsError = isError;
+    });
+  }
+
+  Future<void> _acceptConsent() async {
+    setState(() {
+      _isWorking = true;
+      _message = null;
+    });
+
+    try {
+      await FacialBiometricsService.acceptConsent();
+      if (!mounted) return;
+      _setMessage('Consentimiento facial aceptado. Ahora puedes enrolar tu rostro.');
+      _reload();
+    } catch (error) {
+      if (!mounted) return;
+      _setMessage(
+        error.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isWorking = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _enrollFace() async {
+    setState(() {
+      _isWorking = true;
+      _message = null;
+    });
+
+    try {
+      final challenge = await FacialBiometricsService.requestEnrollmentChallenge(
+        deviceUuid: FacialBiometricsService.deviceUuid,
+      );
+      final capture = await FacialEmbeddingEngine.captureForEnrollment();
+      await FacialBiometricsService.enroll(
+        deviceUuid: FacialBiometricsService.deviceUuid,
+        challengeToken: challenge['challenge_token']?.toString() ?? '',
+        capture: capture,
+      );
+
+      if (!mounted) return;
+      _setMessage('Rostro enrolado correctamente para Facial SIMA.');
+      _reload();
+    } on FacialSimaUnavailableException catch (error) {
+      if (!mounted) return;
+      _setMessage(error.message, isError: true);
+    } catch (error) {
+      if (!mounted) return;
+      _setMessage(
+        error.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isWorking = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _revokeConsent() async {
+    setState(() {
+      _isWorking = true;
+      _message = null;
+    });
+
+    try {
+      await FacialBiometricsService.revokeConsent();
+      if (!mounted) return;
+      _setMessage('Consentimiento facial revocado.');
+      _reload();
+    } catch (error) {
+      if (!mounted) return;
+      _setMessage(
+        error.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isWorking = false;
+        });
+      }
+    }
+  }
+
+  String _statusLabel(Map<String, dynamic> status) {
+    if (status['tiene_enrolamiento_activo'] == true) {
+      return 'Rostro enrolado y activo';
+    }
+    if (status['tiene_consentimiento_activo'] == true) {
+      return 'Consentimiento aceptado, falta enrolar rostro';
+    }
+    return 'Consentimiento pendiente';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _ProfileSheetScaffold(
+      title: 'Facial SIMA',
+      actionText: 'Cerrar',
+      isSaving: _isWorking,
+      onAction: () => Navigator.of(context).pop(),
+      child: FutureBuilder<Map<String, dynamic>>(
+        future: _statusFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return _ProfileStatePanel(
+              icon: Icons.cloud_off_outlined,
+              title: 'No se pudo consultar Facial SIMA',
+              message: snapshot.error.toString().replaceFirst('Exception: ', ''),
+              actionLabel: 'Reintentar',
+              onAction: _reload,
+            );
+          }
+
+          final status = snapshot.data ?? const <String, dynamic>{};
+          final hasConsent = status['tiene_consentimiento_activo'] == true;
+          final hasEnrollment = status['tiene_enrolamiento_activo'] == true;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _StatusNotice(
+                icon: Icons.privacy_tip_outlined,
+                text:
+                    'Facial SIMA valida identidad contra un enrolamiento activo. No guarda fotos, imagenes RAW ni embeddings en claro.',
+              ),
+              const SizedBox(height: 12),
+              _SheetInfoField(label: 'Estado', value: _statusLabel(status)),
+              const SizedBox(height: 12),
+              if (_message != null)
+                _StatusNotice(
+                  icon: _messageIsError
+                      ? Icons.error_outline_rounded
+                      : Icons.check_circle_outline_rounded,
+                  text: _message!,
+                  color: _messageIsError
+                      ? _ProfileColors.danger
+                      : _ProfileColors.green,
+                ),
+              if (_message != null) const SizedBox(height: 12),
+              if (!hasConsent)
+                FilledButton.icon(
+                  onPressed: _isWorking ? null : _acceptConsent,
+                  icon: const Icon(Icons.verified_user_outlined),
+                  label: const Text('Aceptar consentimiento facial'),
+                ),
+              if (hasConsent && !hasEnrollment)
+                FilledButton.icon(
+                  onPressed: _isWorking ? null : _enrollFace,
+                  icon: const Icon(Icons.face_retouching_natural_outlined),
+                  label: const Text('Enrolar rostro'),
+                ),
+              if (hasConsent)
+                TextButton.icon(
+                  onPressed: _isWorking ? null : _revokeConsent,
+                  icon: const Icon(Icons.block_outlined),
+                  label: const Text('Revocar consentimiento facial'),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _ProfileSheetScaffold extends StatelessWidget {
   const _ProfileSheetScaffold({
     required this.title,
@@ -1486,22 +1724,27 @@ class _ProfileAvatar extends StatelessWidget {
 }
 
 class _StatusNotice extends StatelessWidget {
-  const _StatusNotice({required this.icon, required this.text});
+  const _StatusNotice({
+    required this.icon,
+    required this.text,
+    this.color = _ProfileColors.green,
+  });
 
   final IconData icon;
   final String text;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: _ProfileColors.green.withValues(alpha: 0.09),
+        color: color.withValues(alpha: 0.09),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [
-          Icon(icon, color: _ProfileColors.green, size: 18),
+          Icon(icon, color: color, size: 18),
           const SizedBox(width: 9),
           Expanded(
             child: Text(

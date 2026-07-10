@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:sima_movil_froned/services/attendance_service.dart';
+import 'package:sima_movil_froned/services/facial_biometrics_service.dart';
 import 'package:sima_movil_froned/services/hardware/local_auth_service.dart';
 import 'package:sima_movil_froned/services/hardware/location_service.dart';
 
@@ -76,12 +77,13 @@ class _DashboardQrScannerScreenState extends State<_DashboardQrScannerScreen> {
 
       if (!mounted) return;
 
-      var biometricOutcome =
-          await Navigator.of(context).push<_DashboardBiometricOutcome?>(
-        MaterialPageRoute(
-          builder: (_) => _DashboardBiometricStep(type: selectedMethod),
-        ),
-      );
+      var biometricOutcome = selectedMethod == _DashboardStepType.face
+          ? await _runFaceValidation(idSesionActiva)
+          : await Navigator.of(context).push<_DashboardBiometricOutcome?>(
+              MaterialPageRoute(
+                builder: (_) => _DashboardBiometricStep(type: selectedMethod),
+              ),
+            );
 
       if (selectedMethod == _DashboardStepType.face &&
           (biometricOutcome == null || !biometricOutcome.approved)) {
@@ -118,6 +120,8 @@ class _DashboardQrScannerScreenState extends State<_DashboardQrScannerScreen> {
         'biometric_method': biometricOutcome.method,
         'biometric_result': 'APROBADO',
         'biometric_challenge_token': challenge['challenge_token'],
+        if (biometricOutcome.facialValidationToken != null)
+          'facial_validation_token': biometricOutcome.facialValidationToken,
         'biometric_metadata': {
           'provider': biometricOutcome.provider,
           'attempt_number': biometricOutcome.attemptNumber,
@@ -163,7 +167,9 @@ class _DashboardQrScannerScreenState extends State<_DashboardQrScannerScreen> {
       builder: (_) => AlertDialog(
         title: const Text('Facial SIMA no disponible'),
         content: Text(
-          outcome?.reason == 'RECHAZADO'
+          outcome?.reason == 'NO_ENROLADO'
+              ? 'No tienes un enrolamiento facial activo. Puedes usar la biometria personal del telefono mientras se completa el enrolamiento institucional.'
+              : outcome?.reason == 'RECHAZADO'
               ? 'No se pudo aprobar Facial SIMA en los intentos permitidos. Ahora valida con la biometria personal del telefono.'
               : 'En este momento Facial SIMA no esta disponible. Valida con la biometria personal del telefono.',
         ),
@@ -175,6 +181,110 @@ class _DashboardQrScannerScreenState extends State<_DashboardQrScannerScreen> {
         ],
       ),
     );
+  }
+
+  Future<_DashboardBiometricOutcome> _runFaceValidation(int sessionId) async {
+    final startedAt = DateTime.now();
+    try {
+      var status = await FacialBiometricsService.getStatus();
+      final requiresConsent = status['requiere_consentimiento'] == true;
+
+      if (requiresConsent) {
+        final accepted = await _confirmFacialConsent();
+        if (!accepted) {
+          return _DashboardBiometricOutcome(
+            method: 'FACIAL_SIMA',
+            approved: false,
+            provider: 'facial_sima_identity',
+            attemptNumber: 1,
+            durationMs: DateTime.now().difference(startedAt).inMilliseconds,
+            reason: 'CONSENTIMIENTO_PENDIENTE',
+          );
+        }
+        await FacialBiometricsService.acceptConsent();
+        status = await FacialBiometricsService.getStatus();
+      }
+
+      if (status['requiere_enrolamiento'] == true) {
+        return _DashboardBiometricOutcome(
+          method: 'FACIAL_SIMA',
+          approved: false,
+          provider: 'facial_sima_identity',
+          attemptNumber: 1,
+          durationMs: DateTime.now().difference(startedAt).inMilliseconds,
+          reason: 'NO_ENROLADO',
+        );
+      }
+
+      final challenge = await FacialBiometricsService.requestValidationChallenge(
+        sessionId: sessionId,
+        deviceUuid: _dashboardDeviceUuid,
+      );
+      final capture = await FacialEmbeddingEngine.captureForValidation();
+      final validation = await FacialBiometricsService.validateAttempt(
+        sessionId: sessionId,
+        deviceUuid: _dashboardDeviceUuid,
+        challengeToken: challenge['challenge_token']?.toString() ?? '',
+        capture: capture,
+      );
+
+      final approved = validation['aprobado'] == true;
+      return _DashboardBiometricOutcome(
+        method: 'FACIAL_SIMA',
+        approved: approved,
+        provider: capture.provider,
+        attemptNumber: 1,
+        durationMs: DateTime.now().difference(startedAt).inMilliseconds,
+        reason: approved ? 'OK' : (validation['motivo']?.toString() ?? 'RECHAZADO'),
+        facialValidationToken:
+            approved ? validation['facial_validation_token']?.toString() : null,
+      );
+    } on FacialSimaUnavailableException catch (error) {
+      return _DashboardBiometricOutcome(
+        method: 'FACIAL_SIMA',
+        approved: false,
+        provider: 'facial_sima_identity',
+        attemptNumber: 1,
+        durationMs: DateTime.now().difference(startedAt).inMilliseconds,
+        reason: error.message.contains('no esta disponible')
+            ? 'NO_DISPONIBLE'
+            : 'MOTOR_NO_CONFIGURADO',
+      );
+    } catch (_) {
+      return _DashboardBiometricOutcome(
+        method: 'FACIAL_SIMA',
+        approved: false,
+        provider: 'facial_sima_identity',
+        attemptNumber: 1,
+        durationMs: DateTime.now().difference(startedAt).inMilliseconds,
+        reason: 'ERROR',
+      );
+    }
+  }
+
+  Future<bool> _confirmFacialConsent() async {
+    final accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Consentimiento facial'),
+        content: const Text(
+          'Para usar Facial SIMA debes autorizar el tratamiento de tu embedding facial cifrado. No se guardara imagen ni video de tu rostro.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Aceptar'),
+          ),
+        ],
+      ),
+    );
+
+    return accepted == true;
   }
 
   Future<int> _getActiveSessionId() async {
@@ -292,6 +402,7 @@ class _DashboardBiometricOutcome {
     required this.attemptNumber,
     required this.durationMs,
     required this.reason,
+    this.facialValidationToken,
   });
 
   final String method;
@@ -300,6 +411,7 @@ class _DashboardBiometricOutcome {
   final int attemptNumber;
   final int durationMs;
   final String reason;
+  final String? facialValidationToken;
 }
 
 class _DashboardMethodChoiceStep extends StatelessWidget {

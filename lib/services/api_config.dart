@@ -40,6 +40,16 @@ class ApiConfig {
   static const String qrAttendance = '$baseUrl/attendances/qr';
   static const String mobileBiometricChallenge =
       '$baseUrl/attendances/mobile-biometric-challenge';
+  static const String facialBiometrics = '$baseUrl/biometrics/facial';
+  static const String facialStatus = '$facialBiometrics/me';
+  static const String facialConsent = '$facialBiometrics/consent';
+  static const String facialEnrollmentChallenge =
+      '$facialBiometrics/enrollment/challenge';
+  static const String facialEnrollment = '$facialBiometrics/enrollment';
+  static const String facialValidationChallenge =
+      '$facialBiometrics/validation/challenge';
+  static const String facialValidationAttempt =
+      '$facialBiometrics/validation/attempt';
   static const String submitJustification =
       '$baseUrl/attendances/justifications';
   static const String eligibleJustifications =
